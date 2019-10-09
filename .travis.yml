@@ -1,0 +1,23 @@
+language: go
+
+go:
+  - "1.13"
+
+sudo: false
+
+env:
+  global:
+    - GOOS=linux
+    - GOARCH=amd64
+    - LDFLAGS="-s -w"
+
+matrix:
+  fast_finish: true
+
+before_install:
+  - echo 'Install deps here..'
+
+script:
+  - test -z "$(gofmt -l .)"
+  - go build -ldflags="${LDFLAGS}" -o /tmp/tinifier .
+  - /tmp/tinifier -v
