@@ -1,6 +1,8 @@
 # Image page: <https://hub.docker.com/_/golang>
 FROM golang:1.13-alpine as builder
 
+RUN apk add --no-cache upx
+
 ADD ./src /src
 
 WORKDIR /src
@@ -8,6 +10,7 @@ WORKDIR /src
 RUN set -x \
     && go version \
     && go build -ldflags='-s -w' -o /tmp/tinifier . \
+    && upx --brute /tmp/tinifier \
     && /tmp/tinifier -v
 
 FROM alpine:latest

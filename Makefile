@@ -29,9 +29,10 @@ help: ## Show this help
 build: ## Build app binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' ./main.go
 
-test: ## Run app tests
-	printf "\033[33m %s \033[0m\n" 'Start gofmt..'
+gofmt:
 	$(DC_BIN) run $(DC_RUN_ARGS) sh -c 'test -z "$$(gofmt -d -e .)"'
+
+test: gofmt ## Run app tests
 
 run: ## Rum app withput building binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go run ./main.go $(GO_RUN_ARGS)
@@ -41,6 +42,7 @@ shell: ## Start shell into container with golang
 
 image: ## Build docker image with app
 	$(DOCKER_BIN) build -f ./Dockerfile -t $(APP_NAME) .
+	$(DOCKER_BIN) run $(APP_NAME) /bin/tinifier -v
 
 clean: ## Make clean
 	$(DC_BIN) down -v -t 1
