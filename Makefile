@@ -15,6 +15,7 @@ GETFLAGS = -t -v -u
 DOCKER_BIN = $(shell command -v docker 2> /dev/null)
 DC_BIN = $(shell command -v docker-compose 2> /dev/null)
 DC_RUN_ARGS = --rm --user "$(shell id -u):$(shell id -g)" app
+APP_NAME = $(notdir $(CURDIR))
 
 .PHONY : help build test clean image
 .DEFAULT_GOAL : help
@@ -29,7 +30,7 @@ help: ## Show this help
 
 build: ## Build app binary file
 	$(DC_BIN) run -e "GOARCH=$(GOARCH)" -e "GOOS=$(GOOS)" $(DC_RUN_ARGS) \
-		go build -ldflags=$(LDFLAGS) -o '/build/$(notdir $(CURDIR))' ./main.go
+		go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' ./main.go
 
 .SILENT:
 test: ## Run app tests
@@ -41,8 +42,8 @@ shell: ## Start shell into container with golang
 	$(DC_BIN) run $(DC_RUN_ARGS) sh
 
 image: ## Build docker image with app
-	$(DOCKER_BIN) build -f ./Dockerfile .
+	$(DOCKER_BIN) build -f ./Dockerfile -t $(APP_NAME) .
 
 clean: ## Make clean
-	$(DC_BIN) stop -t 1
-	$(DC_BIN) rm -f -s -v
+	$(DC_BIN) down -v -t 1
+	$(DOCKER_BIN) rmi $(APP_NAME) -f
