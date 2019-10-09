@@ -3,10 +3,6 @@
 # Makefile readme (en): <https://www.gnu.org/software/make/manual/html_node/index.html#SEC_Contents>
 
 SHELL = /bin/sh
-# GOOS can be 'android darwin dragonfly freebsd linux nacl netbsd openbsd plan9 solaris windows'
-GOOS = linux
-# GOARCH can be '386 amd64 amd64p32 arm arm64 ppc64 ppc64le mips mipsle mips64 mips64le mips64p32 mips64p32le ppc s390 s390x sparc sparc64'
-GOARCH = amd64
 # LDFLAGS flags help: 'go help build'
 LDFLAGS = "-s -w"
 # GETFLAGS flags help: 'go help get'
@@ -16,9 +12,11 @@ DOCKER_BIN = $(shell command -v docker 2> /dev/null)
 DC_BIN = $(shell command -v docker-compose 2> /dev/null)
 DC_RUN_ARGS = --rm --user "$(shell id -u):$(shell id -g)" app
 APP_NAME = $(notdir $(CURDIR))
+GO_RUN_ARGS ?=
 
-.PHONY : help build test clean image
+.PHONY : help build test run shell image clean
 .DEFAULT_GOAL : help
+.SILENT : test shell
 
 # This will output the help for each task. thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this help
@@ -29,15 +27,15 @@ help: ## Show this help
 #	$(CC) get $(GETFLAGS) ./...
 
 build: ## Build app binary file
-	$(DC_BIN) run -e "GOARCH=$(GOARCH)" -e "GOOS=$(GOOS)" $(DC_RUN_ARGS) \
-		go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' ./main.go
+	$(DC_BIN) run $(DC_RUN_ARGS) go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' ./main.go
 
-.SILENT:
 test: ## Run app tests
 	printf "\033[33m %s \033[0m\n" 'Start gofmt..'
 	$(DC_BIN) run $(DC_RUN_ARGS) sh -c 'test -z "$$(gofmt -d -e .)"'
 
-.SILENT:
+run: ## Rum app withput building binary file
+	$(DC_BIN) run $(DC_RUN_ARGS) go run ./main.go $(GO_RUN_ARGS)
+
 shell: ## Start shell into container with golang
 	$(DC_BIN) run $(DC_RUN_ARGS) sh
 
