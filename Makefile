@@ -14,7 +14,7 @@ DC_RUN_ARGS = --rm --user "$(shell id -u):$(shell id -g)" app
 APP_NAME = $(notdir $(CURDIR))
 GO_RUN_ARGS ?=
 
-.PHONY : help build test run shell image clean
+.PHONY : help build update gofmt test run shell image clean
 .DEFAULT_GOAL : help
 .SILENT : test shell
 
@@ -23,18 +23,20 @@ help: ## Show this help
 	@printf "\033[33m%s:\033[0m\n" 'Available commands'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[32m%-11s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-#deps: ## Install all build dependencies
-#	$(CC) get $(GETFLAGS) ./...
+update: ## Update modules (safe)
+	$(DC_BIN) run $(DC_RUN_ARGS) go get -u
 
 build: ## Build app binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' ./main.go
 
-gofmt:
-	$(DC_BIN) run $(DC_RUN_ARGS) sh -c 'test -z "$$(gofmt -d -e .)"'
+gofmt: ## Run gofmt tool
+	$(DC_BIN) run $(DC_RUN_ARGS) gofmt -s -w .
 
-test: gofmt ## Run app tests
+test: ## Run app tests
+	@echo "Under construction"
+	@exit 1
 
-run: ## Rum app withput building binary file
+run: ## Run app without building binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go run ./main.go $(GO_RUN_ARGS)
 
 shell: ## Start shell into container with golang
@@ -42,7 +44,7 @@ shell: ## Start shell into container with golang
 
 image: ## Build docker image with app
 	$(DOCKER_BIN) build -f ./Dockerfile -t $(APP_NAME) .
-	$(DOCKER_BIN) run $(APP_NAME) /bin/tinifier -v
+	$(DOCKER_BIN) run $(APP_NAME) /bin/tinifier -V
 
 clean: ## Make clean
 	$(DC_BIN) down -v -t 1

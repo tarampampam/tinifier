@@ -14,4 +14,4 @@ script:
   - cd ./src
   - test -z "$(gofmt -l .)"
   - go build -ldflags='-s -w' -o /tmp/tinifier .
-  - /tmp/tinifier -v
+  - /tmp/tinifier -V

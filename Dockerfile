@@ -1,6 +1,10 @@
 # Image page: <https://hub.docker.com/_/golang>
 FROM golang:1.13-alpine as builder
 
+# UPX parameters help: <https://www.mankier.com/1/upx>
+ARG upx_params
+ENV upx_params=${upx_params:---brute}
+
 RUN apk add --no-cache upx
 
 ADD ./src /src
@@ -8,10 +12,11 @@ ADD ./src /src
 WORKDIR /src
 
 RUN set -x \
+    && upx -V \
     && go version \
     && go build -ldflags='-s -w' -o /tmp/tinifier . \
-    && upx --brute /tmp/tinifier \
-    && /tmp/tinifier -v
+    && upx ${upx_params} /tmp/tinifier \
+    && /tmp/tinifier -V
 
 FROM alpine:latest
 LABEL Description="Docker image with tinifier" Vendor="Tarampampam"
