@@ -36,7 +36,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_build]:https://img.shields.io/travis/com/tarampampam/tinifier/master.svg?maxAge=10
 [badge_size_latest]:https://images.microbadger.com/badges/image/tarampampam/tinifier.svg
 [badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
-[badge_language]:https://img.shields.io/badge/language-go-blue.svg?longCache=true
+[badge_language]:https://img.shields.io/badge/language-go_1.13-blue.svg?longCache=true
 [badge_license]:https://img.shields.io/github/license/tarampampam/tinifier.svg?longCache=true
 [badge_release_date]:https://img.shields.io/github/release-date/tarampampam/tinifier.svg?maxAge=180
 [badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45
