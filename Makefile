@@ -33,7 +33,7 @@ gofmt: ## Run gofmt tool
 	$(DC_BIN) run $(DC_RUN_ARGS) gofmt -s -w .
 
 test: ## Run app tests
-	$(DC_BIN) run $(DC_RUN_ARGS) go test -v -coverprofile=coverage.txt -covermode=atomic
+	$(DC_BIN) run $(DC_RUN_ARGS) go test -v
 
 run: ## Run app without building binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go run ./main.go $(GO_RUN_ARGS)

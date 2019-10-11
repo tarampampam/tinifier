@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -14,6 +13,9 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 
 	var asserts = []slicesTestPair{
 		{[]string{"foo.bar"}, []string{"bar"}, []string{"foo.bar"}},
+		{[]string{"foo.bar", "foo.baz", "baz.bar", "foo.foo"}, []string{"baz", "foo"}, []string{"foo.baz", "foo.foo"}},
+		{[]string{"foo.bar", "foo.baz", "baz.bar", "foo.foo"}, []string{"baz,foo"}, []string{"foo.baz", "foo.foo"}},
+		{[]string{"aa", "ab", "ac", "d"}, []string{"a,b", "d"}, []string{"aa", "ab", "d"}},
 	}
 
 	for _, testCase := range asserts {
@@ -32,8 +34,6 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 		for _, expectedEntry := range testCase.expected {
 			AssertStringSliceContainsString(result, expectedEntry, t)
 		}
-
-		fmt.Println(result)
 	}
 }
 
