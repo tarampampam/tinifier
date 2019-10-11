@@ -10,8 +10,10 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -125,6 +127,13 @@ func main() {
 		}()
 	}
 
+	if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
+		infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
+	} else {
+		errorsLog.Println(color.BrightRed(err))
+	}
+
+
 	wg.Wait()
 }
 
@@ -191,6 +200,19 @@ func processFile(filePath string) error {
 	}
 
 	return nil
+}
+
+// Get service used quota value
+func getQuotaUsage(client *tinypngClient.Client) (int, error) {
+	if response, err := client.Request(http.MethodPost, "/shrink", nil); err == nil {
+		if count, err := strconv.Atoi(response.Header["Compression-Count"][0]); err == nil {
+			return count, nil
+		} else {
+			return -1, err
+		}
+	} else {
+		return -1, err
+	}
 }
 
 // Compress image using tinypng.com service. Important: API key must be set before function calling
