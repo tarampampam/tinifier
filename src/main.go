@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,7 +26,7 @@ type Options struct {
 	ShowVersion    bool     `short:"V" long:"version" description:"Show version and exit"`
 	FileExtensions []string `short:"e" long:"ext" default:"jpg,JPG,jpeg,JPEG,png,PNG" description:"Target file extensions"`
 	ApiKey         string   `short:"k" long:"api-key" env:"TINYPNG_API_KEY" description:"API key <https://tinypng.com/dashboard/api>"`
-	Threads        byte     `short:"t" long:"threads" default:"5" description:"Threads processing count"`
+	Threads        int      `short:"t" long:"threads" default:"5" description:"Threads processing count"`
 	Targets        struct {
 		Path []string `positional-arg-name:"files-and-directories"`
 	} `positional-args:"yes" required:"true"`
@@ -66,6 +67,11 @@ func main() {
 		errorsLog.Fatal(color.BrightRed("tinypng.com API key is not provided"))
 	}
 
+	// Check threads count
+	if options.Threads <= 0 {
+		errorsLog.Fatal(color.BrightRed("Threads count cannot be less then 1"))
+	}
+
 	var files []string
 
 	// Try to get files list
@@ -88,65 +94,103 @@ func main() {
 		infoLog.Println()
 	}
 
+	infoLog.Println("Start", color.BrightYellow(options.Threads), "threads")
+
+	// Create channel with file paths
+	channel := make(chan string, len(files))
+
+	// Create a wait group <https://nathanleclaire.com/blog/2014/02/15/how-to-wait-for-all-goroutines-to-finish-executing-before-continuing/>
+	var wg sync.WaitGroup
+
+	wg.Add(options.Threads)
+
+	// Fill up the channel with file paths (async)
 	for _, filePath := range files {
-		var (
-			tmpFileName = filePath + ".tmp"
-			logColors   = [7]color.Color{
-				color.RedFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
-			}
-			randLogColor = logColors[(rand.New(rand.NewSource(time.Now().Unix()))).Intn(len(logColors))]
-			logger       = log.New(infoLog.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), infoLog.Flags() | log.Ltime)
-		)
+		channel <- filePath
+	}
 
-		if options.Verbose {
-			logger.Printf("Make file copy to %s\n", tmpFileName)
-		}
+	for i := 0; i < options.Threads; i++ {
+		go func() {
+			defer wg.Done()
 
-		// Make original file copy
-		if size, err := copyFile(filePath, tmpFileName); err == nil {
-			if options.Verbose {
-				logger.Printf("Copied file size: %d bytes\n", size)
-			}
-
-			logger.Println("Compressing file (upload and download back)..")
-
-			// Compress file copy
-			if err := compressFile(tmpFileName, tmpFileName); err == nil {
-				logger.Println("File compressed and download successful")
-
-				// Remove original file
-				if err := os.Remove(filePath); err == nil {
-					if err := os.Rename(tmpFileName, filePath); err == nil {
-						if options.Verbose {
-							logger.Println("Original file replaced with compressed temporary")
-						}
-
-						if info, err := os.Stat(filePath); err == nil {
-							logger.Printf("Compression ratio: %0.1f%%\n", math.Abs(float64(info.Size() - size) / float64(size) * 100))
-						}
-					} else {
-						logger.Println("Cannot rename temporary file to original filename", err)
+			for {
+				if len(channel) > 0 {
+					if err := processFile(<-channel); err != nil {
+						errorsLog.Println(color.BrightRed(err))
 					}
 				} else {
-					logger.Println("Cannot remove original file", err)
-				}
-			} else {
-				logger.Println("Error while compressing file", err)
-
-				if err := os.Remove(tmpFileName); err == nil {
-					logger.Println("Cannot remove temporary file", err)
+					break
 				}
 			}
-		} else {
-			logger.Println(color.BrightRed(err))
-		}
+		}()
 	}
-	//
-	//compressFile()
-	//
-	//infoLog.Println(tinypngClient, options.Threads)
 
-	// @todo: Write code
+	wg.Wait()
+}
+
+// Main function - compress file
+func processFile(filePath string) error {
+	var (
+		tmpFileName = filePath + ".tmp"
+		logColors   = [7]color.Color{
+			color.RedFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
+		}
+		randLogColor = logColors[(rand.New(rand.NewSource(time.Now().UnixNano()))).Intn(len(logColors))]
+		logger       = log.New(infoLog.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), infoLog.Flags()|log.Ltime)
+	)
+
+	if options.Verbose {
+		logger.Printf("Make file copy to %s\n", tmpFileName)
+	}
+
+	// Make original file copy
+	if size, err := copyFile(filePath, tmpFileName); err == nil {
+		if options.Verbose {
+			logger.Printf("Copied file size: %d bytes\n", size)
+		}
+
+		logger.Println("Compressing file (upload and download back)..")
+
+		// Compress file copy
+		if err := compressFile(tmpFileName, tmpFileName); err == nil {
+			logger.Println("File compressed and download successful")
+
+			// Remove original file
+			if err := os.Remove(filePath); err == nil {
+				if err := os.Rename(tmpFileName, filePath); err == nil {
+					if options.Verbose {
+						logger.Println("Original file replaced with compressed temporary")
+					}
+
+					if info, err := os.Stat(filePath); err == nil {
+						logger.Printf("Compression ratio: %0.1f%%\n", math.Abs(float64(info.Size()-size)/float64(size)*100))
+					}
+				} else {
+					logger.Println("Cannot rename temporary file to original filename", err)
+
+					return err
+				}
+			} else {
+				logger.Println("Cannot remove original file", err)
+
+				return err
+			}
+		} else {
+			logger.Println("Error while compressing file", err)
+
+			if err := os.Remove(tmpFileName); err == nil {
+				logger.Println("Cannot remove temporary file", err)
+
+				return err
+			}
+
+			return err
+		}
+	} else {
+		return err
+	}
+
+	return nil
 }
 
 // Compress image using tinypng.com service. Important: API key must be set before function calling
