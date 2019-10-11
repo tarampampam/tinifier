@@ -2,7 +2,7 @@
   <img src="https://tinypng.com/images/apng/panda-waving.png" alt="Logo" width="128" />
 </p>
 
-# CLI tool for images compressing
+# :panda_face: CLI tool for images compressing
 
 ![Release version][badge_release_version]
 ![Project language][badge_language]
@@ -30,7 +30,7 @@ Help Options:
 
 > API key can be passed in environment variable named `TINYPNG_API_KEY`
 
-## Usage example
+## :fire: Usage example
 
 > [tinypng.com][tinypng.com] API key is required. You get own API key by pressing link "login" on service main page.
 
@@ -60,7 +60,7 @@ Compress all images in **current** directory:
 $ docker run --rm -v "$(pwd):/rootfs:rw" -w /rootfs tarampampam/tinifier -k 'YOUR-API-KEY-GOES-HERE' .
 ```
 
-### Testing
+### :star2: Testing
 
 For application testing we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
 
@@ -68,21 +68,21 @@ For application testing we use built-in golang testing feature and `docker-ce` +
 $ make test
 ```
 
-## Changes log
+## :notebook: Changes log
 
 [![Release date][badge_release_date]][link_releases]
 [![Commits since latest release][badge_commits_since_release]][link_commits]
 
 Changes log can be [found here][link_changes_log].
 
-## Support
+## :ambulance: Support
 
 [![Issues][badge_issues]][link_issues]
 [![Issues][badge_pulls]][link_pulls]
 
 If you will find any package errors, please, [make an issue][link_create_issue] in current repository.
 
-## License
+## :eyes: License
 
 This is open-sourced software licensed under the [MIT License][link_license].
 
