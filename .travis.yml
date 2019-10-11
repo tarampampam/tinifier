@@ -2,8 +2,6 @@ language: go
 
 go: "1.13.x"
 
-sudo: false
-
 addons:
   apt:
     packages:
@@ -11,8 +9,6 @@ addons:
 
 git:
   depth: 1
-
-install: true
 
 env:
   global:
@@ -30,10 +26,10 @@ script:
   - go build -ldflags='-s -w' -o /tmp/tinifier .
   - ls -lh /tmp/tinifier
   - /tmp/tinifier -V
-  - GOOS='linux' GOARCH='386' go build -ldflags=$LDFLAGS -o ./build/tinifier_386 ./main.go
-  - GOOS='linux' GOARCH='amd64' go build -ldflags=$LDFLAGS -o ./build/tinifier_amd64 ./main.go
-  - GOOS='windows' GOARCH='386' go build -ldflags=$LDFLAGS -o ./build/tinifier_tinifier_386.exe ./main.go
-  - GOOS='windows' GOARCH='amd64' go build -ldflags=$LDFLAGS -o ./build/tinifier_amd64.exe ./main.go
+  - GOOS='linux' GOARCH='386' go build -ldflags="$LDFLAGS" -o ./build/tinifier_386 ./main.go
+  - GOOS='linux' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o ./build/tinifier_amd64 ./main.go
+  - GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o ./build/tinifier_tinifier_386.exe ./main.go
+  - GOOS='windows' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o ./build/tinifier_amd64.exe ./main.go
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -f coverage.txt
