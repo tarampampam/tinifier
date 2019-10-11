@@ -11,7 +11,54 @@
 [![Image size][badge_size_latest]][link_docker_build]
 [![License][badge_license]][link_license]
 
-This tool using [tinypng.com](https://tinypng.com/) API endpoint.
+This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (multi-threads, of course):
+
+```
+Usage:
+  tinifier [OPTIONS] files-and-directories...
+
+Application Options:
+  -v                           Show verbose debug information
+  -V, --version                Show version and exit
+  -e, --ext=                   Target file extensions (default: jpg,JPG,jpeg,JPEG,png,PNG)
+  -k, --api-key=               API key <https://tinypng.com/dashboard/api> [$TINYPNG_API_KEY]
+  -t, --threads=               Threads processing count (default: 5)
+
+Help Options:
+  -h, --help                   Show this help message
+```
+
+> API key can be passed in environment variable named `TINYPNG_API_KEY`
+
+## Usage example
+
+> [tinypng.com][tinypng.com] API key is required. You get own API key by pressing link "login" on service main page.
+
+Compress single image:
+
+```bash
+$ tinifier -k 'YOUR-API-KEY-GOES-HERE' ./image.png
+```
+
+Compress all `png` images in some directory and 2 another images:
+
+```bash
+$ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./image-1.png ./image-2.png
+```
+
+Compress all images in some directory using 20 threads:
+
+```bash
+$ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-directory
+```
+
+### Testing
+
+For application testing we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
+
+```shell
+$ make test
+```
 
 ## Changes log
 
@@ -52,3 +99,5 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_issues]:https://github.com/tarampampam/tinifier/issues
 [link_create_issue]:https://github.com/tarampampam/tinifier/issues/new/choose
 [link_pulls]:https://github.com/tarampampam/tinifier/pulls
+
+[tinypng.com]:https://tinypng.com/

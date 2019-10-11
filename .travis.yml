@@ -13,7 +13,7 @@ git:
 env:
   global:
     - LDFLAGS='-s -w'
-    - UPX_PARAMS=--brute
+    - UPX_PARAMS=-3
 
 matrix:
   fast_finish: true
@@ -23,7 +23,7 @@ before_script: cd ./src
 script:
   - test -z "$(gofmt -l .)"
   - go test . -v -race -coverprofile=coverage.txt -covermode=atomic
-  - go build -ldflags='-s -w' -o /tmp/tinifier .
+  - go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
   - ls -lh /tmp/tinifier
   - /tmp/tinifier -V
   - mkdir /tmp/build
@@ -44,7 +44,7 @@ deploy:
     api_key: "$GITHUB_OAUTH_TOKEN"
     file_glob: true
     file:
-      - build/*
+      - /tmp/build/*
     skip_cleanup: true
     on:
       tags: true
