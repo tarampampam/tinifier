@@ -60,6 +60,12 @@ Compress all images in **current** directory:
 $ docker run --rm -v "$(pwd):/rootfs:rw" -w /rootfs tarampampam/tinifier -k 'YOUR-API-KEY-GOES-HERE' .
 ```
 
+or 
+
+```bash
+$ docker run --rm -v $(pwd):/rootfs:rw -w /rootfs -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' tarampampam/tinifier .
+```
+
 ### Testing
 
 For application testing we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
