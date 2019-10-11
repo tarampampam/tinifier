@@ -30,6 +30,8 @@ Help Options:
 
 > API key can be passed in environment variable named `TINYPNG_API_KEY`
 
+> **Recursive (deep) directories walking is not supported**
+
 ## :fire: Usage example
 
 > [tinypng.com][tinypng.com] API key is required. You get own API key by pressing link "login" on service main page.
