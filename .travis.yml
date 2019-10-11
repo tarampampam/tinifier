@@ -30,10 +30,10 @@ script:
   - go build -ldflags='-s -w' -o /tmp/tinifier .
   - ls -lh /tmp/tinifier
   - /tmp/tinifier -V
-  - GOOS='linux' GOARCH='386' go build -ldflags=$LDFLAGS -o ./build/tinifier_386 ./src/main.go
-  - GOOS='linux' GOARCH='amd64' go build -ldflags=$LDFLAGS -o ./build/tinifier_amd64 ./src/main.go
-  - GOOS='windows' GOARCH='386' go build -ldflags=$LDFLAGS -o ./build/tinifier_tinifier_386.exe ./src/main.go
-  - GOOS='windows' GOARCH='amd64' go build -ldflags=$LDFLAGS -o ./build/tinifier_amd64.exe ./src/main.go
+  - GOOS='linux' GOARCH='386' go build -ldflags="$LDFLAGS" -o ./build/tinifier_386 ./src/main.go
+  - GOOS='linux' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o ./build/tinifier_amd64 ./src/main.go
+  - GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o ./build/tinifier_tinifier_386.exe ./src/main.go
+  - GOOS='windows' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o ./build/tinifier_amd64.exe ./src/main.go
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -f coverage.txt
