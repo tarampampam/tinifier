@@ -213,7 +213,7 @@ func copyFile(src, dst string) (int64, error) {
 		return 0, err
 	}
 
-	if ! sourceFileStat.Mode().IsRegular() {
+	if !sourceFileStat.Mode().IsRegular() {
 		return 0, errors.New(src + " is not a regular file")
 	}
 
