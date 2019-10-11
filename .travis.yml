@@ -31,9 +31,7 @@ script:
   - GOOS='linux' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_amd64 ./main.go
   - GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_tinifier_386.exe ./main.go
   - GOOS='windows' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_amd64.exe ./main.go
-  - ls -lh /tmp/build
-  - for f in /tmp/build/*; do upx $UPX_PARAMS $f; done
-  - ls -lh /tmp/build
+  - upx $UPX_PARAMS /tmp/build/*
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -f coverage.txt
