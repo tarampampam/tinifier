@@ -1,0 +1,4 @@
+comment: off
+
+fixes:
+  - "src/::" # reduce root e.g., "before/path/" => "path/"
