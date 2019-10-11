@@ -4,6 +4,10 @@ go: "1.13.x"
 
 sudo: false
 
+cache:
+  directories:
+    - $HOME/gopath
+
 matrix:
   fast_finish: true
 

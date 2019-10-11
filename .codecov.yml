@@ -1,4 +1,4 @@
 comment: off
 
-fixes:
+fixes: # Docs <https://docs.codecov.io/docs/fixing-paths>
   - "src/::" # reduce root e.g., "before/path/" => "path/"
