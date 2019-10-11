@@ -13,7 +13,7 @@ git:
 env:
   global:
     - LDFLAGS='-s -w'
-    - UPX_PARAMS=-3
+    - UPX_PARAMS=-5
 
 matrix:
   fast_finish: true
@@ -26,18 +26,17 @@ script:
   - go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
   - ls -lh /tmp/tinifier
   - /tmp/tinifier -V
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash) -f coverage.txt
+
+before_deploy:
   - mkdir /tmp/build
   - GOOS='linux' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_386 ./main.go
   - GOOS='linux' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_amd64 ./main.go
   - GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_tinifier_386.exe ./main.go
   - GOOS='windows' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_amd64.exe ./main.go
   - upx $UPX_PARAMS /tmp/build/*
-
-after_success:
-  - bash <(curl -s https://codecov.io/bash) -f coverage.txt
-
-#before_deploy:
-
 
 deploy:
   - provider: releases
