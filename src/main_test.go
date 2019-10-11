@@ -38,6 +38,8 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 	}
 }
 
+// @todo: write more tests
+
 // Assert that strings slice contains expected string
 func AssertStringSliceContainsString(slice []string, expected string, t *testing.T) {
 	for _, item := range slice {

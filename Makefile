@@ -39,7 +39,7 @@ run: ## Run app without building binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go run ./main.go $(GO_RUN_ARGS)
 
 shell: ## Start shell into container with golang
-	$(DC_BIN) run $(DC_RUN_ARGS) sh
+	$(DC_BIN) run $(DC_RUN_ARGS) bash
 
 image: ## Build docker image with app
 	$(DOCKER_BIN) build -f ./Dockerfile -t $(APP_NAME) .

@@ -4,10 +4,20 @@ go: "1.13.x"
 
 sudo: false
 
+addons:
+  apt:
+    packages:
+      - upx
+
 git:
   depth: 1
 
 install: true
+
+env:
+  global:
+    - LDFLAGS="-s -w"
+    - UPX_PARAMS=--brute
 
 matrix:
   fast_finish: true
@@ -20,6 +30,24 @@ script:
   - go build -ldflags='-s -w' -o /tmp/tinifier .
   - ls -lh /tmp/tinifier
   - /tmp/tinifier -V
+  - GOOS='linux' GOARCH='386' go build -ldflags=$LDFLAGS -o ./build/tinifier_386 ./src/main.go
+  - GOOS='linux' GOARCH='amd64' go build -ldflags=$LDFLAGS -o ./build/tinifier_amd64 ./src/main.go
+  - GOOS='windows' GOARCH='386' go build -ldflags=$LDFLAGS -o ./build/tinifier_tinifier_386.exe ./src/main.go
+  - GOOS='windows' GOARCH='amd64' go build -ldflags=$LDFLAGS -o ./build/tinifier_amd64.exe ./src/main.go
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -f coverage.txt
+
+#before_deploy:
+
+
+deploy:
+  - provider: releases
+    api_key: "$GITHUB_OAUTH_TOKEN"
+    file_glob: true
+    file:
+      - build/*
+    skip_cleanup: true
+    on:
+      tags: true
+      branch: master

@@ -1,11 +1,9 @@
 package main
 
 import (
-	"errors"
 	tinypngClient "github.com/gwpp/tinify-go/tinify"
 	flags "github.com/jessevdk/go-flags"
 	color "github.com/logrusorgru/aurora"
-	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -48,7 +46,7 @@ func main() {
 		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		} else {
-			parser.WriteHelp(os.Stdout)
+			parser.WriteHelp(infoLog.Writer())
 			os.Exit(1)
 		}
 	}
@@ -127,75 +125,71 @@ func main() {
 		}()
 	}
 
-	if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
-		infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
-	} else {
-		errorsLog.Println(color.BrightRed(err))
-	}
+	// Time to time request for the current quota usage
+	go func() {
+		for {
+			if len(channel) > 0 {
+				if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
+					infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
+				} else {
+					errorsLog.Println(color.BrightRed(err))
+				}
 
+				time.Sleep(10 * time.Second)
+			} else {
+				break
+			}
+		}
+	}()
 
 	wg.Wait()
+
+	// Show current quota usage before exit
+	if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
+		infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
+	}
 }
 
 // Main function - compress file
 func processFile(filePath string) error {
 	var (
-		tmpFileName = filePath + ".tmp"
-		logColors   = [7]color.Color{
-			color.RedFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
+		logColors = [7]color.Color{
+			color.BrightFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
 		}
 		randLogColor = logColors[(rand.New(rand.NewSource(time.Now().UnixNano()))).Intn(len(logColors))]
 		logger       = log.New(infoLog.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), infoLog.Flags()|log.Ltime)
 	)
 
 	if options.Verbose {
-		logger.Printf("Make file copy to %s\n", tmpFileName)
+		logger.Println("Read file info buffer")
 	}
 
-	// Make original file copy
-	if size, err := copyFile(filePath, tmpFileName); err == nil {
+	// Read file info buffer
+	if imageData, err := ioutil.ReadFile(filePath); err == nil {
+		var originalFileLen = int64(len(imageData))
 		if options.Verbose {
-			logger.Printf("Copied file size: %d bytes\n", size)
+			logger.Printf("Original file size: %d bytes\n", len(imageData))
 		}
 
 		logger.Println("Compressing file (upload and download back)..")
 
 		// Compress file copy
-		if err := compressFile(tmpFileName, tmpFileName); err == nil {
-			logger.Println("File compressed and download successful")
+		if err := compressFile(&imageData, filePath); err == nil {
+			imageData = nil // Make clean
 
-			// Remove original file
-			if err := os.Remove(filePath); err == nil {
-				if err := os.Rename(tmpFileName, filePath); err == nil {
-					if options.Verbose {
-						logger.Println("Original file replaced with compressed temporary")
-					}
+			logger.Println("File compressed and overwritten successful")
 
-					if info, err := os.Stat(filePath); err == nil {
-						logger.Printf("Compression ratio: %0.1f%%\n", math.Abs(float64(info.Size()-size)/float64(size)*100))
-					}
-				} else {
-					logger.Println("Cannot rename temporary file to original filename", err)
-
-					return err
-				}
-			} else {
-				logger.Println("Cannot remove original file", err)
-
-				return err
+			if info, err := os.Stat(filePath); err == nil {
+				logger.Printf("Compression ratio: %0.1f%%\n", math.Abs(float64(info.Size()-originalFileLen)/float64(originalFileLen)*100))
 			}
 		} else {
-			logger.Println("Error while compressing file", err)
-
-			if err := os.Remove(tmpFileName); err == nil {
-				logger.Println("Cannot remove temporary file", err)
-
-				return err
-			}
+			logger.Println(color.BrightRed("Error while compressing file"), err)
 
 			return err
 		}
 	} else {
+		logger.Println(color.BrightRed("Cannot read file into buffer"), err)
+
 		return err
 	}
 
@@ -204,6 +198,7 @@ func processFile(filePath string) error {
 
 // Get service used quota value
 func getQuotaUsage(client *tinypngClient.Client) (int, error) {
+	// If you know better way for getting current quota usage - please, make an issue in current repository
 	if response, err := client.Request(http.MethodPost, "/shrink", nil); err == nil {
 		if count, err := strconv.Atoi(response.Header["Compression-Count"][0]); err == nil {
 			return count, nil
@@ -216,8 +211,8 @@ func getQuotaUsage(client *tinypngClient.Client) (int, error) {
 }
 
 // Compress image using tinypng.com service. Important: API key must be set before function calling
-func compressFile(in string, out string) error {
-	if source, err := tinypngClient.FromFile(in); err != nil {
+func compressFile(buffer *[]byte, out string) error {
+	if source, err := tinypngClient.FromBuffer(*buffer); err != nil {
 		return err
 	} else {
 		if err := source.ToFile(out); err != nil {
@@ -226,35 +221,6 @@ func compressFile(in string, out string) error {
 	}
 
 	return nil
-}
-
-// Copy file and return count of copied bytes and optionally error
-func copyFile(src, dst string) (int64, error) {
-	sourceFileStat, err := os.Stat(src)
-	if err != nil {
-		return 0, err
-	}
-
-	if !sourceFileStat.Mode().IsRegular() {
-		return 0, errors.New(src + " is not a regular file")
-	}
-
-	source, err := os.Open(src)
-	if err != nil {
-		return 0, err
-	}
-
-	defer source.Close()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return 0, err
-	}
-	defer destination.Close()
-
-	nBytes, err := io.Copy(destination, source)
-
-	return nBytes, err
 }
 
 // Convert targets into file path slice. If target points to the directory - directory files will be read and returned
