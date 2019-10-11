@@ -8,4 +8,5 @@
 /.build
 /.docker
 .DS_Store
-/coverage.*
+/cover*.*
+/src/cover*.*

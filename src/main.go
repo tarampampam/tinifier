@@ -19,7 +19,7 @@ type Options struct {
 	ShowVersion    bool     `short:"V" long:"version" description:"Show version and exit"`
 	FileExtensions []string `short:"e" long:"ext" default:"jpg,JPG,jpeg,JPEG,png,PNG" description:"Target file extensions"`
 	ApiKey         string   `short:"k" long:"api-key" env:"TINYPNG_API_KEY" description:"API key <https://tinypng.com/dashboard/api>"`
-	Threads        int      `short:"t" long:"threads" description:"Threads processing count"`
+	Threads        byte     `short:"t" long:"threads" default:"5" description:"Threads processing count"`
 	Targets        struct {
 		Path []string `positional-arg-name:"files-and-directories"`
 	} `positional-args:"yes" required:"true"`
@@ -63,6 +63,7 @@ func main() {
 
 	// Try to get files list
 	files, _ = targetsToFilePath(options.Targets.Path)
+	files = filterFilesUsingExtensions(files, &options.FileExtensions)
 
 	// Check for files found
 	if filesLen := len(files); filesLen >= 1 {
@@ -71,7 +72,7 @@ func main() {
 		errorsLog.Fatal(color.BrightRed("Files for processing was not found"))
 	}
 
-	infoLog.Printf(apiKey)
+	infoLog.Println(apiKey, options.Threads)
 
 	// @todo: Write code
 }
@@ -79,9 +80,7 @@ func main() {
 // Convert targets into file path slice. If target points to the directory - directory files will be read and returned
 // (with absolute path). If file - file absolute path will be returned. Any invalid value (path to the non-existing
 // file - this entry will be skipped)
-func targetsToFilePath(targets []string) (patch []string, error error) {
-	var result []string
-
+func targetsToFilePath(targets []string) (result []string, error error) {
 	// Iterate passed targets
 	for _, path := range targets {
 		// Extract absolute path to the target
@@ -112,4 +111,27 @@ func targetsToFilePath(targets []string) (patch []string, error error) {
 	}
 
 	return result, nil
+}
+
+// Make files slice filtering using extensions slice. Extension can be combined (delimiter is ",")
+func filterFilesUsingExtensions(files []string, extensions *[]string) (result []string) {
+	const delimiter = ","
+
+	for _, path := range files {
+		for _, extension := range *extensions {
+			if strings.Contains(extension, delimiter) {
+				for _, subExtension := range strings.Split(extension, delimiter) {
+					if strings.HasSuffix(path, subExtension) {
+						result = append(result, path)
+					}
+				}
+			} else {
+				if strings.HasSuffix(path, extension) {
+					result = append(result, path)
+				}
+			}
+		}
+	}
+
+	return result
 }

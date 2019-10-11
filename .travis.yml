@@ -10,9 +10,14 @@ matrix:
 before_install:
   - echo 'Install deps here..'
 
+before_script: cd ./src
+
 script:
-  - cd ./src
   - test -z "$(gofmt -l .)"
+  - go test -v -coverprofile=coverage.txt -covermode=atomic
   - go build -ldflags='-s -w' -o /tmp/tinifier .
-  - ls -l /tmp/tinifier
+  - ls -lh /tmp/tinifier
   - /tmp/tinifier -V
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash) -f coverage.txt
