@@ -7,14 +7,11 @@ sudo: false
 matrix:
   fast_finish: true
 
-before_install:
-  - echo 'Install deps here..'
-
 before_script: cd ./src
 
 script:
   - test -z "$(gofmt -l .)"
-  - go test -v -coverprofile=coverage.txt -covermode=atomic
+  - go test . -v -coverprofile=coverage.txt -covermode=atomic
   - go build -ldflags='-s -w' -o /tmp/tinifier .
   - ls -lh /tmp/tinifier
   - /tmp/tinifier -V

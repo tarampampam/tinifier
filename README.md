@@ -4,12 +4,10 @@
 
 # CLI tool for images compressing
 
-<!--
 ![Release version][badge_release_version]
--->
-
 ![Project language][badge_language]
 [![Build Status][badge_build]][link_build]
+[![Coverage][badge_coverage]][link_coverage]
 [![Image size][badge_size_latest]][link_docker_build]
 [![License][badge_license]][link_license]
 
@@ -34,6 +32,7 @@ If you will find any package errors, please, [make an issue][link_create_issue] 
 This is open-sourced software licensed under the [MIT License][link_license].
 
 [badge_build]:https://img.shields.io/travis/com/tarampampam/tinifier/master.svg?maxAge=10
+[badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_size_latest]:https://images.microbadger.com/badges/image/tarampampam/tinifier.svg
 [badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
 [badge_language]:https://img.shields.io/badge/language-go_1.13-blue.svg?longCache=true
@@ -44,6 +43,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
 
 [link_build]:https://travis-ci.com/tarampampam/tinifier
+[link_coverage]:https://codecov.io/gh/tarampampam/tinifier
 [link_docker_build]:https://hub.docker.com/r/tarampampam/tinifier/
 [link_license]:https://github.com/tarampampam/tinifier/blob/master/LICENSE
 [link_releases]:https://github.com/tarampampam/tinifier/releases
