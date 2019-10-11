@@ -34,7 +34,7 @@ before_deploy:
   - mkdir /tmp/build
   - GOOS='linux' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_386 ./main.go
   - GOOS='linux' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_amd64 ./main.go
-  - GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_tinifier_386.exe ./main.go
+  - GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_386.exe ./main.go
   - GOOS='windows' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier_amd64.exe ./main.go
   - upx $UPX_PARAMS /tmp/build/*
 

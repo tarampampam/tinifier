@@ -52,6 +52,13 @@ Compress all images in some directory using 20 threads:
 $ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-directory
 ```
 
+## Using docker
+
+Compress all images in **current** directory:
+
+```bash
+$ docker run --rm -v $(pwd):/rootfs:rw -w /rootfs tarampampam/tinifier -k 'YOUR-API-KEY-GOES-HERE' .
+```
 ### Testing
 
 For application testing we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:

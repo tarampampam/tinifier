@@ -23,4 +23,4 @@ LABEL Description="Docker image with tinifier" Vendor="Tarampampam"
 
 COPY --from=builder /tmp/tinifier /bin/tinifier
 
-CMD ["/bin/tinifier"]
+ENTRYPOINT ["/bin/tinifier"]
