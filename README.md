@@ -57,13 +57,20 @@ $ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-d
 Compress all images in **current** directory:
 
 ```bash
-$ docker run --rm -v "$(pwd):/rootfs:rw" -w /rootfs tarampampam/tinifier -k 'YOUR-API-KEY-GOES-HERE' .
+$ docker run --rm \
+    -v "$(pwd):/rootfs:rw" \
+    -w /rootfs \
+    tarampampam/tinifier -k 'YOUR-API-KEY-GOES-HERE' .
 ```
 
 or 
 
 ```bash
-$ docker run --rm -v $(pwd):/rootfs:rw -w /rootfs -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' tarampampam/tinifier .
+$ docker run --rm \
+    -v "$(pwd):/rootfs:rw" \
+    -w /rootfs \
+    -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
+    tarampampam/tinifier .
 ```
 
 ### Testing
