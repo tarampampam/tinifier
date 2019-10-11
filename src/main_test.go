@@ -16,6 +16,7 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 		{[]string{"foo.bar", "foo.baz", "baz.bar", "foo.foo"}, []string{"baz", "foo"}, []string{"foo.baz", "foo.foo"}},
 		{[]string{"foo.bar", "foo.baz", "baz.bar", "foo.foo"}, []string{"baz,foo"}, []string{"foo.baz", "foo.foo"}},
 		{[]string{"aa", "ab", "ac", "d"}, []string{"a,b", "d"}, []string{"aa", "ab", "d"}},
+		{[]string{"aa", "ab", "ac"}, []string{"d"}, []string{}},
 	}
 
 	for _, testCase := range asserts {
