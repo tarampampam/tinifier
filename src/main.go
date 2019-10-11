@@ -1,13 +1,19 @@
 package main
 
 import (
+	"errors"
+	tinypngClient "github.com/gwpp/tinify-go/tinify"
 	flags "github.com/jessevdk/go-flags"
 	color "github.com/logrusorgru/aurora"
+	"io"
 	"io/ioutil"
 	"log"
+	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -50,11 +56,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	var apiKey string
-
 	// Check API key
 	if key := strings.TrimSpace(options.ApiKey); len(key) >= 1 {
-		apiKey = key
+		if options.Verbose {
+			infoLog.Println("API key:", color.BrightYellow(key))
+		}
+		tinypngClient.SetKey(key)
 	} else {
 		errorsLog.Fatal(color.BrightRed("tinypng.com API key is not provided"))
 	}
@@ -72,9 +79,116 @@ func main() {
 		errorsLog.Fatal(color.BrightRed("Files for processing was not found"))
 	}
 
-	infoLog.Println(apiKey, options.Threads)
+	// Print files list (for verbose mode)
+	if options.Verbose {
+		infoLog.Println("\nFiles list:")
+		for _, filePath := range files {
+			infoLog.Println("  >", color.Blue(filePath))
+		}
+		infoLog.Println()
+	}
+
+	for _, filePath := range files {
+		var (
+			tmpFileName = filePath + ".tmp"
+			logColors   = [7]color.Color{
+				color.RedFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
+			}
+			randLogColor = logColors[(rand.New(rand.NewSource(time.Now().Unix()))).Intn(len(logColors))]
+			logger       = log.New(infoLog.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), infoLog.Flags() | log.Ltime)
+		)
+
+		if options.Verbose {
+			logger.Printf("Make file copy to %s\n", tmpFileName)
+		}
+
+		// Make original file copy
+		if size, err := copyFile(filePath, tmpFileName); err == nil {
+			if options.Verbose {
+				logger.Printf("Copied file size: %d bytes\n", size)
+			}
+
+			logger.Println("Compressing file (upload and download back)..")
+
+			// Compress file copy
+			if err := compressFile(tmpFileName, tmpFileName); err == nil {
+				logger.Println("File compressed and download successful")
+
+				// Remove original file
+				if err := os.Remove(filePath); err == nil {
+					if err := os.Rename(tmpFileName, filePath); err == nil {
+						if options.Verbose {
+							logger.Println("Original file replaced with compressed temporary")
+						}
+
+						if info, err := os.Stat(filePath); err == nil {
+							logger.Printf("Compression ratio: %0.1f%%\n", math.Abs(float64(info.Size() - size) / float64(size) * 100))
+						}
+					} else {
+						logger.Println("Cannot rename temporary file to original filename", err)
+					}
+				} else {
+					logger.Println("Cannot remove original file", err)
+				}
+			} else {
+				logger.Println("Error while compressing file", err)
+
+				if err := os.Remove(tmpFileName); err == nil {
+					logger.Println("Cannot remove temporary file", err)
+				}
+			}
+		} else {
+			logger.Println(color.BrightRed(err))
+		}
+	}
+	//
+	//compressFile()
+	//
+	//infoLog.Println(tinypngClient, options.Threads)
 
 	// @todo: Write code
+}
+
+// Compress image using tinypng.com service. Important: API key must be set before function calling
+func compressFile(in string, out string) error {
+	if source, err := tinypngClient.FromFile(in); err != nil {
+		return err
+	} else {
+		if err := source.ToFile(out); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Copy file and return count of copied bytes and optionally error
+func copyFile(src, dst string) (int64, error) {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return 0, err
+	}
+
+	if ! sourceFileStat.Mode().IsRegular() {
+		return 0, errors.New(src + " is not a regular file")
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return 0, err
+	}
+
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return 0, err
+	}
+	defer destination.Close()
+
+	nBytes, err := io.Copy(destination, source)
+
+	return nBytes, err
 }
 
 // Convert targets into file path slice. If target points to the directory - directory files will be read and returned

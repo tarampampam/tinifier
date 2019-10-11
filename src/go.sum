@@ -1,3 +1,5 @@
+github.com/gwpp/tinify-go v0.0.0-20170613055357-77b9df15f343 h1:QbWv77mi5YeTWR3FxLqx5eeC2H0fUL07Kj2Uhza9/A8=
+github.com/gwpp/tinify-go v0.0.0-20170613055357-77b9df15f343/go.mod h1:FP1q8rlReJYgAj3zqyQfD745uokKzl0baffXAcxDcl0=
 github.com/jessevdk/go-flags v1.4.0 h1:4IU2WS7AumrZ/40jfhf4QVDMsQwqA7VEHozFRrGARJA=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/logrusorgru/aurora v0.0.0-20190803045625-94edacc10f9b h1:PMbSa9CgaiQR9NLlUTwKi+7aeLl3GG5JX5ERJxfQ3IE=
