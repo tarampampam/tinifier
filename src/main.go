@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	AppVersion = "0.0.2"
+	AppVersion = "0.0.3"
 )
 
 type Options struct {
@@ -81,6 +81,11 @@ func main() {
 	// Check for files found
 	if filesLen := len(files); filesLen >= 1 {
 		infoLog.Println("Found files:", color.BrightYellow(filesLen))
+
+		// Set lower threads count if files count less then passed threads count
+		if filesLen < options.Threads {
+			options.Threads = filesLen
+		}
 	} else {
 		errorsLog.Fatal(color.BrightRed("Files for processing was not found"))
 	}

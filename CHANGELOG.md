@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v0.0.3
+
+### Fixed
+
+- Threads count now depends on total files count _(threads count cannot be grater then total files count)_
+
 ## v0.0.2
 
 ### Changed
