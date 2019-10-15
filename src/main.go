@@ -19,7 +19,6 @@ import (
 
 const AppVersion = "0.0.3" // Do not forget update this value on release
 
-
 func main() {
 	var parser = flags.NewParser(&options, flags.Default)
 
