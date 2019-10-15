@@ -17,26 +17,8 @@ import (
 	"time"
 )
 
-const (
-	AppVersion = "0.0.3"
-)
+const AppVersion = "0.0.3" // Do not forget update this value on release
 
-type Options struct {
-	Verbose        bool     `short:"v" description:"Show verbose debug information"`
-	ShowVersion    bool     `short:"V" long:"version" description:"Show version and exit"`
-	FileExtensions []string `short:"e" long:"ext" default:"jpg,JPG,jpeg,JPEG,png,PNG" description:"Target file extensions"`
-	ApiKey         string   `short:"k" long:"api-key" env:"TINYPNG_API_KEY" description:"API key <https://tinypng.com/dashboard/api>"`
-	Threads        int      `short:"t" long:"threads" default:"5" description:"Threads processing count"`
-	Targets        struct {
-		Path []string `positional-arg-name:"files-and-directories"`
-	} `positional-args:"yes" required:"true"`
-}
-
-var (
-	options   Options
-	errorsLog = log.New(os.Stderr, "", 0)
-	infoLog   = log.New(os.Stdout, "", 0)
-)
 
 func main() {
 	var parser = flags.NewParser(&options, flags.Default)
@@ -46,30 +28,30 @@ func main() {
 		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		} else {
-			parser.WriteHelp(infoLog.Writer())
+			parser.WriteHelp(logger.std.Writer())
 			os.Exit(1)
 		}
 	}
 
 	// Show application version and exit, if flag `-V` passed
 	if options.ShowVersion == true {
-		infoLog.Printf("Version: %s\n", AppVersion)
+		logger.Verbose("Version: %s\n", AppVersion)
 		os.Exit(0)
 	}
 
 	// Check API key
 	if key := strings.TrimSpace(options.ApiKey); len(key) >= 1 {
 		if options.Verbose {
-			infoLog.Println("API key:", color.BrightYellow(key))
+			logger.Verbose("API key:", color.BrightYellow(key))
 		}
 		tinypngClient.SetKey(key)
 	} else {
-		errorsLog.Fatal(color.BrightRed("tinypng.com API key is not provided"))
+		logger.Fatal(color.BrightRed("tinypng.com API key is not provided"))
 	}
 
 	// Check threads count
 	if options.Threads <= 0 {
-		errorsLog.Fatal(color.BrightRed("Threads count cannot be less then 1"))
+		logger.Fatal(color.BrightRed("Threads count cannot be less then 1"))
 	}
 
 	var files []string
@@ -80,26 +62,26 @@ func main() {
 
 	// Check for files found
 	if filesLen := len(files); filesLen >= 1 {
-		infoLog.Println("Found files:", color.BrightYellow(filesLen))
+		logger.Info("Found files:", color.BrightYellow(filesLen))
 
 		// Set lower threads count if files count less then passed threads count
 		if filesLen < options.Threads {
 			options.Threads = filesLen
 		}
 	} else {
-		errorsLog.Fatal(color.BrightRed("Files for processing was not found"))
+		logger.Fatal(color.BrightRed("Files for processing was not found"))
 	}
 
 	// Print files list (for verbose mode)
 	if options.Verbose {
-		infoLog.Println("\nFiles list:")
+		logger.Verbose("\nFiles list:")
 		for _, filePath := range files {
-			infoLog.Println("  >", color.Blue(filePath))
+			logger.Verbose("  >", color.Blue(filePath))
 		}
-		infoLog.Println()
+		logger.Verbose()
 	}
 
-	infoLog.Println("Start", color.BrightYellow(options.Threads), "threads")
+	logger.Info("Start", color.BrightYellow(options.Threads), "threads")
 
 	// Create channel with file paths
 	channel := make(chan string, len(files))
@@ -121,7 +103,7 @@ func main() {
 			for {
 				if len(channel) > 0 {
 					if err := processFile(<-channel); err != nil {
-						errorsLog.Println(color.BrightRed(err))
+						logger.Error(color.BrightRed(err))
 					}
 				} else {
 					break
@@ -135,9 +117,9 @@ func main() {
 		for {
 			if len(channel) > 0 {
 				if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
-					infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
+					logger.Info("Current quota usage:", color.BrightYellow(quotaUsage))
 				} else {
-					errorsLog.Println(color.BrightRed(err))
+					logger.Error(color.BrightRed(err))
 				}
 
 				time.Sleep(10 * time.Second)
@@ -151,18 +133,18 @@ func main() {
 
 	// Show current quota usage before exit
 	if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
-		infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
+		logger.Info("Current quota usage:", color.BrightYellow(quotaUsage))
 	}
 }
 
 // Main function - compress file
 func processFile(filePath string) error {
 	var (
-		logColors = [7]color.Color{
+		logColors = [...]color.Color{
 			color.BrightFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
 		}
 		randLogColor = logColors[(rand.New(rand.NewSource(time.Now().UnixNano()))).Intn(len(logColors))]
-		logger       = log.New(infoLog.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), infoLog.Flags()|log.Ltime)
+		logger       = log.New(logger.std.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), logger.std.Flags()|log.Ltime)
 	)
 
 	if options.Verbose {
