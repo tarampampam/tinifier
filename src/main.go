@@ -2,7 +2,7 @@ package main
 
 import (
 	tinypngClient "github.com/gwpp/tinify-go/tinify"
-	flags "github.com/jessevdk/go-flags"
+	"github.com/jessevdk/go-flags"
 	color "github.com/logrusorgru/aurora"
 	"io/ioutil"
 	"log"
@@ -17,13 +17,11 @@ import (
 	"time"
 )
 
-const AppVersion = "0.0.3" // Do not forget update this value on release
+const AppVersion = "0.1.0" // Do not forget update this value before new version releasing
 
 func main() {
-	var parser = flags.NewParser(&options, flags.Default)
-
-	// Check passed parameters (flags)
-	if _, err := parser.Parse(); err != nil {
+	// Parse passed options
+	if parser, _, err := options.Parse(); parser != nil && err != nil {
 		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		} else {
@@ -32,25 +30,21 @@ func main() {
 		}
 	}
 
+	// Proxy verbosity state to the logger
+	logger.isVerbose = options.Verbose
+	// Set colorizing state
+	colors.enableColors(!options.DisableColors)
+
 	// Show application version and exit, if flag `-V` passed
 	if options.ShowVersion == true {
-		logger.Verbose("Version: %s\n", AppVersion)
+		logger.Info("Version:", colors.au.BrightYellow(AppVersion))
 		os.Exit(0)
 	}
 
-	// Check API key
-	if key := strings.TrimSpace(options.ApiKey); len(key) >= 1 {
-		if options.Verbose {
-			logger.Verbose("API key:", color.BrightYellow(key))
-		}
-		tinypngClient.SetKey(key)
-	} else {
-		logger.Fatal(color.BrightRed("tinypng.com API key is not provided"))
-	}
-
-	// Check threads count
-	if options.Threads <= 0 {
-		logger.Fatal(color.BrightRed("Threads count cannot be less then 1"))
+	// Make options check
+	if err := options.Check(); err != nil {
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	var files []string
@@ -68,7 +62,7 @@ func main() {
 			options.Threads = filesLen
 		}
 	} else {
-		logger.Fatal(color.BrightRed("Files for processing was not found"))
+		logger.Fatal("Files for processing was not found")
 	}
 
 	// Print files list (for verbose mode)
