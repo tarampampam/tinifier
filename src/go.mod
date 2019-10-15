@@ -1,4 +1,4 @@
-module mod
+module tinifier
 
 go 1.13
 
