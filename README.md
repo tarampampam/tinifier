@@ -14,23 +14,9 @@
 
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
-```
-Usage:
-  tinifier [OPTIONS] files-and-directories...
-
-Application Options:
-  -v, --verbose                Show verbose debug information
-  -V, --version                Show version and exit
-  -q, --quota                  Get current quota usage and exit
-  -C, --no-colors              Disable color output
-  -e, --ext=                   Target file extensions (default: jpg,JPG,jpeg,JPEG,png,PNG)
-  -k, --api-key=               API key <https://tinypng.com/dashboard/api> [$TINYPNG_API_KEY]
-  -m, --max-errors=            Maximum errors count for stopping (default: 10)
-  -t, --threads=               Threads processing count (default: 5)
-
-Help Options:
-  -h, --help                   Show this help message
-```
+<p align="center">
+    <a href="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz"><img src="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz.svg"></a>
+</p>
 
 > API key can be passed in environment variable named `TINYPNG_API_KEY`
 

@@ -84,6 +84,7 @@ func (t *Tasks) StartWorkers() {
 
 		go func(workerNum int) {
 			defer t.WG.Done()
+
 			for {
 				task := <-t.ch
 
@@ -156,7 +157,7 @@ func (t *Tasks) PrintResults(std io.Writer, err io.Writer) {
 			filepath.Base(res.FilePath),
 			strconv.FormatInt(res.OriginalSize/1024, 10) + " Kb",
 			strconv.FormatInt(res.ResultSize/1024, 10) + " Kb",
-			fmt.Sprintf("%0.1f%%", math.Abs(res.Ratio)),
+			fmt.Sprintf("%0.2f%%", math.Abs(res.Ratio)),
 			strconv.FormatInt((res.OriginalSize-res.ResultSize)/1024, 10) + " Kb",
 		})
 		totalSaved = totalSaved + (res.OriginalSize - res.ResultSize)
