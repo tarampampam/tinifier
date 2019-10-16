@@ -35,14 +35,14 @@ func (c *Compressor) GetQuotaUsage() (int, error) {
 }
 
 // Compress image content using tinypng.com service and save result to the file.
-func (c *Compressor) CompressBuffer(buffer *[]byte, out string) error {
+func (c *Compressor) CompressBuffer(buffer *[]byte, out string) (bool, error) {
 	if source, err := tinypng.FromBuffer(*buffer); err != nil {
-		return err
+		return false, err
 	} else {
 		if err := source.ToFile(out); err != nil {
-			return err
+			return false, err
 		}
-	}
 
-	return nil
+		return true, nil
+	}
 }
