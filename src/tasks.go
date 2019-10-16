@@ -171,7 +171,7 @@ func (t *Tasks) PrintResults(std io.Writer, err io.Writer) {
 
 	if len(t.Errors) > 0 {
 		errorsTable := tablewriter.NewWriter(err)
-		errorsTable.SetColWidth(120)
+		errorsTable.SetColWidth(80)
 
 		for i, err := range t.Errors {
 			errorsTable.Append([]string{

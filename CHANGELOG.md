@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 - Option `-q` (`--quota`) for requesting current quota usage
 - Option `-C` (`--no-colors`) for disabling color output
 - Option `-m` (`--max-errors`) for setting maximum possible errors count
+- For verbose option (`-v`) added long alias `--verbose`
 
 ## v0.0.3
 
