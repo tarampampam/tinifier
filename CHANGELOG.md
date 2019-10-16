@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 
 - Source code decomposited
 - Progress now shows in minimalistic style
+- Binary file names for releases
 
 ### Added
 

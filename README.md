@@ -21,9 +21,11 @@ Usage:
 Application Options:
   -v, --verbose                Show verbose debug information
   -V, --version                Show version and exit
+  -q, --quota                  Get current quota usage and exit
   -C, --no-colors              Disable color output
   -e, --ext=                   Target file extensions (default: jpg,JPG,jpeg,JPEG,png,PNG)
   -k, --api-key=               API key <https://tinypng.com/dashboard/api> [$TINYPNG_API_KEY]
+  -m, --max-errors=            Maximum errors count for stopping (default: 10)
   -t, --threads=               Threads processing count (default: 5)
 
 Help Options:
