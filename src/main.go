@@ -1,23 +1,18 @@
 package main
 
 import (
-	tinypngClient "github.com/gwpp/tinify-go/tinify"
 	"github.com/jessevdk/go-flags"
 	color "github.com/logrusorgru/aurora"
 	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
-const AppVersion = "0.1.0" // Do not forget update this value before new version releasing
+const VERSION = "0.1.0" // Do not forget update this value before new version releasing
 
 func main() {
 	// Parse passed options
@@ -37,7 +32,7 @@ func main() {
 
 	// Show application version and exit, if flag `-V` passed
 	if options.ShowVersion == true {
-		logger.Info("Version:", colors.au.BrightYellow(AppVersion))
+		logger.Info("Version:", colors.au.BrightYellow(VERSION))
 		os.Exit(0)
 	}
 
@@ -45,16 +40,18 @@ func main() {
 	if _, err := options.Check(); err != nil {
 		logger.Error(err)
 		os.Exit(1)
+	} else {
+		// Set tinypng.com api key
+		compressor.SetKey(options.ApiKey)
 	}
 
-	var files []string
+	targets.Load(options.Targets.Path, &options.FileExtensions)
 
-	// Try to get files list
-	files, _ = targetsToFilePath(options.Targets.Path)
-	files = filterFilesUsingExtensions(files, &options.FileExtensions)
+	//fmt.Println(targets)
+	//return
 
 	// Check for files found
-	if filesLen := len(files); filesLen >= 1 {
+	if filesLen := len(targets.Files); filesLen >= 1 {
 		logger.Info("Found files:", color.BrightYellow(filesLen))
 
 		// Set lower threads count if files count less then passed threads count
@@ -68,7 +65,7 @@ func main() {
 	// Print files list (for verbose mode)
 	if options.Verbose {
 		logger.Verbose("\nFiles list:")
-		for _, filePath := range files {
+		for _, filePath := range targets.Files {
 			logger.Verbose("  >", color.Blue(filePath))
 		}
 		logger.Verbose()
@@ -77,7 +74,7 @@ func main() {
 	logger.Info("Start", color.BrightYellow(options.Threads), "threads")
 
 	// Create channel with file paths
-	channel := make(chan string, len(files))
+	channel := make(chan string, len(targets.Files))
 
 	// Create a wait group <https://nathanleclaire.com/blog/2014/02/15/how-to-wait-for-all-goroutines-to-finish-executing-before-continuing/>
 	var wg sync.WaitGroup
@@ -85,7 +82,7 @@ func main() {
 	wg.Add(options.Threads)
 
 	// Fill up the channel with file paths (async)
-	for _, filePath := range files {
+	for _, filePath := range targets.Files {
 		channel <- filePath
 	}
 
@@ -109,7 +106,7 @@ func main() {
 	go func() {
 		for {
 			if len(channel) > 0 {
-				if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
+				if quotaUsage, err := compressor.GetQuotaUsage(); err == nil {
 					logger.Info("Current quota usage:", color.BrightYellow(quotaUsage))
 				} else {
 					logger.Error(color.BrightRed(err))
@@ -125,7 +122,7 @@ func main() {
 	wg.Wait()
 
 	// Show current quota usage before exit
-	if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
+	if quotaUsage, err := compressor.GetQuotaUsage(); err == nil {
 		logger.Info("Current quota usage:", color.BrightYellow(quotaUsage))
 	}
 }
@@ -154,7 +151,7 @@ func processFile(filePath string) error {
 		logger.Println("Compressing file (upload and download back)..")
 
 		// Compress file copy
-		if err := compressFile(&imageData, filePath); err == nil {
+		if err := compressor.CompressBuffer(&imageData, filePath); err == nil {
 			imageData = nil // Make clean
 
 			logger.Println("File compressed and overwritten successful")
@@ -174,90 +171,4 @@ func processFile(filePath string) error {
 	}
 
 	return nil
-}
-
-// Get service used quota value
-func getQuotaUsage(client *tinypngClient.Client) (int, error) {
-	// If you know better way for getting current quota usage - please, make an issue in current repository
-	if response, err := client.Request(http.MethodPost, "/shrink", nil); err == nil {
-		if count, err := strconv.Atoi(response.Header["Compression-Count"][0]); err == nil {
-			return count, nil
-		} else {
-			return -1, err
-		}
-	} else {
-		return -1, err
-	}
-}
-
-// Compress image using tinypng.com service. Important: API key must be set before function calling
-func compressFile(buffer *[]byte, out string) error {
-	if source, err := tinypngClient.FromBuffer(*buffer); err != nil {
-		return err
-	} else {
-		if err := source.ToFile(out); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Convert targets into file path slice. If target points to the directory - directory files will be read and returned
-// (with absolute path). If file - file absolute path will be returned. Any invalid value (path to the non-existing
-// file - this entry will be skipped)
-func targetsToFilePath(targets []string) (result []string, error error) {
-	// Iterate passed targets
-	for _, path := range targets {
-		// Extract absolute path to the target
-		if absPath, err := filepath.Abs(path); err == nil {
-			// If file stats extracted successful
-			if info, err := os.Stat(absPath); err == nil {
-				switch mode := info.Mode(); {
-				case mode.IsDir(): // If directory found - run files iterator inside it
-					if files, err := ioutil.ReadDir(absPath); err == nil {
-						for _, file := range files {
-							if file.Mode().IsRegular() {
-								if abs, err := filepath.Abs(absPath + "/" + file.Name()); err == nil {
-									result = append(result, abs)
-								}
-							}
-						}
-					} else {
-						return result, err
-					}
-
-				case mode.IsRegular(): // If regular file found - append it into result
-					result = append(result, absPath)
-				}
-			}
-		} else {
-			return result, err
-		}
-	}
-
-	return result, nil
-}
-
-// Make files slice filtering using extensions slice. Extension can be combined (delimiter is ",")
-func filterFilesUsingExtensions(files []string, extensions *[]string) (result []string) {
-	const delimiter = ","
-
-	for _, path := range files {
-		for _, extension := range *extensions {
-			if strings.Contains(extension, delimiter) {
-				for _, subExtension := range strings.Split(extension, delimiter) {
-					if strings.HasSuffix(path, subExtension) {
-						result = append(result, path)
-					}
-				}
-			} else {
-				if strings.HasSuffix(path, extension) {
-					result = append(result, path)
-				}
-			}
-		}
-	}
-
-	return result
 }
