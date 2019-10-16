@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v0.1.0
+
+### Changed
+
+- Source code decomposited
+- Progress now shows in minimalistic style
+- Binary file names for releases
+
+### Added
+
+- Option `-q` (`--quota`) for requesting current quota usage
+- Option `-C` (`--no-colors`) for disabling color output
+- Option `-m` (`--max-errors`) for setting maximum possible errors count
+- For verbose option (`-v`) added long alias `--verbose`
+
 ## v0.0.3
 
 ### Fixed

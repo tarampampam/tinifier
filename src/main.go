@@ -1,288 +1,89 @@
 package main
 
 import (
-	tinypngClient "github.com/gwpp/tinify-go/tinify"
-	flags "github.com/jessevdk/go-flags"
-	color "github.com/logrusorgru/aurora"
-	"io/ioutil"
-	"log"
-	"math"
-	"math/rand"
-	"net/http"
+	"github.com/jessevdk/go-flags"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 )
 
-const (
-	AppVersion = "0.0.3"
-)
-
-type Options struct {
-	Verbose        bool     `short:"v" description:"Show verbose debug information"`
-	ShowVersion    bool     `short:"V" long:"version" description:"Show version and exit"`
-	FileExtensions []string `short:"e" long:"ext" default:"jpg,JPG,jpeg,JPEG,png,PNG" description:"Target file extensions"`
-	ApiKey         string   `short:"k" long:"api-key" env:"TINYPNG_API_KEY" description:"API key <https://tinypng.com/dashboard/api>"`
-	Threads        int      `short:"t" long:"threads" default:"5" description:"Threads processing count"`
-	Targets        struct {
-		Path []string `positional-arg-name:"files-and-directories"`
-	} `positional-args:"yes" required:"true"`
-}
-
-var (
-	options   Options
-	errorsLog = log.New(os.Stderr, "", 0)
-	infoLog   = log.New(os.Stdout, "", 0)
-)
+const VERSION = "0.1.0" // Do not forget update this value before new version releasing
 
 func main() {
-	var parser = flags.NewParser(&options, flags.Default)
-
-	// Check passed parameters (flags)
-	if _, err := parser.Parse(); err != nil {
+	// Parse passed options
+	if parser, _, err := options.Parse(); parser != nil && err != nil {
 		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		} else {
-			parser.WriteHelp(infoLog.Writer())
+			parser.WriteHelp(logger.std.Writer())
 			os.Exit(1)
 		}
 	}
 
+	// Proxy verbosity state to the logger
+	logger.isVerbose = options.Verbose
+	// Set colorizing state
+	colors.enableColors(!options.DisableColors)
+
 	// Show application version and exit, if flag `-V` passed
 	if options.ShowVersion == true {
-		infoLog.Printf("Version: %s\n", AppVersion)
+		logger.Info("Version:", colors.au.BrightYellow(VERSION))
 		os.Exit(0)
 	}
 
-	// Check API key
-	if key := strings.TrimSpace(options.ApiKey); len(key) >= 1 {
-		if options.Verbose {
-			infoLog.Println("API key:", color.BrightYellow(key))
-		}
-		tinypngClient.SetKey(key)
+	// Make options check
+	if _, err := options.Check(); err != nil {
+		logger.Error(err)
+		os.Exit(1)
 	} else {
-		errorsLog.Fatal(color.BrightRed("tinypng.com API key is not provided"))
+		// Set tinypng.com api key
+		compressor.SetKey(options.ApiKey)
 	}
 
-	// Check threads count
-	if options.Threads <= 0 {
-		errorsLog.Fatal(color.BrightRed("Threads count cannot be less then 1"))
+	// Request for currently used quota
+	if options.CheckQuota {
+		if current, err := compressor.GetQuotaUsage(); err == nil {
+			logger.Info("Current quota usage:", colors.au.BrightYellow(current))
+			os.Exit(0)
+		} else {
+			logger.Fatal("Cannot get current quota usage (double check your API key and network settings)")
+		}
 	}
 
-	var files []string
+	// Convert targets into file paths
+	targets.Load(options.Targets.Path, &options.FileExtensions)
 
-	// Try to get files list
-	files, _ = targetsToFilePath(options.Targets.Path)
-	files = filterFilesUsingExtensions(files, &options.FileExtensions)
-
-	// Check for files found
-	if filesLen := len(files); filesLen >= 1 {
-		infoLog.Println("Found files:", color.BrightYellow(filesLen))
+	// Check for found files
+	if filesLen := len(targets.Files); filesLen >= 1 {
+		logger.Verbose("Found files:", colors.au.BrightYellow(filesLen))
 
 		// Set lower threads count if files count less then passed threads count
 		if filesLen < options.Threads {
 			options.Threads = filesLen
 		}
 	} else {
-		errorsLog.Fatal(color.BrightRed("Files for processing was not found"))
+		logger.Fatal("Files for processing was not found")
 	}
 
-	// Print files list (for verbose mode)
-	if options.Verbose {
-		infoLog.Println("\nFiles list:")
-		for _, filePath := range files {
-			infoLog.Println("  >", color.Blue(filePath))
-		}
-		infoLog.Println()
-	}
+	logger.Verbose("Files list:", targets.Files)
 
-	infoLog.Println("Start", color.BrightYellow(options.Threads), "threads")
+	tasks := NewTasks(&targets, options.Threads, options.MaxErrors)
+	go tasks.FillUpTasks()
 
-	// Create channel with file paths
-	channel := make(chan string, len(files))
-
-	// Create a wait group <https://nathanleclaire.com/blog/2014/02/15/how-to-wait-for-all-goroutines-to-finish-executing-before-continuing/>
-	var wg sync.WaitGroup
-
-	wg.Add(options.Threads)
-
-	// Fill up the channel with file paths (async)
-	for _, filePath := range files {
-		channel <- filePath
-	}
-
-	for i := 0; i < options.Threads; i++ {
-		go func() {
-			defer wg.Done()
-
-			for {
-				if len(channel) > 0 {
-					if err := processFile(<-channel); err != nil {
-						errorsLog.Println(color.BrightRed(err))
-					}
-				} else {
-					break
-				}
-			}
-		}()
-	}
-
-	// Time to time request for the current quota usage
-	go func() {
-		for {
-			if len(channel) > 0 {
-				if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
-					infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
-				} else {
-					errorsLog.Println(color.BrightRed(err))
-				}
-
-				time.Sleep(10 * time.Second)
-			} else {
-				break
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	// Show current quota usage before exit
-	if quotaUsage, err := getQuotaUsage(tinypngClient.GetClient()); err == nil {
-		infoLog.Println("Current quota usage:", color.BrightYellow(quotaUsage))
-	}
-}
-
-// Main function - compress file
-func processFile(filePath string) error {
-	var (
-		logColors = [7]color.Color{
-			color.BrightFg, color.GreenFg, color.YellowFg, color.BlueFg, color.MagentaFg, color.CyanFg, color.WhiteFg,
-		}
-		randLogColor = logColors[(rand.New(rand.NewSource(time.Now().UnixNano()))).Intn(len(logColors))]
-		logger       = log.New(infoLog.Writer(), color.Sprintf(color.Colorize("[%s] ", randLogColor|color.BoldFm), filePath), infoLog.Flags()|log.Ltime)
-	)
-
-	if options.Verbose {
-		logger.Println("Read file info buffer")
-	}
-
-	// Read file info buffer
-	if imageData, err := ioutil.ReadFile(filePath); err == nil {
-		var originalFileLen = int64(len(imageData))
-		if options.Verbose {
-			logger.Printf("Original file size: %d bytes\n", len(imageData))
-		}
-
-		logger.Println("Compressing file (upload and download back)..")
-
-		// Compress file copy
-		if err := compressFile(&imageData, filePath); err == nil {
-			imageData = nil // Make clean
-
-			logger.Println("File compressed and overwritten successful")
-
-			if info, err := os.Stat(filePath); err == nil {
-				logger.Printf("Compression ratio: %0.1f%%\n", math.Abs(float64(info.Size()-originalFileLen)/float64(originalFileLen)*100))
-			}
-		} else {
-			logger.Println(color.BrightRed("Error while compressing file"), err)
-
-			return err
-		}
-	} else {
-		logger.Println(color.BrightRed("Cannot read file into buffer"), err)
-
-		return err
-	}
-
-	return nil
-}
-
-// Get service used quota value
-func getQuotaUsage(client *tinypngClient.Client) (int, error) {
-	// If you know better way for getting current quota usage - please, make an issue in current repository
-	if response, err := client.Request(http.MethodPost, "/shrink", nil); err == nil {
-		if count, err := strconv.Atoi(response.Header["Compression-Count"][0]); err == nil {
-			return count, nil
-		} else {
-			return -1, err
-		}
-	} else {
-		return -1, err
-	}
-}
-
-// Compress image using tinypng.com service. Important: API key must be set before function calling
-func compressFile(buffer *[]byte, out string) error {
-	if source, err := tinypngClient.FromBuffer(*buffer); err != nil {
-		return err
-	} else {
-		if err := source.ToFile(out); err != nil {
-			return err
+	// Enable spinner color if this action is allowed
+	if !options.DisableColors {
+		if err := tasks.Spin.Color("fgYellow"); err != nil {
+			logger.Error(err)
 		}
 	}
 
-	return nil
-}
+	logger.Verbose("Start", colors.au.BrightYellow(options.Threads), "threads")
 
-// Convert targets into file path slice. If target points to the directory - directory files will be read and returned
-// (with absolute path). If file - file absolute path will be returned. Any invalid value (path to the non-existing
-// file - this entry will be skipped)
-func targetsToFilePath(targets []string) (result []string, error error) {
-	// Iterate passed targets
-	for _, path := range targets {
-		// Extract absolute path to the target
-		if absPath, err := filepath.Abs(path); err == nil {
-			// If file stats extracted successful
-			if info, err := os.Stat(absPath); err == nil {
-				switch mode := info.Mode(); {
-				case mode.IsDir(): // If directory found - run files iterator inside it
-					if files, err := ioutil.ReadDir(absPath); err == nil {
-						for _, file := range files {
-							if file.Mode().IsRegular() {
-								if abs, err := filepath.Abs(absPath + "/" + file.Name()); err == nil {
-									result = append(result, abs)
-								}
-							}
-						}
-					} else {
-						return result, err
-					}
+	tasks.StartWorkers()
+	errCount := tasks.Wait()
 
-				case mode.IsRegular(): // If regular file found - append it into result
-					result = append(result, absPath)
-				}
-			}
-		} else {
-			return result, err
-		}
+	tasks.PrintResults(logger.std.Writer(), logger.err.Writer())
+
+	// Make check for errors count
+	if options.MaxErrors > 0 && errCount >= options.MaxErrors {
+		logger.Fatal("Too many errors occurred, working stopped")
 	}
-
-	return result, nil
-}
-
-// Make files slice filtering using extensions slice. Extension can be combined (delimiter is ",")
-func filterFilesUsingExtensions(files []string, extensions *[]string) (result []string) {
-	const delimiter = ","
-
-	for _, path := range files {
-		for _, extension := range *extensions {
-			if strings.Contains(extension, delimiter) {
-				for _, subExtension := range strings.Split(extension, delimiter) {
-					if strings.HasSuffix(path, subExtension) {
-						result = append(result, path)
-					}
-				}
-			} else {
-				if strings.HasSuffix(path, extension) {
-					result = append(result, path)
-				}
-			}
-		}
-	}
-
-	return result
 }

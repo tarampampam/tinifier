@@ -8,20 +8,24 @@
 ![Project language][badge_language]
 [![Build Status][badge_build]][link_build]
 [![Coverage][badge_coverage]][link_coverage]
+[![Go Report][badge_goreport]][link_goreport]
 [![Image size][badge_size_latest]][link_docker_build]
 [![License][badge_license]][link_license]
 
-This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (multi-threads, of course):
+This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 ```
 Usage:
   tinifier [OPTIONS] files-and-directories...
 
 Application Options:
-  -v                           Show verbose debug information
+  -v, --verbose                Show verbose debug information
   -V, --version                Show version and exit
+  -q, --quota                  Get current quota usage and exit
+  -C, --no-colors              Disable color output
   -e, --ext=                   Target file extensions (default: jpg,JPG,jpeg,JPEG,png,PNG)
   -k, --api-key=               API key <https://tinypng.com/dashboard/api> [$TINYPNG_API_KEY]
+  -m, --max-errors=            Maximum errors count for stopping (default: 10)
   -t, --threads=               Threads processing count (default: 5)
 
 Help Options:
@@ -103,6 +107,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 
 [badge_build]:https://img.shields.io/travis/com/tarampampam/tinifier/master.svg?maxAge=10
 [badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
+[badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
 [badge_size_latest]:https://images.microbadger.com/badges/image/tarampampam/tinifier.svg
 [badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
 [badge_language]:https://img.shields.io/badge/language-go_1.13-blue.svg?longCache=true
@@ -111,9 +116,10 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45
 [badge_issues]:https://img.shields.io/github/issues/tarampampam/tinifier.svg?maxAge=45
 [badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
+[link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
 
-[link_build]:https://travis-ci.com/tarampampam/tinifier
 [link_coverage]:https://codecov.io/gh/tarampampam/tinifier
+[link_build]:https://travis-ci.com/tarampampam/tinifier
 [link_docker_build]:https://hub.docker.com/r/tarampampam/tinifier/
 [link_license]:https://github.com/tarampampam/tinifier/blob/master/LICENSE
 [link_releases]:https://github.com/tarampampam/tinifier/releases
