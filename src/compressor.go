@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-type Compressor struct {}
+type Compressor struct{}
 
 var compressor = Compressor{}
 
