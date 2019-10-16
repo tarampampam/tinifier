@@ -15,7 +15,7 @@
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-    <a href="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz"><img src="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz.svg"></a>
+    <a href="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz" target="_blank"><img src="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz.svg"></a>
 </p>
 
 > API key can be passed in environment variable named `TINYPNG_API_KEY`
