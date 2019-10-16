@@ -106,15 +106,15 @@ func (t *Tasks) StartWorkers() {
 							// Get file info
 							if info, err := os.Stat(task.FilePath); err == nil {
 								t.Results = append(t.Results, TaskResult{
-									FilePath: task.FilePath,
+									FilePath:     task.FilePath,
 									OriginalSize: originalFileLen,
-									ResultSize: info.Size(),
-									Ratio: math.Abs(float64(info.Size()-originalFileLen)/float64(originalFileLen)*100),
+									ResultSize:   info.Size(),
+									Ratio:        math.Abs(float64(info.Size()-originalFileLen) / float64(originalFileLen) * 100),
 								})
 							}
 						} else {
 							t.Errors = append(t.Errors,
-								errors.New("Cannot compress file \"" + filepath.Base(task.FilePath) + "\": remote error"),
+								errors.New("Cannot compress file \""+filepath.Base(task.FilePath)+"\": remote error"),
 							)
 						}
 					} else {
