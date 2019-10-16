@@ -29,16 +29,16 @@ func (o *Options) Parse() (*flags.Parser, []string, error) {
 }
 
 // Make options check.
-func (o *Options) Check() error {
+func (o *Options) Check() (bool, error) {
 	// Check API key
 	if key := strings.TrimSpace(o.ApiKey); len(key) <= 1 {
-		return errors.New("tinypng.com API key is not provided")
+		return false, errors.New("tinypng.com API key is not provided")
 	}
 
 	// Check threads count
 	if o.Threads <= 0 {
-		return errors.New("threads count cannot be less then 1")
+		return false, errors.New("threads count cannot be less then 1")
 	}
 
-	return nil
+	return true, nil
 }

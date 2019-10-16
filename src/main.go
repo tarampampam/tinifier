@@ -42,7 +42,7 @@ func main() {
 	}
 
 	// Make options check
-	if err := options.Check(); err != nil {
+	if _, err := options.Check(); err != nil {
 		logger.Error(err)
 		os.Exit(1)
 	}

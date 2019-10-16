@@ -19,8 +19,9 @@ Usage:
   tinifier [OPTIONS] files-and-directories...
 
 Application Options:
-  -v                           Show verbose debug information
+  -v, --verbose                Show verbose debug information
   -V, --version                Show version and exit
+  -C, --no-colors              Disable color output
   -e, --ext=                   Target file extensions (default: jpg,JPG,jpeg,JPEG,png,PNG)
   -k, --api-key=               API key <https://tinypng.com/dashboard/api> [$TINYPNG_API_KEY]
   -t, --threads=               Threads processing count (default: 5)
