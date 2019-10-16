@@ -27,7 +27,7 @@ update: ## Update modules (safe)
 	$(DC_BIN) run $(DC_RUN_ARGS) go get -u
 
 build: ## Build app binary file
-	$(DC_BIN) run $(DC_RUN_ARGS) go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' ./main.go
+	$(DC_BIN) run $(DC_RUN_ARGS) go build -ldflags=$(LDFLAGS) -o '/build/$(APP_NAME)' .
 
 gofmt: ## Run gofmt tool
 	$(DC_BIN) run $(DC_RUN_ARGS) gofmt -s -w .
@@ -36,7 +36,7 @@ test: ## Run app tests
 	$(DC_BIN) run $(DC_RUN_ARGS) go test -v -race
 
 run: ## Run app without building binary file
-	$(DC_BIN) run $(DC_RUN_ARGS) go run ./main.go $(GO_RUN_ARGS)
+	$(DC_BIN) run $(DC_RUN_ARGS) go run . $(GO_RUN_ARGS)
 
 shell: ## Start shell into container with golang
 	$(DC_BIN) run $(DC_RUN_ARGS) bash

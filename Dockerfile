@@ -16,7 +16,8 @@ RUN set -x \
     && go version \
     && go build -ldflags='-s -w' -o /tmp/tinifier . \
     && upx ${upx_params} /tmp/tinifier \
-    && /tmp/tinifier -V
+    && /tmp/tinifier -V \
+    && /tmp/tinifier -h
 
 FROM alpine:latest
 LABEL Description="Docker image with tinifier" Vendor="Tarampampam"
