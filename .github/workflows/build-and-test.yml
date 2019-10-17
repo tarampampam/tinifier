@@ -53,9 +53,13 @@ jobs:
           file: ./src/coverage.txt
 
   build:
-    name: Build and execute
-    runs-on: ubuntu-latest
+    name: Build and execute on ${{ matrix.os }}
     needs: [gofmt, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -68,6 +72,12 @@ jobs:
           fetch-depth: 1
 
       - name: Build
+        if: contains(${{ matrix.os }}, 'ubuntu')
+        working-directory: ./src
+        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+
+      - name: Build
+        if: contains(${{ matrix.os }}, 'windows')
         working-directory: ./src
         run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
 
@@ -90,50 +100,50 @@ jobs:
       - name: Try to execute
         run: docker run --rm tinifier -h
 
-  build-for-release:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.13
-
-      - name: Check out code
-        uses: actions/checkout@v1
-        with:
-          fetch-depth: 1
-
-      - name: Build for linux (386)
-        working-directory: ./src
-        env:
-          GOOS: linux
-          GOARCH: 386
-        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH} .
-
-      - name: Build for linux (amd64)
-        working-directory: ./src
-        env:
-          GOOS: linux
-          GOARCH: amd64
-        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH} .
-
-      - name: Build for windows (386)
-        working-directory: ./src
-        env:
-          GOOS: windows
-          GOARCH: 386
-        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH}.exe .
-
-      - name: Build for windows (amd64)
-        working-directory: ./src
-        env:
-          GOOS: windows
-          GOARCH: amd64
-        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH}.exe .
-
-      - name: Pack binaries
-        uses: tarampampam/upx-action@v1.1.0
-        with:
-          indir: "./build"
-          upx_args: '-7'
+#  build-for-release:
+#    name: Build
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Set up Go
+#        uses: actions/setup-go@v1
+#        with:
+#          go-version: 1.13
+#
+#      - name: Check out code
+#        uses: actions/checkout@v1
+#        with:
+#          fetch-depth: 1
+#
+#      - name: Build for linux (386)
+#        working-directory: ./src
+#        env:
+#          GOOS: linux
+#          GOARCH: 386
+#        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH} .
+#
+#      - name: Build for linux (amd64)
+#        working-directory: ./src
+#        env:
+#          GOOS: linux
+#          GOARCH: amd64
+#        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH} .
+#
+#      - name: Build for windows (386)
+#        working-directory: ./src
+#        env:
+#          GOOS: windows
+#          GOARCH: 386
+#        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH}.exe .
+#
+#      - name: Build for windows (amd64)
+#        working-directory: ./src
+#        env:
+#          GOOS: windows
+#          GOARCH: amd64
+#        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH}.exe .
+#
+#      - name: Pack binaries
+#        uses: tarampampam/upx-action@v1.1.0
+#        with:
+#          indir: "./build"
+#          upx_args: '-7'
