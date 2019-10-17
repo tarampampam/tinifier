@@ -132,5 +132,11 @@ jobs:
           GOARCH: amd64
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH}.exe .
 
+      - name: Pack binaries
+        uses: tarampampam/upx-action@v1.0.0
+        with:
+          infile: /tmp/build/*
+          upx_args: '-7'
+
       - name: Show results
         run: ls -l /tmp/build
