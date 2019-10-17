@@ -85,3 +85,23 @@ jobs:
 
       - name: Try to execute
         run: docker run --rm tinifier -h
+
+  publish-image:
+    name: Publish docker image
+    runs-on: ubuntu-latest
+    needs: [gofmt, test]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Login in registry
+        run: docker login -u "${GITHUB_ACTOR}" -p "${{ secrets.PACKAGES_AUTH_TOKEN }}" docker.pkg.github.com 2> /dev/null
+
+      - name: Build image
+        run: docker build -t "docker.pkg.github.com/${GITHUB_REPOSITORY}/tinifier:latest" -f Dockerfile .
+
+      - name: Push docker image to the registry
+        run: docker push "docker.pkg.github.com/${GITHUB_REPOSITORY}/tinifier:latest"
+

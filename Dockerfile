@@ -3,7 +3,7 @@ FROM golang:1.13-alpine as builder
 
 # UPX parameters help: <https://www.mankier.com/1/upx>
 ARG upx_params
-ENV upx_params=${upx_params:--5}
+ENV upx_params=${upx_params:--7}
 
 RUN apk add --no-cache upx
 

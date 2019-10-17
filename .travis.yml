@@ -17,7 +17,7 @@ git:
 env:
   global:
     - LDFLAGS='-s -w'
-    - UPX_PARAMS=-5
+    - UPX_PARAMS=-7
 
 before_script: cd ./src
 
