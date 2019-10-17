@@ -24,10 +24,6 @@ jobs:
         working-directory: ./src
         run: test -z "$(gofmt -l .)"
 
-#  revive:
-#    - name: Run revive
-#      uses: docker://morphy/revive-action:v1
-
   test:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -91,15 +87,15 @@ jobs:
         run: docker run --rm tinifier -h
 
   build-for-release:
-    name: Build for ${{ matrix.goos }} (${{ matrix.goarch }})
+    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        goos: [linux, windows]
-        goarch: [amd64, 386]
+        os: [linux, windows]
+        arch: [amd64, 386]
         include:
-          - goos: windows
+          - os: windows
             ext: '.exe'
     steps:
       - name: Set up Go
@@ -115,14 +111,14 @@ jobs:
       - name: Build application
         working-directory: ./src
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: go build -ldflags "$LDFLAGS" -o ./../build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: go build -ldflags "$LDFLAGS" -o ./../build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} .
 
       - name: Pack binary
-        uses: docker://tarampampam/upx-action:latest # https://github.com/tarampampam/upx-action
+        uses: docker://gact/upx:latest # https://github.com/marketplace/actions/upx-action
         with:
-          file: "./build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          file: "./build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
           upx_args: '-7'
 
 #  build-for-release:
