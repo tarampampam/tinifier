@@ -73,6 +73,12 @@ For application testing we use built-in golang testing feature and `docker-ce` +
 $ make test
 ```
 
+Or build binary file:
+
+```shell
+$ make build
+```
+
 ## Changes log
 
 [![Release date][badge_release_date]][link_releases]

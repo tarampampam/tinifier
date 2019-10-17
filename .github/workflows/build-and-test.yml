@@ -69,3 +69,19 @@ jobs:
 
       - name: Try to execute
         run: /tmp/tinifier -V && /tmp/tinifier -h
+
+  image:
+    name: Build docker image
+    runs-on: ubuntu-latest
+    needs: [gofmt, test]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Build image
+        run: docker build -t tinifier -f Dockerfile .
+
+      - name: Try to execute
+        run: docker run --rm tinifier -h
