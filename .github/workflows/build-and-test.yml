@@ -98,6 +98,10 @@ jobs:
       matrix:
         goos: [linux, windows]
         goarch: [amd64, 386]
+        ext: ['.exe', '']
+        exclude:
+          - goos: linux
+            ext: '.exe'
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -114,12 +118,12 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -ldflags "$LDFLAGS" -o ./../build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }} .
+        run: go build -ldflags "$LDFLAGS" -o ./../build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
 
       - name: Pack binary
         uses: tarampampam/upx-action@v1.0.0
         with:
-          file: "./build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}"
+          file: "./build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
           upx_args: '-7'
 
 #  build-for-release:
