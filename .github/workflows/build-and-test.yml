@@ -134,7 +134,6 @@ jobs:
 
       - name: Pack binaries
         uses: tarampampam/upx-action@v1.1.0
-        working-directory: ./build
         with:
           indir: "./build"
           upx_args: '-7'
