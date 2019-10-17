@@ -2,9 +2,10 @@ name: Release
 
 on: release
 
+env:
+  LDFLAGS: '-s -w'
+
 jobs:
-
-
   image:
     name: Publish docker image
     runs-on: ubuntu-latest
@@ -23,3 +24,46 @@ jobs:
 
       - name: Push docker image to the registry
         run: docker push "docker.pkg.github.com/${GITHUB_REPOSITORY}/tinifier:latest"
+
+
+  build:
+    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, windows]
+        arch: [amd64, 386]
+        include:
+          - os: windows
+            ext: '.exe'
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+
+      - name: Check out code
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Build application
+        working-directory: ./src
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: go build -ldflags "$LDFLAGS" -o ./../build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} .
+
+      - name: Pack binary
+        uses: docker://gact/upx:latest # https://github.com/marketplace/actions/upx-action
+        with:
+          file: "./build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+          upx_args: '-7'
+
+      - name: Upload to release
+        uses: JasonEtco/upload-to-release@master
+        with:
+          args: "./build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
