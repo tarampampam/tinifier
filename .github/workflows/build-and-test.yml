@@ -83,7 +83,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+        run: go build -ldflags "$LDFLAGS" -o /tmp/tinifier .
 
       - name: Try to execute
         run: /tmp/tinifier -V && /tmp/tinifier -h
