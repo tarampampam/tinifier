@@ -6,8 +6,8 @@ env:
   LDFLAGS: '-s -w'
 
 jobs:
-  image:
-    name: Publish docker image
+  docker-package:
+    name: Publish docker image (package)
     runs-on: ubuntu-latest
     needs: [gofmt, test]
     steps:
