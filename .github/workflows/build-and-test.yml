@@ -109,8 +109,11 @@ jobs:
           GOARCH: 386
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH} .
 
+      - name: Show pre-results
+        run: ls -l /tmp/build
+
       - name: Compress binariy
-        uses: svenstaro/upx-action@v1-release
+        uses: joshuarli/strip-upx-action@master
         with:
           file: /tmp/build/*
           args: -7
