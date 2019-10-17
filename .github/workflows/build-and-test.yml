@@ -133,5 +133,4 @@ jobs:
           args: ${{ matrix.upx }}
 
       - name: Show results
-        uses: actions/checkout@v1
         run: ls -l ./src
