@@ -8,6 +8,7 @@ on:
 
 env:
   LDFLAGS: '-s -w'
+  UPXFLAGS: '-7'
 
 jobs:
   gofmt:
@@ -123,7 +124,7 @@ jobs:
         uses: tarampampam/upx-action@v1.0.0
         with:
           file: "./build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
-          upx_args: '-7'
+          upx_args: "$UPXFLAGS"
 
 #  build-for-release:
 #    name: Build

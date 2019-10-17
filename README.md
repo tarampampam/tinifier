@@ -97,7 +97,7 @@ If you will find any package errors, please, [make an issue][link_create_issue] 
 
 This is open-sourced software licensed under the [MIT License][link_license].
 
-[badge_build]:https://github.com/actions/tarampampam/workflows/.github/workflows/build-and-test.yml/badge.svg
+[badge_build]:https://github.com/actions/tarampampam/workflows/Build%20and%20Test/badge.svg
 [badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
 [badge_size_latest]:https://images.microbadger.com/badges/image/tarampampam/tinifier.svg
