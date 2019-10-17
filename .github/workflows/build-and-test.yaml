@@ -1,0 +1,65 @@
+name: Build and Test
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  gofmt:
+    name: Gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+
+      - name: Check out code
+        uses: actions/checkout@v1
+
+      - name: Run Gofmt
+        working-directory: ./src
+        run: test -z "$(gofmt -l .)"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+
+      - name: Check out code
+        uses: actions/checkout@v1
+
+      - name: Run Unit tests.
+        working-directory: ./src
+        run: go test . -v -race -coverprofile=coverage.txt -covermode=atomic
+
+      - name: Upload Coverage report to CodeCov
+        uses: codecov/codecov-action@v1.0.0
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}
+          file: ./coverage.txt
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [gofmt, test]
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+
+      - name: Check out code
+        uses: actions/checkout@v1
+
+      - name: Build
+        working-directory: ./src
+        run: |
+          go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+          ls -lh /tmp/tinifier
+          /tmp/tinifier -V && /tmp/tinifier -h
