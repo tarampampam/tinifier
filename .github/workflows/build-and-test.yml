@@ -60,6 +60,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        goos: [linux, windows]
+        goarch: [amd64, 386]
+        exclude:
+          - os: windows-latest
+            goos: linux
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -71,21 +76,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Build for Linux
-        if: "${{ matrix.os }}" == 'ubuntu-latest'
-        env:
-          GOOS: linux
-          GOARCH: amd64
-        working-directory: ./src
-        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
-
-      - name: Build for Windows
-        if: "${{ matrix.os }}" == 'windows-latest'
-        env:
+      - name: Build application
           GOOS: windows
           GOARCH: amd64
         working-directory: ./src
-        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+        run: GOOS='${{ matrix.goos }}' GOARCH='${{ matrix.goarch }}' build -ldflags="$LDFLAGS" -o /tmp/tinifier .
 
       - name: Try to execute
         run: /tmp/tinifier -V && /tmp/tinifier -h
