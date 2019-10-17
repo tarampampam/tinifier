@@ -17,6 +17,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
 
       - name: Run Gofmt
         working-directory: ./src
@@ -33,8 +35,10 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
 
-      - name: Run Unit tests.
+      - name: Run Unit tests
         working-directory: ./src
         run: go test . -v -race -coverprofile=coverage.txt -covermode=atomic
 
@@ -42,7 +46,7 @@ jobs:
         uses: codecov/codecov-action@v1.0.0
         with:
           token: ${{secrets.CODECOV_TOKEN}}
-          file: ./coverage.txt
+          file: ./src/coverage.txt
 
   build:
     name: Build
@@ -56,10 +60,12 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
 
       - name: Build
         working-directory: ./src
-        run: |
-          go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
-          ls -lh /tmp/tinifier
-          /tmp/tinifier -V && /tmp/tinifier -h
+        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+
+      - name: Try to execute
+        run: /tmp/tinifier -V && /tmp/tinifier -h
