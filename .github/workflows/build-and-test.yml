@@ -98,9 +98,8 @@ jobs:
       matrix:
         goos: [linux, windows]
         goarch: [amd64, 386]
-        ext: ['.exe', '']
-        exclude:
-          - goos: linux
+        include:
+          - goos: windows
             ext: '.exe'
     steps:
       - name: Set up Go
