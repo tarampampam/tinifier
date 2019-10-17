@@ -72,7 +72,7 @@ jobs:
           fetch-depth: 1
 
       - name: Build for Linux
-        if: ${{ matrix.os }} == 'ubuntu-latest'
+        if: "${{ matrix.os }}" == 'ubuntu-latest'
         env:
           GOOS: linux
           GOARCH: amd64
@@ -80,7 +80,7 @@ jobs:
         run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
 
       - name: Build for Windows
-        if: ${{ matrix.os }} == 'windows-latest'
+        if: "${{ matrix.os }}" == 'windows-latest'
         env:
           GOOS: windows
           GOARCH: amd64
