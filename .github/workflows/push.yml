@@ -116,7 +116,7 @@ jobs:
         run: go build -ldflags "$LDFLAGS" -o ./../build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
 
       - name: Pack binary
-        uses: ./.github/workflows/actions/upx
+        uses: tarampampam/upx-action@v1.0.0 # ./.github/workflows/actions/upx
         with:
           file: "./build/tinifier-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
           upx_args: '-7'
