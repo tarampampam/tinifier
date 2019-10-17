@@ -78,7 +78,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Build application
+      - name: Build application (${{ matrix.goos }}, ${{ matrix.goarch }})
+        if: matrix.goos == 'windows'
+        working-directory: ./src
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -ldflags "$LDFLAGS" -o /tmp/tinifier .
+
+      - name: Build application (${{ matrix.goos }}, ${{ matrix.goarch }})
+        if: matrix.goos == 'linux'
         working-directory: ./src
         env:
           GOOS: ${{ matrix.goos }}
@@ -86,6 +95,7 @@ jobs:
         run: go build -ldflags "$LDFLAGS" -o /tmp/tinifier .
 
       - name: Try to execute
+        if: matrix.goos == 'linux'
         run: /tmp/tinifier -V && /tmp/tinifier -h
 
   image:
