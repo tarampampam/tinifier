@@ -109,14 +109,29 @@ jobs:
           GOARCH: 386
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH} .
 
-      - name: Show pre-results
-        run: ls -l /tmp/build
+      - name: Build for linux (amd64)
+        working-directory: ./src
+        env:
+          LDFLAGS: '-s -w'
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH} .
 
-      - name: Compress binariy
-        uses: joshuarli/strip-upx-action@master
-        with:
-          file: /tmp/build/*
-          args: -7
+      - name: Build for windows (386)
+        working-directory: ./src
+        env:
+          LDFLAGS: '-s -w'
+          GOOS: windows
+          GOARCH: 386
+        run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH}.exe .
+
+      - name: Build for windows (amd64)
+        working-directory: ./src
+        env:
+          LDFLAGS: '-s -w'
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH}.exe .
 
       - name: Show results
         run: ls -l /tmp/build
