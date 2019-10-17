@@ -109,37 +109,35 @@ jobs:
         env:
           GOOS: linux
           GOARCH: 386
-        run: go build -ldflags="$LDFLAGS" -o $GITHUB_WORKSPACE/tinifier-${GOOS}-${GOARCH} .
+        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH} .
 
       - name: Build for linux (amd64)
         working-directory: ./src
         env:
           GOOS: linux
           GOARCH: amd64
-        run: go build -ldflags="$LDFLAGS" -o $GITHUB_WORKSPACE/tinifier-${GOOS}-${GOARCH} .
+        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH} .
 
       - name: Build for windows (386)
         working-directory: ./src
         env:
           GOOS: windows
           GOARCH: 386
-        run: go build -ldflags="$LDFLAGS" -o $GITHUB_WORKSPACE/tinifier-${GOOS}-${GOARCH}.exe .
+        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH}.exe .
 
       - name: Build for windows (amd64)
         working-directory: ./src
         env:
           GOOS: windows
           GOARCH: amd64
-        run: go build -ldflags="$LDFLAGS" -o $GITHUB_WORKSPACE/tinifier-${GOOS}-${GOARCH}.exe .
-
-      - name: Show results
-        run: ls -l $GITHUB_WORKSPACE
+        run: go build -ldflags="$LDFLAGS" -o ./../build/tinifier-${GOOS}-${GOARCH}.exe .
 
       - name: Pack binaries
         uses: tarampampam/upx-action@v1.0.0
+        working-directory: ./build
         with:
-          infile: $GITHUB_WORKSPACE/*
-          upx_args: '-7'
+          infile: *
+          upx_args: '-9'
 
       - name: Show results
-        run: ls -l $GITHUB_WORKSPACE
+        run: ls -l /tmp/build
