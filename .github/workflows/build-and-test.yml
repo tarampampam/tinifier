@@ -6,6 +6,9 @@ on:
       - master
   pull_request:
 
+env:
+  LDFLAGS: '-s -w'
+
 jobs:
   gofmt:
     name: Run gofmt
@@ -66,7 +69,7 @@ jobs:
 
       - name: Build
         working-directory: ./src
-        run: go build -ldflags="-s -w" -o /tmp/tinifier .
+        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
 
       - name: Try to execute
         run: /tmp/tinifier -V && /tmp/tinifier -h
@@ -104,7 +107,6 @@ jobs:
       - name: Build for linux (386)
         working-directory: ./src
         env:
-          LDFLAGS: '-s -w'
           GOOS: linux
           GOARCH: 386
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH} .
@@ -112,7 +114,6 @@ jobs:
       - name: Build for linux (amd64)
         working-directory: ./src
         env:
-          LDFLAGS: '-s -w'
           GOOS: linux
           GOARCH: amd64
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH} .
@@ -120,7 +121,6 @@ jobs:
       - name: Build for windows (386)
         working-directory: ./src
         env:
-          LDFLAGS: '-s -w'
           GOOS: windows
           GOARCH: 386
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH}.exe .
@@ -128,7 +128,6 @@ jobs:
       - name: Build for windows (amd64)
         working-directory: ./src
         env:
-          LDFLAGS: '-s -w'
           GOOS: windows
           GOARCH: amd64
         run: go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-${GOOS}-${GOARCH}.exe .
