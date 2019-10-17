@@ -90,6 +90,25 @@ jobs:
   build-for-release:
     name: Build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: 386
+            file: tinifier-linux-386
+            upx: -7
+          - os: linux
+            arch: amd64
+            file: tinifier-linux-amd64
+            args: -7
+          - os: windows
+            arch: 386
+            file: tinifier-win-386.exe
+            args: -7
+          - os: windows
+            arch: amd64
+            file: tinifier-win-amd64.exe
+            args: -7
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -105,17 +124,14 @@ jobs:
         working-directory: ./src
         env:
           LDFLAGS: '-s -w'
-        run: |
-          mkdir /tmp/build
-          GOOS='linux' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-linux-386 .
-          GOOS='linux' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-linux-amd64 .
-          GOOS='windows' GOARCH='386' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-win-386.exe .
-          GOOS='windows' GOARCH='amd64' go build -ldflags="$LDFLAGS" -o /tmp/build/tinifier-win-amd64.exe .
-          ls -l /tmp/build
+        run: GOOS='${{ matrix.os }}' GOARCH='${{ matrix.arch }}' go build -ldflags="$LDFLAGS" -o ./${{ matrix.file }} .
 
-      - name: Build
-        working-directory: ./src
-        run: go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+      - name: Compress binariy
+        uses: svenstaro/upx-action@v1-release
+        with:
+          file: ./src/${{ matrix.file }}
+          args: ${{ matrix.upx }}
 
-      - name: Try to execute
-        run: /tmp/tinifier -V && /tmp/tinifier -h
+      - name: Show results
+        uses: actions/checkout@v1
+        run: ls -l ./src
