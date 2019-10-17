@@ -136,9 +136,8 @@ jobs:
         uses: tarampampam/upx-action@v1.0.0
         working-directory: ./build
         with:
-          infile: *
+          infile: "*"
           upx_args: '-9'
-
 
       - name: Show results
         run: ls -l /tmp/build
