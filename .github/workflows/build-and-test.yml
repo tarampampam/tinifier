@@ -65,6 +65,8 @@ jobs:
         exclude:
           - os: windows-latest
             goos: linux
+          - os: ubuntu-latest
+            goos: windows
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -78,7 +80,7 @@ jobs:
 
       - name: Build application
         working-directory: ./src
-        run: GOOS='${{ matrix.goos }}' GOARCH='${{ matrix.goarch }}' build -ldflags="$LDFLAGS" -o /tmp/tinifier .
+        run: GOOS='${{ matrix.goos }}' GOARCH='${{ matrix.goarch }}' go build -ldflags="$LDFLAGS" -o /tmp/tinifier .
 
       - name: Try to execute
         run: /tmp/tinifier -V && /tmp/tinifier -h
