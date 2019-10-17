@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v0.1.1
+
+### Changed
+
+- Migrated from Travis CI to GitHub actions
+
 ## v0.1.0
 
 ### Changed
