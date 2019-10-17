@@ -132,6 +132,9 @@ jobs:
           GOARCH: amd64
         run: go build -ldflags="$LDFLAGS" -o $GITHUB_WORKSPACE/tinifier-${GOOS}-${GOARCH}.exe .
 
+      - name: Show results
+        run: ls -l $GITHUB_WORKSPACE
+
       - name: Pack binaries
         uses: tarampampam/upx-action@v1.0.0
         with:
@@ -139,4 +142,4 @@ jobs:
           upx_args: '-7'
 
       - name: Show results
-        run: ls -l /tmp/build
+        run: ls -l $GITHUB_WORKSPACE
