@@ -77,8 +77,6 @@ jobs:
           fetch-depth: 1
 
       - name: Build application
-          GOOS: windows
-          GOARCH: amd64
         working-directory: ./src
         run: GOOS='${{ matrix.goos }}' GOARCH='${{ matrix.goarch }}' build -ldflags="$LDFLAGS" -o /tmp/tinifier .
 
