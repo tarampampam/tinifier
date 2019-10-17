@@ -25,7 +25,6 @@ jobs:
       - name: Push docker image to the registry
         run: docker push "docker.pkg.github.com/${GITHUB_REPOSITORY}/tinifier:latest"
 
-
   build:
     name: Build for ${{ matrix.os }} (${{ matrix.arch }})
     runs-on: ubuntu-latest
