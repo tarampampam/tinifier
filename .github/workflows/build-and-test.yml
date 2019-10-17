@@ -137,6 +137,3 @@ jobs:
         with:
           indir: "./build"
           upx_args: '-7'
-
-      - name: Show results
-        run: ls -l /tmp/build
