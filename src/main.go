@@ -78,7 +78,7 @@ func main() {
 	logger.Verbose("Start", colors.au.BrightYellow(options.Threads), "threads")
 
 	tasks.StartWorkers()
-	errCount := tasks.Wait(func () {
+	errCount := tasks.Wait(func() {
 		logger.Error("Working stopped")
 		tasks.PrintResults(logger.std.Writer())
 		tasks.PrintErrors(logger.err.Writer())

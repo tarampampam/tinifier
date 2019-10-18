@@ -106,8 +106,8 @@ func TestTargetsToFiles(t *testing.T) {
 			expected: []string{},
 		},
 		{
-			targets:   []string{filepath.Join(dir, strconv.Itoa(int(time.Now().UnixNano())))},
-			expected:  []string{},
+			targets:  []string{filepath.Join(dir, strconv.Itoa(int(time.Now().UnixNano())))},
+			expected: []string{},
 		},
 	}
 
