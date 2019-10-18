@@ -1,4 +1,4 @@
-comment: off
+#comment: off
 
 fixes: # Docs <https://docs.codecov.io/docs/fixing-paths>
   - "tinifier/::src/"  # move path   e.g., "before/path" => "after/path"

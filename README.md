@@ -15,7 +15,7 @@
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-    <a href="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz" target="_blank"><img src="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz.svg"></a>
+    <a href="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz" target="_blank"><img src="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz.svg" width="900"></a>
 </p>
 
 > API key can be passed in environment variable named `TINYPNG_API_KEY`
@@ -73,6 +73,12 @@ For application testing we use built-in golang testing feature and `docker-ce` +
 $ make test
 ```
 
+Or build binary file:
+
+```shell
+$ make build
+```
+
 ## Changes log
 
 [![Release date][badge_release_date]][link_releases]
@@ -91,7 +97,7 @@ If you will find any package errors, please, [make an issue][link_create_issue] 
 
 This is open-sourced software licensed under the [MIT License][link_license].
 
-[badge_build]:https://img.shields.io/travis/com/tarampampam/tinifier/master.svg?maxAge=10
+[badge_build]:https://github.com/tarampampam/tinifier/workflows/Build%20on%20Push/badge.svg
 [badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
 [badge_size_latest]:https://images.microbadger.com/badges/image/tarampampam/tinifier.svg
@@ -105,7 +111,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
 
 [link_coverage]:https://codecov.io/gh/tarampampam/tinifier
-[link_build]:https://travis-ci.com/tarampampam/tinifier
+[link_build]:https://github.com/tarampampam/tinifier/actions
 [link_docker_build]:https://hub.docker.com/r/tarampampam/tinifier/
 [link_license]:https://github.com/tarampampam/tinifier/blob/master/LICENSE
 [link_releases]:https://github.com/tarampampam/tinifier/releases
