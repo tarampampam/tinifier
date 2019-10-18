@@ -8,8 +8,13 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 
 ### Changed
 
+- On pressing `Ctrl + C` _(while process is in progress)_ results will be printed
 - Migrated from Travis CI to GitHub actions
 - Binary file names for releases _(for windows)_
+
+### Added
+
+- Code tests
 
 ## v0.1.0
 
