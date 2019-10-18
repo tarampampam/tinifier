@@ -50,6 +50,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./src/coverage.txt
+          flags: unittests
 
   build:
     name: Build and execute
