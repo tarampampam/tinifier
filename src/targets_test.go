@@ -4,26 +4,28 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
 )
 
 func TestTargetsLoad(t *testing.T) {
-	dir := createTempDir()
+	var (
+		dir     = createTempDir()
+		targets = Targets{}
+	)
 
 	createFilesAndDirs(
 		[][]string{{dir, "baz"}, {dir, "zzz"}},
 		[][]string{{dir, "bar.a"}, {dir, "bar.b"}, {dir, "baz", "foo.a"}, {dir, "baz", "foo.b"}},
 	)
 
-	defer func() {
-		if err := os.RemoveAll(dir); err != nil {
+	defer func(d string) {
+		if err := os.RemoveAll(d); err != nil {
 			panic(err)
 		}
-	}()
-
-	targets = Targets{}
+	}(dir)
 
 	type testCase struct {
 		targets    []string
@@ -58,30 +60,18 @@ func TestTargetsLoad(t *testing.T) {
 		targets = Targets{}
 		targets.Load(testCase.targets, &testCase.extensions)
 
-		// Test size
-		if len(targets.Files) != len(testCase.expected) {
-			t.Error(
-				"For", testCase.targets,
-				"expected result count", len(testCase.expected),
-				"but got", len(targets.Files),
-			)
-		}
-
-		// Test expected entries
-		for _, expectedEntry := range testCase.expected {
-			AssertStringSliceContainsString(targets.Files, expectedEntry, t)
+		if !reflect.DeepEqual(targets.Files, testCase.expected) {
+			t.Errorf("Fir %+x expected %+v, got %+v", testCase.targets, testCase.expected, targets.Files)
 		}
 	}
 }
 
 func TestFilterFilesUsingExtensions(t *testing.T) {
-	type testCase struct {
+	var cases = []struct {
 		values     []string
 		extensions []string
 		expected   []string
-	}
-
-	var asserts = []testCase{
+	}{
 		{[]string{"foo.bar"}, []string{"bar"}, []string{"foo.bar"}},
 		{[]string{"foo.bar", "foo.baz", "baz.bar", "foo.foo"}, []string{"baz", "foo"}, []string{"foo.baz", "foo.foo"}},
 		{[]string{"foo.bar", "foo.baz", "baz.bar", "foo.foo"}, []string{"baz,foo"}, []string{"foo.baz", "foo.foo"}},
@@ -89,21 +79,17 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 		{[]string{"aa", "ab", "ac"}, []string{"d"}, []string{}},
 	}
 
-	for _, testCase := range asserts {
+	for _, testCase := range cases {
 		var result = filterFilesUsingExtensions(testCase.values, &testCase.extensions)
 
-		// Test size
-		if len(result) != len(testCase.expected) {
-			t.Error(
-				"For", testCase.values,
-				"expected result count", len(testCase.expected),
-				"but got", len(result),
-			)
-		}
-
-		// Test expected entries
-		for _, expectedEntry := range testCase.expected {
-			AssertStringSliceContainsString(result, expectedEntry, t)
+		if len(testCase.expected) == 0 {
+			if len(result) != 0 {
+				t.Errorf("For %+v expected empty result", testCase.values)
+			}
+		} else {
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("For %+v expected %+v, got %+v", testCase.values, testCase.expected, result)
+			}
 		}
 	}
 }
@@ -116,19 +102,17 @@ func TestTargetsToFiles(t *testing.T) {
 		[][]string{{dir, "bar.a"}, {dir, "bar.b"}, {dir, "baz", "foo.a"}, {dir, "baz", "foo.b"}},
 	)
 
-	defer func() {
-		if err := os.RemoveAll(dir); err != nil {
+	defer func(d string) {
+		if err := os.RemoveAll(d); err != nil {
 			panic(err)
 		}
-	}()
+	}(dir)
 
-	type testCase struct {
+	var cases = []struct {
 		targets   []string
 		expected  []string
 		withError bool
-	}
-
-	var asserts = []testCase{
+	}{
 		{
 			targets:  []string{dir},
 			expected: []string{filepath.Join(dir, "bar.a"), filepath.Join(dir, "bar.b")},
@@ -158,38 +142,23 @@ func TestTargetsToFiles(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range asserts {
+	for _, testCase := range cases {
 		var result, err = targetsToFiles(&testCase.targets)
 
 		if testCase.withError && err == nil {
 			t.Error("For", testCase.targets, "expects error")
 		}
 
-		// Test size
-		if len(result) != len(testCase.expected) {
-			t.Error(
-				"For", testCase.targets,
-				"expected result count", len(testCase.expected),
-				"but got", len(result),
-			)
-		}
-
-		// Test expected entries
-		for _, expectedEntry := range testCase.expected {
-			AssertStringSliceContainsString(result, expectedEntry, t)
+		if len(testCase.expected) == 0 {
+			if len(result) != 0 {
+				t.Errorf("For %+v expected empty result", testCase.targets)
+			}
+		} else {
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("For %+v expected %+v, got %+v", testCase.targets, testCase.expected, result)
+			}
 		}
 	}
-}
-
-// Assert that strings slice contains expected string
-func AssertStringSliceContainsString(slice []string, expected string, t *testing.T) {
-	for _, item := range slice {
-		if item == expected {
-			return
-		}
-	}
-
-	t.Error("In", slice, "value", expected, "was not found")
 }
 
 // Prepare files structure (create files and directories).
