@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: 1.13.x
 
       - name: Check out code
         uses: actions/checkout@v1
@@ -34,7 +34,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: 1.13.x
 
       - name: Check out code
         uses: actions/checkout@v1
@@ -53,13 +53,9 @@ jobs:
           flags: unittests
 
   build:
-    name: Build and execute on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build and execute
+    runs-on: ubuntu-latest
     needs: [gofmt, test]
-    timeout-minutes: 5
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -73,15 +69,10 @@ jobs:
 
       - name: Build application
         working-directory: ./src
-        run: go build -ldflags '-s -w' -o ./tinifier .
+        run: go build -ldflags '-s -w' -o /tmp/tinifier .
 
-      - name: Try to execute (linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: ./tinifier -V && ./tinifier -h
-
-      - name: Try to execute (windows)
-        if: matrix.os == 'windows-latest'
-        run: ./tinifier /V && ./tinifier /h
+      - name: Try to execute
+        run: /tmp/tinifier -V && /tmp/tinifier -h
 
   image:
     name: Build docker image
