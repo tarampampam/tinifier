@@ -53,9 +53,13 @@ jobs:
           flags: unittests
 
   build:
-    name: Build and execute
-    runs-on: ubuntu-latest
+    name: Build and execute on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     needs: [gofmt, test]
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
@@ -69,10 +73,15 @@ jobs:
 
       - name: Build application
         working-directory: ./src
-        run: go build -ldflags '-s -w' -o /tmp/tinifier .
+        run: go build -ldflags '-s -w' -o ./tinifier .
 
-      - name: Try to execute
+      - name: Try to execute (linux)
+        if: matrix.os == 'ubuntu-latest'
         run: /tmp/tinifier -V && /tmp/tinifier -h
+
+      - name: Try to execute (windows)
+        if: matrix.os == 'windows-latest'
+        run: ./tinifier /V && ./tinifier /h
 
   image:
     name: Build docker image
