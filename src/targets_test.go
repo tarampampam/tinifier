@@ -134,6 +134,10 @@ func TestTargetsToFiles(t *testing.T) {
 			expected: []string{filepath.Join(dir, "bar.a"), filepath.Join(dir, "bar.b")},
 		},
 		{
+			targets:  []string{dir, filepath.Join(dir, "baz", "foo.a")},
+			expected: []string{filepath.Join(dir, "bar.a"), filepath.Join(dir, "bar.b"), filepath.Join(dir, "baz", "foo.a")},
+		},
+		{
 			targets:  []string{filepath.Join(dir, "baz")},
 			expected: []string{filepath.Join(dir, "baz", "foo.a"), filepath.Join(dir, "baz", "foo.b")},
 		},
