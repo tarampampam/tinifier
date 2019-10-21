@@ -37,7 +37,7 @@ test: ## Run app tests
 
 cover: ## Run app tests
 	$(DC_BIN) run $(DC_RUN_ARGS) sh -c 'go test -coverprofile /tmp/cp.out && go tool cover -html=/tmp/cp.out -o coverage.html'
-	-sensible-browser ./src/coverage.html
+	-( sensible-browser ./src/coverage.html & )
 
 run: ## Run app without building binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go run . $(GO_RUN_ARGS)

@@ -11,6 +11,8 @@ import (
 )
 
 func TestTargetsLoad(t *testing.T) {
+	t.Parallel()
+
 	var (
 		dir     = createTempDir()
 		targets = Targets{}
@@ -61,12 +63,14 @@ func TestTargetsLoad(t *testing.T) {
 		targets.Load(testCase.targets, &testCase.extensions)
 
 		if !reflect.DeepEqual(targets.Files, testCase.expected) {
-			t.Errorf("Fir %+x expected %+v, got %+v", testCase.targets, testCase.expected, targets.Files)
+			t.Errorf("Fir %+x expectedStd %+v, got %+v", testCase.targets, testCase.expected, targets.Files)
 		}
 	}
 }
 
 func TestFilterFilesUsingExtensions(t *testing.T) {
+	t.Parallel()
+
 	var cases = []struct {
 		values     []string
 		extensions []string
@@ -84,17 +88,19 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 
 		if len(testCase.expected) == 0 {
 			if len(result) != 0 {
-				t.Errorf("For %+v expected empty result", testCase.values)
+				t.Errorf("For %+v expectedStd empty result", testCase.values)
 			}
 		} else {
 			if !reflect.DeepEqual(result, testCase.expected) {
-				t.Errorf("For %+v expected %+v, got %+v", testCase.values, testCase.expected, result)
+				t.Errorf("For %+v expectedStd %+v, got %+v", testCase.values, testCase.expected, result)
 			}
 		}
 	}
 }
 
 func TestTargetsToFiles(t *testing.T) {
+	t.Parallel()
+
 	dir := createTempDir()
 
 	createFilesAndDirs(
@@ -151,11 +157,11 @@ func TestTargetsToFiles(t *testing.T) {
 
 		if len(testCase.expected) == 0 {
 			if len(result) != 0 {
-				t.Errorf("For %+v expected empty result", testCase.targets)
+				t.Errorf("For %+v expectedStd empty result", testCase.targets)
 			}
 		} else {
 			if !reflect.DeepEqual(result, testCase.expected) {
-				t.Errorf("For %+v expected %+v, got %+v", testCase.targets, testCase.expected, result)
+				t.Errorf("For %+v expectedStd %+v, got %+v", testCase.targets, testCase.expected, result)
 			}
 		}
 	}
