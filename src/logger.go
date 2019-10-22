@@ -6,22 +6,46 @@ import (
 	"os"
 )
 
+type ILogger interface {
+	SetVerbose(isEnabled bool)
+	SetColors(isEnabled bool)
+	Verbose(msg ...interface{})
+	Info(msg ...interface{})
+	Error(msg ...interface{})
+	Panic(v interface{})
+	Fatal(msg ...interface{})
+	SetOnPanicFunc(f LoggerPanicFunc)
+	SetOnExitFunc(f LoggerExitFunc)
+}
+
 type Logger struct {
 	StdLogger *log.Logger
 	ErrLogger *log.Logger
 	colors    aurora.Aurora
-	isVerbose bool // read-only
-	useColors bool // read-only
+	isVerbose bool
+	useColors bool
+	onPanic   LoggerPanicFunc
+	onExit    LoggerExitFunc
 }
 
-func NewLogger(std *log.Logger, err *log.Logger, isVerbose bool, useColors bool) Logger {
-	r := Logger{
+type LoggerExitFunc func(code int)
+type LoggerPanicFunc func(v interface{})
+
+// Create new logger instance.
+func NewLogger(std *log.Logger, err *log.Logger, isVerbose bool, useColors bool) *Logger {
+	r := &Logger{
 		StdLogger: std,
 		ErrLogger: err,
 	}
 
 	r.SetVerbose(isVerbose)
 	r.SetColors(useColors)
+	r.SetOnExitFunc(func(code int) {
+		os.Exit(code)
+	})
+	r.SetOnPanicFunc(func(v interface{}) {
+		panic(v)
+	})
 
 	return r
 }
@@ -37,10 +61,14 @@ func (l *Logger) SetColors(isEnabled bool) {
 	l.colors = aurora.NewAurora(isEnabled)
 }
 
-// Customize logger prefix(es).
-func (l *Logger) SetPrefix(prefix string) {
-	l.StdLogger.SetPrefix(prefix)
-	l.ErrLogger.SetPrefix(prefix)
+// Set "panic" function.
+func (l *Logger) SetOnPanicFunc(f LoggerPanicFunc) {
+	l.onPanic = f
+}
+
+// Set "exit" function.
+func (l *Logger) SetOnExitFunc(f LoggerExitFunc) {
+	l.onExit = f
 }
 
 // Output message only if verbose mode is enabled.
@@ -69,8 +97,8 @@ func (l *Logger) Error(msg ...interface{}) {
 }
 
 // Panic is equivalent to l.Print() followed by a call to panic().
-func (l *Logger) Panic(msg ...interface{}) {
-	l.ErrLogger.Panicln(msg...)
+func (l *Logger) Panic(v interface{}) {
+	l.onPanic(v)
 }
 
 // Fatal is equivalent to l.Error() followed by a call to os.Exit(1).
@@ -84,5 +112,5 @@ func (l *Logger) Fatal(msg ...interface{}) {
 	}
 
 	l.Error(msg...)
-	os.Exit(1)
+	l.onExit(1)
 }

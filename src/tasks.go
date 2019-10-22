@@ -33,7 +33,7 @@ type TaskResult struct {
 
 // Tasks processor.
 type Tasks struct {
-	Targets    *Targets
+	Files      *[]string
 	WG         sync.WaitGroup
 	Spin       *spinner.Spinner
 	Errors     []error
@@ -49,11 +49,11 @@ type Tasks struct {
 type OnWorkingBreak func()
 
 // Create new tasks processor.
-func NewTasks(targets *Targets, thCount int, maxErrors int) *Tasks {
+func NewTasks(files *[]string, thCount int, maxErrors int) *Tasks {
 	res := Tasks{
-		Targets:   targets,
+		Files:     files,
 		Spin:      spinner.New(spinner.CharSets[14], 150*time.Millisecond),
-		maxPos:    len(targets.Files),
+		maxPos:    len(*files),
 		ch:        make(chan Task, thCount),
 		thCount:   thCount,
 		maxErrors: maxErrors,
@@ -73,7 +73,7 @@ func (t *Tasks) FillUpTasks() {
 	//}()
 
 	// Push tasks for a processing
-	for _, filePath := range t.Targets.Files {
+	for _, filePath := range *t.Files {
 		t.ch <- Task{FilePath: filePath}
 	}
 	// And send exit signals at the end

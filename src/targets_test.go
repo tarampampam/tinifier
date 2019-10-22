@@ -83,8 +83,9 @@ func TestFilterFilesUsingExtensions(t *testing.T) {
 		{[]string{"aa", "ab", "ac"}, []string{"d"}, []string{}},
 	}
 
+	var targets = Targets{}
 	for _, testCase := range cases {
-		var result = filterFilesUsingExtensions(testCase.values, &testCase.extensions)
+		var result = targets.filterFilesUsingExtensions(testCase.values, &testCase.extensions)
 
 		if len(testCase.expected) == 0 {
 			if len(result) != 0 {
@@ -148,8 +149,9 @@ func TestTargetsToFiles(t *testing.T) {
 		},
 	}
 
+	var targets = Targets{}
 	for _, testCase := range cases {
-		var result, err = targetsToFiles(&testCase.targets)
+		var result, err = targets.targetsToFiles(&testCase.targets)
 
 		if testCase.withError && err == nil {
 			t.Error("For", testCase.targets, "expects error")

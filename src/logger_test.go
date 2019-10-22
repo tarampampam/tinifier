@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/logrusorgru/aurora"
 	"log"
+	"strings"
 	"testing"
 )
 
@@ -42,25 +43,25 @@ func TestLoggerVerbose(t *testing.T) {
 		expectedErr interface{}
 	}{
 		{
-			logger:      NewLogger(std, err, true, false),
+			logger:      *NewLogger(std, err, true, false),
 			value:       "foo",
 			expectedStd: "foo\n",
 			expectedErr: "",
 		},
 		{
-			logger:      NewLogger(std, err, true, true),
+			logger:      *NewLogger(std, err, true, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "foo bar Baz\n 123\n",
 			expectedErr: "",
 		},
 		{
-			logger:      NewLogger(std, err, true, false),
+			logger:      *NewLogger(std, err, true, false),
 			value:       []string{"1", "foo", "2"},
 			expectedStd: "[1 foo 2]\n",
 			expectedErr: "",
 		},
 		{
-			logger:      NewLogger(std, err, false, true),
+			logger:      *NewLogger(std, err, false, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "",
 			expectedErr: "",
@@ -98,25 +99,25 @@ func TestLoggerInfo(t *testing.T) {
 		expectedErr interface{}
 	}{
 		{
-			logger:      NewLogger(std, err, true, false),
+			logger:      *NewLogger(std, err, true, false),
 			value:       "foo",
 			expectedStd: "foo\n",
 			expectedErr: "",
 		},
 		{
-			logger:      NewLogger(std, err, true, true),
+			logger:      *NewLogger(std, err, true, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "foo bar Baz\n 123\n",
 			expectedErr: "",
 		},
 		{
-			logger:      NewLogger(std, err, true, false),
+			logger:      *NewLogger(std, err, true, false),
 			value:       []string{"1", "foo", "2"},
 			expectedStd: "[1 foo 2]\n",
 			expectedErr: "",
 		},
 		{
-			logger:      NewLogger(std, err, false, true),
+			logger:      *NewLogger(std, err, false, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "foo bar Baz\n 123\n",
 			expectedErr: "",
@@ -155,25 +156,25 @@ func TestLoggerError(t *testing.T) {
 		expectedErr interface{}
 	}{
 		{
-			logger:      NewLogger(std, err, true, false),
+			logger:      *NewLogger(std, err, true, false),
 			value:       "foo",
 			expectedStd: "",
 			expectedErr: "foo\n",
 		},
 		{
-			logger:      NewLogger(std, err, true, true),
+			logger:      *NewLogger(std, err, true, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "",
 			expectedErr: aurora.Colorize("foo bar Baz\n 123", flags).String() + "\n",
 		},
 		{
-			logger:      NewLogger(std, err, true, false),
+			logger:      *NewLogger(std, err, true, false),
 			value:       []string{"1", "foo", "2"},
 			expectedStd: "",
 			expectedErr: "[1 foo 2]\n",
 		},
 		{
-			logger:      NewLogger(std, err, false, true),
+			logger:      *NewLogger(std, err, false, true),
 			value:       []string{"foo bar Baz\n 123", "blah"},
 			expectedStd: "",
 			expectedErr: aurora.Colorize("[foo bar Baz\n 123 blah]", flags).String() + "\n",
@@ -193,6 +194,116 @@ func TestLoggerError(t *testing.T) {
 		if errOut := errWriter.ToStringAndClean(); errOut != testCase.expectedErr {
 			fmt.Printf("+++ %v", errOut)
 			t.Errorf("Exprected value %+v for stdErr, got %+v", testCase.expectedErr, errOut)
+		}
+	}
+}
+
+func TestPanic(t *testing.T) {
+	t.Parallel()
+
+	var exitCalled, panicCalled bool
+	var panicValue interface{}
+
+	logger := *NewLogger(
+		log.New(&FakeWriter{}, "", 0),
+		log.New(&FakeWriter{}, "", 0),
+		true,
+		false,
+	)
+
+	logger.SetOnExitFunc(func(code int) {
+		exitCalled = true
+	})
+
+	logger.SetOnPanicFunc(func(v interface{}) {
+		panicCalled = true
+		panicValue = v
+	})
+
+	logger.Panic("foo")
+
+	if exitCalled {
+		t.Error("Exit callable called, but shouldn't")
+	}
+
+	if !panicCalled {
+		t.Error("Panic callable NOT called, but should")
+	}
+
+	if fmt.Sprintf("%v", panicValue) != "foo" {
+		t.Error("Wrong value passed to the onPanic function")
+	}
+}
+
+func TestFatal(t *testing.T) {
+	t.Parallel()
+
+	var (
+		std = log.New(&FakeWriter{}, "", 0)
+		err = log.New(&FakeWriter{}, "", 0)
+	)
+
+	var cases = []struct {
+		logger      Logger
+		message     interface{}
+		exitCalled  bool
+		panicCalled bool
+		exitCode    int
+	}{
+		{
+			logger:  *NewLogger(std, err, true, true),
+			message: "foo",
+		},
+		{
+			logger:  *NewLogger(std, err, true, false),
+			message: "foo bar Baz\n 123",
+		},
+		{
+			logger:  *NewLogger(std, err, false, true),
+			message: []string{"1", "foo", "2"},
+		},
+		{
+			logger:  *NewLogger(std, err, false, false),
+			message: []string{"foo bar Baz\n 123", "blah"},
+		},
+	}
+
+	for _, testCase := range cases {
+		testCase.logger.SetOnExitFunc(func(code int) {
+			testCase.exitCalled = true
+			testCase.exitCode = code
+		})
+
+		testCase.logger.SetOnPanicFunc(func(v interface{}) {
+			testCase.panicCalled = true
+		})
+
+		testCase.logger.Fatal(testCase.message)
+
+		if !testCase.exitCalled {
+			t.Error("Exit callable NOT called, but should")
+		}
+
+		if testCase.panicCalled {
+			t.Error("Panic callable called, but shouldn't")
+		}
+
+		if testCase.exitCode != 1 {
+			t.Errorf("Wrong exit code. Expected 1, got %d", testCase.exitCode)
+		}
+
+		if testCase.logger.StdLogger.Writer().(*FakeWriter).ToStringAndClean() != "" {
+			t.Error("stdOut should be empty")
+		}
+
+		content := testCase.logger.ErrLogger.Writer().(*FakeWriter).ToStringAndClean()
+
+		if !strings.Contains(content, fmt.Sprintf("%v", testCase.message)) {
+			t.Errorf("stdErr [%s] should contains passed message [%s]", content, "foo")
+		}
+
+		if !strings.Contains(content, "[Fatal Error]") {
+			t.Errorf("stdErr [%s] should contains [%s]", content, "Fatal Error")
 		}
 	}
 }
