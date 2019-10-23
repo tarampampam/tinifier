@@ -11,7 +11,6 @@ require (
 	github.com/mattn/go-isatty v0.0.10 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/olekukonko/tablewriter v0.0.1
-	github.com/uber-go/dig v1.7.0 // indirect
 	go.uber.org/dig v1.7.0
 	golang.org/x/sys v0.0.0-20191020212454-3e7259c5e7c2 // indirect
 )

@@ -11,6 +11,13 @@ var container = dig.New()
 func init() {
 	var bindError error
 
+	// Bind colors container
+	if err := container.Provide(func() IAnsiColors {
+		return NewAnsiColors()
+	}); err != nil {
+		bindError = err
+	}
+
 	// Bind targets container
 	if err := container.Provide(func() ITargets {
 		return NewTargets()
@@ -19,8 +26,9 @@ func init() {
 	}
 
 	// Bind logger container
-	if err := container.Provide(func() ILogger {
+	if err := container.Provide(func(c IAnsiColors) ILogger {
 		return NewLogger(
+			c,
 			log.New(os.Stdout, "", 0),
 			log.New(os.Stderr, "", 0),
 			true,

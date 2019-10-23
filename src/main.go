@@ -2,14 +2,13 @@ package main
 
 import (
 	"github.com/jessevdk/go-flags"
-	"github.com/logrusorgru/aurora"
 	"os"
 )
 
 const VERSION = "0.1.0" // Do not forget update this value before new version releasing
 
 func main() {
-	cError := container.Invoke(func(logger ILogger, targets ITargets) {
+	cError := container.Invoke(func(logger ILogger, targets ITargets, col IAnsiColors) {
 		// Parse passed options
 		if parser, _, err := options.Parse(); parser != nil && err != nil {
 			if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
@@ -27,7 +26,7 @@ func main() {
 
 		// Show application version and exit, if flag `-V` passed
 		if options.ShowVersion == true {
-			logger.Info("Version:", aurora.BrightYellow(VERSION))
+			logger.Info("Version:", col.Colorize(VERSION, AnsiYellowFg))
 			os.Exit(0)
 		}
 
@@ -43,7 +42,7 @@ func main() {
 		// Request for currently used quota
 		if options.CheckQuota {
 			if current, err := compressor.GetQuotaUsage(); err == nil {
-				logger.Info("Current quota usage:", aurora.BrightYellow(current))
+				logger.Info("Current quota usage:", col.Colorize(current, AnsiYellowFg))
 				os.Exit(0)
 			} else {
 				logger.Fatal("Cannot get current quota usage (double check your API key and network settings)")
@@ -55,7 +54,7 @@ func main() {
 
 		// Check for found files
 		if filesLen := len(files); filesLen >= 1 {
-			logger.Verbose("Found files:", aurora.BrightYellow(filesLen))
+			logger.Verbose("Found files:", col.Colorize(filesLen, AnsiYellowFg))
 
 			// Set lower threads count if files count less then passed threads count
 			if filesLen < options.Threads {
@@ -77,7 +76,7 @@ func main() {
 			}
 		}
 
-		logger.Verbose("Start", aurora.BrightYellow(options.Threads), "threads")
+		logger.Verbose("Start", col.Colorize(options.Threads, AnsiYellowFg), "threads")
 
 		tasks.StartWorkers()
 		errCount := tasks.Wait(func() {

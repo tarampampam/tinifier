@@ -1,0 +1,3 @@
+Окно или вкладка откроются в текущем сеансе браузера.
+[28571:28571:1023/120242.125578:ERROR:content_settings_pref.cc(261)] Invalid pattern strings: [*.].0.0.1,*
+[1:1:1023/120243.071066:ERROR:child_process_sandbox_support_impl_linux.cc(81)] FontService unique font name matching request did not receive a response.

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/logrusorgru/aurora"
 	"log"
 	"strings"
 	"testing"
@@ -34,6 +33,7 @@ func TestLoggerVerbose(t *testing.T) {
 	var (
 		std = log.New(&FakeWriter{}, "", 0)
 		err = log.New(&FakeWriter{}, "", 0)
+		c   = NewAnsiColors()
 	)
 
 	var cases = []struct {
@@ -43,25 +43,25 @@ func TestLoggerVerbose(t *testing.T) {
 		expectedErr interface{}
 	}{
 		{
-			logger:      *NewLogger(std, err, true, false),
+			logger:      *NewLogger(c, std, err, true, false),
 			value:       "foo",
 			expectedStd: "foo\n",
 			expectedErr: "",
 		},
 		{
-			logger:      *NewLogger(std, err, true, true),
+			logger:      *NewLogger(c, std, err, true, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "foo bar Baz\n 123\n",
 			expectedErr: "",
 		},
 		{
-			logger:      *NewLogger(std, err, true, false),
+			logger:      *NewLogger(c, std, err, true, false),
 			value:       []string{"1", "foo", "2"},
 			expectedStd: "[1 foo 2]\n",
 			expectedErr: "",
 		},
 		{
-			logger:      *NewLogger(std, err, false, true),
+			logger:      *NewLogger(c, std, err, false, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "",
 			expectedErr: "",
@@ -90,6 +90,7 @@ func TestLoggerInfo(t *testing.T) {
 	var (
 		std = log.New(&FakeWriter{}, "", 0)
 		err = log.New(&FakeWriter{}, "", 0)
+		c   = NewAnsiColors()
 	)
 
 	var cases = []struct {
@@ -99,25 +100,25 @@ func TestLoggerInfo(t *testing.T) {
 		expectedErr interface{}
 	}{
 		{
-			logger:      *NewLogger(std, err, true, false),
+			logger:      *NewLogger(c, std, err, true, false),
 			value:       "foo",
 			expectedStd: "foo\n",
 			expectedErr: "",
 		},
 		{
-			logger:      *NewLogger(std, err, true, true),
+			logger:      *NewLogger(c, std, err, true, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "foo bar Baz\n 123\n",
 			expectedErr: "",
 		},
 		{
-			logger:      *NewLogger(std, err, true, false),
+			logger:      *NewLogger(c, std, err, true, false),
 			value:       []string{"1", "foo", "2"},
 			expectedStd: "[1 foo 2]\n",
 			expectedErr: "",
 		},
 		{
-			logger:      *NewLogger(std, err, false, true),
+			logger:      *NewLogger(c, std, err, false, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "foo bar Baz\n 123\n",
 			expectedErr: "",
@@ -146,7 +147,8 @@ func TestLoggerError(t *testing.T) {
 	var (
 		std   = log.New(&FakeWriter{}, "", 0)
 		err   = log.New(&FakeWriter{}, "", 0)
-		flags = aurora.BrightFg | aurora.RedFg | aurora.BoldFm
+		flags = []AnsiColor{AnsiBrightFg, AnsiRedFg, AnsiBoldFm}
+		c     = NewAnsiColors()
 	)
 
 	var cases = []struct {
@@ -156,28 +158,28 @@ func TestLoggerError(t *testing.T) {
 		expectedErr interface{}
 	}{
 		{
-			logger:      *NewLogger(std, err, true, false),
+			logger:      *NewLogger(c, std, err, true, false),
 			value:       "foo",
 			expectedStd: "",
 			expectedErr: "foo\n",
 		},
 		{
-			logger:      *NewLogger(std, err, true, true),
+			logger:      *NewLogger(c, std, err, true, true),
 			value:       "foo bar Baz\n 123",
 			expectedStd: "",
-			expectedErr: aurora.Colorize("foo bar Baz\n 123", flags).String() + "\n",
+			expectedErr: NewAnsiColors().Colorize("foo bar Baz\n 123", flags...).(fmt.Stringer).String() + "\n",
 		},
 		{
-			logger:      *NewLogger(std, err, true, false),
+			logger:      *NewLogger(c, std, err, true, false),
 			value:       []string{"1", "foo", "2"},
 			expectedStd: "",
 			expectedErr: "[1 foo 2]\n",
 		},
 		{
-			logger:      *NewLogger(std, err, false, true),
+			logger:      *NewLogger(c, std, err, false, true),
 			value:       []string{"foo bar Baz\n 123", "blah"},
 			expectedStd: "",
-			expectedErr: aurora.Colorize("[foo bar Baz\n 123 blah]", flags).String() + "\n",
+			expectedErr: NewAnsiColors().Colorize("[foo bar Baz\n 123 blah]", flags...).(fmt.Stringer).String() + "\n",
 		},
 	}
 
@@ -205,6 +207,7 @@ func TestPanic(t *testing.T) {
 	var panicValue interface{}
 
 	logger := *NewLogger(
+		NewAnsiColors(),
 		log.New(&FakeWriter{}, "", 0),
 		log.New(&FakeWriter{}, "", 0),
 		true,
@@ -241,6 +244,7 @@ func TestFatal(t *testing.T) {
 	var (
 		std = log.New(&FakeWriter{}, "", 0)
 		err = log.New(&FakeWriter{}, "", 0)
+		c   = NewAnsiColors()
 	)
 
 	var cases = []struct {
@@ -251,19 +255,19 @@ func TestFatal(t *testing.T) {
 		exitCode    int
 	}{
 		{
-			logger:  *NewLogger(std, err, true, true),
+			logger:  *NewLogger(c, std, err, true, true),
 			message: "foo",
 		},
 		{
-			logger:  *NewLogger(std, err, true, false),
+			logger:  *NewLogger(c, std, err, true, false),
 			message: "foo bar Baz\n 123",
 		},
 		{
-			logger:  *NewLogger(std, err, false, true),
+			logger:  *NewLogger(c, std, err, false, true),
 			message: []string{"1", "foo", "2"},
 		},
 		{
-			logger:  *NewLogger(std, err, false, false),
+			logger:  *NewLogger(c, std, err, false, false),
 			message: []string{"foo bar Baz\n 123", "blah"},
 		},
 	}
