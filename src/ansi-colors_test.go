@@ -3,114 +3,131 @@ package main
 import (
 	"fmt"
 	"github.com/logrusorgru/aurora"
-	"strings"
+	"reflect"
 	"testing"
 )
 
-func TestColorize(t *testing.T) {
+func TestNewAnsiColors(t *testing.T) {
 	t.Parallel()
 
-	ansiColors := NewAnsiColors()
+	if _, ok := NewAnsiColors().(*AnsiColors); !ok {
+		t.Error("Constructor returns wrong instance")
+	}
+}
 
-	for _, testCase := range []struct {
-		value          interface{}
-		flags          []AnsiColor
-		shouldContains string
-	}{
-		{
-			value:          "foo",
-			flags:          []AnsiColor{AnsiBrightFg},
-			shouldContains: "foo",
-		},
-		{
-			value:          "foo",
-			flags:          []AnsiColor{},
-			shouldContains: "foo",
-		},
-		{
-			value:          []string{"1", "2"},
-			flags:          []AnsiColor{},
-			shouldContains: "[1 2]",
-		},
-		{
-			value:          123,
-			flags:          []AnsiColor{AnsiBoldFm},
-			shouldContains: "123",
-		},
+func TestAnsiToAuroraFlags(t *testing.T) {
+	t.Parallel()
+
+	for ansiColor, auroraColor := range map[AnsiColor]aurora.Color{
+		AnsiBrightFg: aurora.BrightFg,
+		AnsiRedFg:    aurora.RedFg,
+		AnsiBoldFm:   aurora.BoldFm,
+		AnsiRedBg:    aurora.RedBg,
+		AnsiWhiteFg:  aurora.WhiteFg,
+		AnsiYellowFg: aurora.YellowFg,
 	} {
-		res := ansiColors.Colorize(testCase.value, testCase.flags...)
-
-		if _, ok := res.(aurora.Value); !ok {
-			t.Errorf("For value %+v returns wrong type", testCase.value)
-		}
-
-		if _, ok := res.(fmt.Stringer); !ok {
-			t.Errorf("For value %+v result should be 'stringable'", testCase.value)
-		}
-
-		if !strings.Contains(res.(fmt.Stringer).String(), testCase.shouldContains) {
-			t.Errorf("Value '%+v' should contains '%+v'", res, testCase.shouldContains)
-		}
-
-		if len(testCase.flags) > 0 && len(res.(fmt.Stringer).String()) <= len(fmt.Sprint(testCase.value)) {
-			t.Errorf("Result length should be grater then original length %d", len(res.(fmt.Stringer).String()))
+		if ansiToAuroraFlagsMap[ansiColor] != auroraColor {
+			t.Errorf("For ansi color %+v mapped wrong color %+v", ansiColor, auroraColor)
 		}
 	}
 }
 
-func TestColorizeMany(t *testing.T) {
+func TestColorizeSingleAndMany(t *testing.T) {
 	t.Parallel()
-
-	createSlice := func(args ...interface{}) []interface{} {
-		t.Helper()
-		res := make([]interface{}, 0, len(args))
-		for _, v := range args {
-			res = append(res, v)
-		}
-		return res
-	}
 
 	ansiColors := NewAnsiColors()
 
-	for _, testCase := range []struct {
-		value          []interface{}
-		flags          []AnsiColor
-		shouldContains []interface{}
+	for _, c := range []struct {
+		value         interface{}
+		flags         []AnsiColor
+		expectedColor aurora.Color
 	}{
 		{
-			value:          createSlice("foo", []string{"bar"}),
-			flags:          []AnsiColor{AnsiBrightFg},
-			shouldContains: createSlice("foo", "[bar]"),
+			value:         "foo",
+			flags:         []AnsiColor{AnsiBrightFg},
+			expectedColor: aurora.BrightFg,
 		},
 		{
-			value:          createSlice(123, true),
-			flags:          []AnsiColor{AnsiBrightFg},
-			shouldContains: createSlice("123", "true"),
+			value:         "foo",
+			flags:         []AnsiColor{},
+			expectedColor: 0,
 		},
 		{
-			value:          createSlice("baz", [...]int{1, 2}),
-			flags:          []AnsiColor{},
-			shouldContains: createSlice("baz", "[1 2]"),
+			value:         [...]string{"1", "2"},
+			flags:         []AnsiColor{},
+			expectedColor: 0,
+		},
+		{
+			value:         123,
+			flags:         []AnsiColor{AnsiBoldFm, AnsiBrightFg},
+			expectedColor: aurora.BoldFm | aurora.BrightFg,
 		},
 	} {
-		result := ansiColors.ColorizeMany(testCase.value, testCase.flags...)
+		res := ansiColors.Colorize(c.value, c.flags...)
 
-		for i := range result {
-			if _, ok := result[i].(aurora.Value); !ok {
-				t.Errorf("For value %+v returns wrong type", testCase.value[i])
-			}
+		if _, ok := res.(aurora.Value); !ok {
+			t.Errorf("For value %+v returns wrong type", c.value)
+		}
 
-			if _, ok := result[i].(fmt.Stringer); !ok {
-				t.Errorf("For value1 %+v result should be 'stringable'", testCase.value[i])
-			}
+		if fmt.Sprint(res.(aurora.Value).Value()) != fmt.Sprint(c.value) {
+			t.Errorf("For value %+v returns modificated value", c.value)
+		}
 
-			if !strings.Contains(result[i].(fmt.Stringer).String(), testCase.shouldContains[i].(string)) {
-				t.Errorf("Value '%+v' should contains '%+v'", result[i], testCase.shouldContains[i])
-			}
+		if res.(aurora.Value).Color() != c.expectedColor {
+			t.Errorf("For value %+v returns wrong color", c.value)
+		}
 
-			if len(testCase.flags) > 0 && len(result[i].(fmt.Stringer).String()) <= len(fmt.Sprint(testCase.value[i])) {
-				t.Errorf("Result length should be grater then original length %d", len(result[i].(fmt.Stringer).String()))
-			}
+		if !reflect.DeepEqual(ansiColors.ColorizeMany(createMixedSlice(c.value), c.flags...), createMixedSlice(res)) {
+			t.Errorf("For %+v ColorizeMany works not correctly", c.value)
 		}
 	}
+}
+
+func TestUncolorizeSingleAndMany(t *testing.T) {
+	t.Parallel()
+
+	ansiColors := NewAnsiColors()
+
+	for _, c := range []struct {
+		value interface{}
+	}{
+		{
+			value: aurora.Colorize("foo", aurora.BrightFg),
+		},
+		{
+			value: aurora.Colorize([...]string{"1", "2"}, aurora.BrightFg),
+		},
+		{
+			value: aurora.Colorize(123, aurora.BrightFg|aurora.RedBg),
+		},
+		{
+			value: 123,
+		},
+	} {
+		var expected = c.value
+
+		// Unwrap value, if needed
+		if v, ok := c.value.(aurora.Value); ok {
+			expected = v.Value()
+		}
+
+		res := ansiColors.Uncolorize(c.value)
+
+		if expected != res {
+			t.Errorf("For value %+v returns non-original value", c.value)
+		}
+
+		if !reflect.DeepEqual(ansiColors.UncolorizeMany(createMixedSlice(c.value)), createMixedSlice(expected)) {
+			t.Errorf("For %+v UncolorizeMany works not correctly", c.value)
+		}
+	}
+}
+
+// Create `[]interface{}`
+func createMixedSlice(args ...interface{}) []interface{} {
+	res := make([]interface{}, 0, len(args))
+	for _, v := range args {
+		res = append(res, v)
+	}
+	return res
 }
