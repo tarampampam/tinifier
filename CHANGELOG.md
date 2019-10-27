@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 
 ### Changed
 
+- Source code decomposited _(partially)_
 - On pressing `Ctrl + C` _(while process is in progress)_ results will be printed
 - Migrated from Travis CI to GitHub actions
 - Binary file names for releases _(for windows)_
@@ -15,6 +16,10 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 ### Added
 
 - Code tests
+
+### Fixed
+
+- Option `-C` now works correctly
 
 ## v0.1.0
 
