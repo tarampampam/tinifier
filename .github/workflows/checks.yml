@@ -53,8 +53,12 @@ jobs:
           flags: unittests
 
   build:
-    name: Build and execute
+    name: Build for ${{ matrix.os }} and execute
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, windows]
     needs: [gofmt, test]
     steps:
       - name: Set up Go
@@ -68,10 +72,13 @@ jobs:
           fetch-depth: 1
 
       - name: Build application
+        env:
+          GOOS: ${{ matrix.os }}
         working-directory: ./src
         run: go build -ldflags '-s -w' -o /tmp/tinifier .
 
       - name: Try to execute
+        if: matrix.os != 'windows'
         run: /tmp/tinifier -V && /tmp/tinifier -h
 
   image:

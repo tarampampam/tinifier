@@ -149,8 +149,8 @@ func (t *Tasks) Wait(onBreak OnWorkingBreak) int {
 	// Listen for signal
 	go func() {
 		switch s := <-signals; s {
-		// On SIGUSR1 just exit
-		case syscall.SIGUSR1:
+		// On SIGHUP just exit
+		case syscall.SIGHUP:
 			break
 		// In any another way - call the action
 		default:
@@ -169,7 +169,7 @@ func (t *Tasks) Wait(onBreak OnWorkingBreak) int {
 
 	// Stop subscribing and say for goroutine to exit
 	signal.Stop(signals)
-	signals <- syscall.SIGUSR1
+	signals <- syscall.SIGHUP
 
 	t.Spin.Stop()
 
