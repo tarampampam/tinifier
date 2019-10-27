@@ -78,7 +78,7 @@ jobs:
         run: go build -ldflags '-s -w' -o /tmp/tinifier .
 
       - name: Try to execute
-        if: matrix.os == 'linux'
+        if: matrix.os != 'windows'
         run: /tmp/tinifier -V && /tmp/tinifier -h
 
   image:
