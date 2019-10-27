@@ -1,11 +1,11 @@
-name: Build on Push
+name: Checks
 
 on:
   push:
     branches:
-      - '**'
+      - master
     tags-ignore:
-      - v[0-9]+.*
+      - '**'
   pull_request:
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: 1.13.x
 
       - name: Check out code
         uses: actions/checkout@v1
@@ -34,7 +34,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: 1.13.x
 
       - name: Check out code
         uses: actions/checkout@v1
@@ -50,6 +50,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./src/coverage.txt
+          flags: unittests
 
   build:
     name: Build and execute
@@ -59,7 +60,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.13
+          go-version: 1.13.x
 
       - name: Check out code
         uses: actions/checkout@v1

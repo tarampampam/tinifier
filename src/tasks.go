@@ -9,9 +9,11 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -31,7 +33,7 @@ type TaskResult struct {
 
 // Tasks processor.
 type Tasks struct {
-	Targets    *Targets
+	Files      *[]string
 	WG         sync.WaitGroup
 	Spin       *spinner.Spinner
 	Errors     []error
@@ -43,12 +45,15 @@ type Tasks struct {
 	Results    []TaskResult
 }
 
+// Callable for calling on working break.
+type OnWorkingBreak func()
+
 // Create new tasks processor.
-func NewTasks(targets *Targets, thCount int, maxErrors int) *Tasks {
+func NewTasks(files *[]string, thCount int, maxErrors int) *Tasks {
 	res := Tasks{
-		Targets:   targets,
+		Files:     files,
 		Spin:      spinner.New(spinner.CharSets[14], 150*time.Millisecond),
-		maxPos:    len(targets.Files),
+		maxPos:    len(*files),
 		ch:        make(chan Task, thCount),
 		thCount:   thCount,
 		maxErrors: maxErrors,
@@ -68,7 +73,7 @@ func (t *Tasks) FillUpTasks() {
 	//}()
 
 	// Push tasks for a processing
-	for _, filePath := range t.Targets.Files {
+	for _, filePath := range *t.Files {
 		t.ch <- Task{FilePath: filePath}
 	}
 	// And send exit signals at the end
@@ -134,13 +139,37 @@ func (t *Tasks) StartWorkers() {
 }
 
 // Wait until all workers complete queue jobs.
-func (t *Tasks) Wait() int {
+func (t *Tasks) Wait(onBreak OnWorkingBreak) int {
+	// Make a channel for system signals
+	signals := make(chan os.Signal, 1)
+
+	// "Subscribe" for system signals
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	// Listen for signal
+	go func() {
+		switch s := <-signals; s {
+		// On SIGUSR1 just exit
+		case syscall.SIGUSR1:
+			break
+		// In any another way - call the action
+		default:
+			if t.Spin.Active() {
+				t.Spin.Stop()
+			}
+			onBreak()
+			os.Exit(1)
+		}
+	}()
+
+	defer close(signals)
+
 	t.Spin.Start()
 	t.WG.Wait()
 
-	// Note that it is only necessary to close a channel if the receiver is looking for a close.
-	// Closing the channel is a control signal on the channel indicating that no more data follows.
-	//close(t.ch)
+	// Stop subscribing and say for goroutine to exit
+	signal.Stop(signals)
+	signals <- syscall.SIGUSR1
 
 	t.Spin.Stop()
 
@@ -148,43 +177,44 @@ func (t *Tasks) Wait() int {
 }
 
 // Print processing results.
-func (t *Tasks) PrintResults(std io.Writer, err io.Writer) {
-	var totalSaved int64
-	table := tablewriter.NewWriter(std)
+func (t *Tasks) PrintResults(std io.Writer) {
+	if len(t.Results) > 0 {
+		var totalSaved int64
+		table := tablewriter.NewWriter(std)
 
-	for _, res := range t.Results {
-		table.Append([]string{
-			filepath.Base(res.FilePath),
-			strconv.FormatInt(res.OriginalSize/1024, 10) + " Kb",
-			strconv.FormatInt(res.ResultSize/1024, 10) + " Kb",
-			fmt.Sprintf("%0.2f%%", math.Abs(res.Ratio)),
-			strconv.FormatInt((res.OriginalSize-res.ResultSize)/1024, 10) + " Kb",
-		})
-		totalSaved = totalSaved + (res.OriginalSize - res.ResultSize)
+		for _, res := range t.Results {
+			table.Append([]string{
+				filepath.Base(res.FilePath),
+				strconv.FormatInt(res.OriginalSize/1024, 10) + " Kb",
+				strconv.FormatInt(res.ResultSize/1024, 10) + " Kb",
+				fmt.Sprintf("%0.2f%%", math.Abs(res.Ratio)),
+				strconv.FormatInt((res.OriginalSize-res.ResultSize)/1024, 10) + " Kb",
+			})
+			totalSaved = totalSaved + (res.OriginalSize - res.ResultSize)
+		}
+
+		table.SetHeader([]string{"File Name", "Original Size", "Compressed", "Compress Ratio", "Saved"})
+		table.SetFooter([]string{"", "", "", "Total saved", strconv.FormatInt(totalSaved/1024, 10) + " Kb"})
+
+		table.Render()
 	}
+}
 
-	//table.SetBorder(false)
-	//table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"File Name", "Original Size", "Compressed", "Compress Ratio", "Saved"})
-	table.SetFooter([]string{"", "", "", "Total saved", strconv.FormatInt(totalSaved/1024, 10) + " Kb"})
-
-	table.Render()
-
+// Print processing errors.
+func (t *Tasks) PrintErrors(std io.Writer) {
 	if len(t.Errors) > 0 {
-		errorsTable := tablewriter.NewWriter(err)
-		errorsTable.SetColWidth(80)
+		table := tablewriter.NewWriter(std)
+		table.SetColWidth(80)
 
 		for i, err := range t.Errors {
-			errorsTable.Append([]string{
+			table.Append([]string{
 				strconv.Itoa(i + 1),
 				err.Error(),
 			})
 		}
 
-		//table.SetBorder(false)
-		//table.SetAlignment(tablewriter.ALIGN_CENTER)
-		errorsTable.SetHeader([]string{"#", "Error details"})
+		table.SetHeader([]string{"#", "Error details"})
 
-		errorsTable.Render()
+		table.Render()
 	}
 }

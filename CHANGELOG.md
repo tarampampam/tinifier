@@ -4,12 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
-## UNRELEASED
+## v1.0.0
 
 ### Changed
 
+- Source code decomposited _(partially)_
+- On pressing `Ctrl + C` _(while process is in progress)_ results will be printed
 - Migrated from Travis CI to GitHub actions
 - Binary file names for releases _(for windows)_
+
+### Added
+
+- Code tests
+
+### Fixed
+
+- Option `-C` now works correctly
 
 ## v0.1.0
 

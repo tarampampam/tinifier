@@ -1,62 +1,122 @@
 package main
 
 import (
-	color "github.com/logrusorgru/aurora"
+	"fmt"
 	"log"
 	"os"
 )
 
-type Logger struct {
-	std       *log.Logger
-	err       *log.Logger
-	isVerbose bool
+type ILogger interface {
+	SetVerbose(isEnabled bool)
+	SetColors(isEnabled bool)
+	Verbose(msg ...interface{})
+	Info(msg ...interface{})
+	Error(msg ...interface{})
+	Panic(v interface{})
+	Fatal(msg ...interface{})
+	SetOnPanicFunc(f LoggerPanicFunc)
+	SetOnExitFunc(f LoggerExitFunc)
 }
 
-var logger = Logger{}
+type Logger struct {
+	StdLogger *log.Logger
+	ErrLogger *log.Logger
+	colors    IAnsiColors
+	isVerbose bool
+	useColors bool
+	onPanic   LoggerPanicFunc
+	onExit    LoggerExitFunc
+}
 
-func init() {
-	logger.std = log.New(os.Stdout, "", 0)
-	logger.err = log.New(os.Stderr, "", 0)
+type LoggerExitFunc func(code int)
+type LoggerPanicFunc func(v interface{})
+
+// Create new logger instance.
+func NewLogger(colors IAnsiColors, std *log.Logger, err *log.Logger, isVerbose bool, useColors bool) *Logger {
+	r := &Logger{
+		colors:    colors,
+		StdLogger: std,
+		ErrLogger: err,
+	}
+
+	r.SetVerbose(isVerbose)
+	r.SetColors(useColors)
+	r.SetOnExitFunc(func(code int) {
+		os.Exit(code)
+	})
+	r.SetOnPanicFunc(func(v interface{}) {
+		panic(v)
+	})
+
+	return r
+}
+
+// Enable or disable verbose mode.
+func (l *Logger) SetVerbose(isEnabled bool) {
+	l.isVerbose = isEnabled
+}
+
+// Enable or disable verbose color output.
+func (l *Logger) SetColors(isEnabled bool) {
+	l.useColors = isEnabled
+}
+
+// Set "panic" function.
+func (l *Logger) SetOnPanicFunc(f LoggerPanicFunc) {
+	l.onPanic = f
+}
+
+// Set "exit" function.
+func (l *Logger) SetOnExitFunc(f LoggerExitFunc) {
+	l.onExit = f
 }
 
 // Output message only if verbose mode is enabled.
 func (l *Logger) Verbose(msg ...interface{}) {
 	if l.isVerbose {
-		l.std.Println(msg...)
+		if l.useColors {
+			l.StdLogger.Println(msg...)
+		} else {
+			l.StdLogger.Println(l.colors.UncolorizeMany(msg)...)
+		}
 	}
 }
 
 // Output info message to the StdOut writer.
 func (l *Logger) Info(msg ...interface{}) {
-	l.std.Println(msg...)
+	if l.useColors {
+		l.StdLogger.Println(msg...)
+	} else {
+		l.StdLogger.Println(l.colors.UncolorizeMany(msg)...)
+	}
 }
 
 // Output error message to the StdErr writer.
 func (l *Logger) Error(msg ...interface{}) {
-	res := make([]interface{}, 0, len(msg))
-
-	for _, v := range msg {
-		res = append(res, colors.au.Colorize(v, color.BrightFg|color.RedFg|color.BoldFm))
+	if l.useColors {
+		l.ErrLogger.Print(l.colors.ColorizeMany(msg, AnsiBrightFg, AnsiRedFg, AnsiBoldFm)...)
+	} else {
+		l.ErrLogger.Print(msg...)
 	}
-
-	l.err.Print(res...)
-	res = nil // free slice
 }
 
 // Panic is equivalent to l.Print() followed by a call to panic().
-func (l *Logger) Panic(msg ...interface{}) {
-	l.err.Panicln(msg...)
+func (l *Logger) Panic(v interface{}) {
+	l.onPanic(v)
 }
 
 // Fatal is equivalent to l.Error() followed by a call to os.Exit(1).
 func (l *Logger) Fatal(msg ...interface{}) {
-	l.err.SetPrefix(colors.au.Colorize("[Fatal Error]", color.RedBg|color.WhiteFg|color.BoldFm).String() + " ")
-	l.Error(msg...)
-	os.Exit(1)
-}
+	const prefix string = "[Fatal Error]"
 
-// Customize logger prefix(es).
-func (l *Logger) SetPrefix(prefix string) {
-	l.std.SetPrefix(prefix)
-	l.err.SetPrefix(prefix)
+	l.ErrLogger.SetPrefix(prefix + " ")
+
+	if l.useColors {
+		if colorPrefix, ok := l.colors.Colorize(prefix, AnsiRedBg, AnsiWhiteFg, AnsiBoldFm).(fmt.Stringer); ok {
+			l.ErrLogger.SetPrefix(colorPrefix.String() + " ")
+		}
+	}
+
+	l.Error(msg...)
+	l.onExit(1)
 }

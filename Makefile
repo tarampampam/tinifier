@@ -14,7 +14,7 @@ DC_RUN_ARGS = --rm --user "$(shell id -u):$(shell id -g)" app
 APP_NAME = $(notdir $(CURDIR))
 GO_RUN_ARGS ?=
 
-.PHONY : help build update gofmt test run shell image clean
+.PHONY : help build update gofmt test cover run shell image clean
 .DEFAULT_GOAL : help
 .SILENT : test shell
 
@@ -34,6 +34,10 @@ gofmt: ## Run gofmt tool
 
 test: ## Run app tests
 	$(DC_BIN) run $(DC_RUN_ARGS) go test -v -race
+
+cover: ## Run app tests
+	$(DC_BIN) run $(DC_RUN_ARGS) sh -c 'go test -coverprofile /tmp/cp.out && go tool cover -html=/tmp/cp.out -o coverage.html'
+	-nohup sensible-browser ./src/coverage.html
 
 run: ## Run app without building binary file
 	$(DC_BIN) run $(DC_RUN_ARGS) go run . $(GO_RUN_ARGS)
