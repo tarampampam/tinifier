@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const VERSION = "0.1.1" // Do not forget update this value before new version releasing
+const VERSION = "1.0.0" // Do not forget update this value before new version releasing
 
 func main() {
 	cError := container.Invoke(func(logger ILogger, targets ITargets, col IAnsiColors) {
