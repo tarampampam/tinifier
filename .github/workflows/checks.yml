@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, windows]
+        os: [linux, windows, darwin]
     needs: [gofmt, test]
     steps:
       - name: Set up Go
