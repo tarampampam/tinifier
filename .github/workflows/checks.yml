@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, windows]
+        os: [linux, windows, darwin]
     needs: [gofmt, test]
     steps:
       - name: Set up Go
@@ -78,7 +78,7 @@ jobs:
         run: go build -ldflags '-s -w' -o /tmp/tinifier .
 
       - name: Try to execute
-        if: matrix.os != 'windows'
+        if: matrix.os == 'linux'
         run: /tmp/tinifier -V && /tmp/tinifier -h
 
   image:

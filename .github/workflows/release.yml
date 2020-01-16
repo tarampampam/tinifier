@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, windows]
+        os: [linux, windows, darwin]
         arch: [amd64, 386]
         include:
           - os: windows
