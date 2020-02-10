@@ -51,6 +51,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./src/coverage.txt
           flags: unittests
+          fail_ci_if_error: false
 
   build:
     name: Build for ${{ matrix.os }} and execute
