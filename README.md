@@ -79,7 +79,7 @@ Or build binary file:
 $ make build
 ```
 
-## Changelog
+## Changes log
 
 [![Release date][badge_release_date]][link_releases]
 [![Commits since latest release][badge_commits_since_release]][link_commits]
