@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/logrusorgru/aurora"
 	"reflect"
 	"testing"
+
+	"github.com/logrusorgru/aurora"
 )
 
 func TestNewAnsiColors(t *testing.T) {

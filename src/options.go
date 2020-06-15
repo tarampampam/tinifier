@@ -2,8 +2,9 @@ package main
 
 import (
 	"errors"
-	"github.com/jessevdk/go-flags"
 	"strings"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type Options struct {

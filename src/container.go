@@ -1,9 +1,10 @@
 package main
 
 import (
-	"go.uber.org/dig"
 	"log"
 	"os"
+
+	"go.uber.org/dig"
 )
 
 var container = dig.New()

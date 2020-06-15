@@ -3,8 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/briandowns/spinner"
-	"github.com/olekukonko/tablewriter"
 	"io"
 	"io/ioutil"
 	"math"
@@ -15,6 +13,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/briandowns/spinner"
+	"github.com/olekukonko/tablewriter"
 )
 
 // Task for processing.

@@ -2,9 +2,10 @@ package main
 
 import (
 	"errors"
-	tinypng "github.com/gwpp/tinify-go/tinify"
 	"net/http"
 	"strconv"
+
+	tinypng "github.com/gwpp/tinify-go/tinify"
 )
 
 type Compressor struct{}

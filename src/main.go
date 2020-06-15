@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/jessevdk/go-flags"
 	"os"
+
+	"github.com/jessevdk/go-flags"
 )
 
 const VERSION = "1.0.2" // Do not forget update this value before new version releasing

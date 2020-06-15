@@ -1,4 +1,4 @@
-name: Checks
+name: tests
 
 on:
   push:
@@ -14,17 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.13.x
+          go-version: 1.14
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
       - name: Run Gofmt
-        working-directory: ./src
         run: test -z "$(gofmt -l .)"
 
   test:
@@ -32,24 +31,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.13.x
+          go-version: 1.14
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
       - name: Run Unit tests
-        working-directory: ./src
-        run: go test . -v -race -coverprofile=coverage.txt -covermode=atomic
+        run: go test -race -covermode=atomic -coverprofile /tmp/coverage.txt ./...
 
       - name: Upload Coverage report to CodeCov
-        uses: codecov/codecov-action@v1.0.0 # https://github.com/codecov/codecov-action
+        uses: codecov/codecov-action@v1 # https://github.com/codecov/codecov-action
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./src/coverage.txt
+          file: /tmp/coverage.txt
           flags: unittests
           fail_ci_if_error: false
 
@@ -63,20 +61,19 @@ jobs:
     needs: [gofmt, test]
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.13.x
+          go-version: 1.14
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
       - name: Build application
         env:
           GOOS: ${{ matrix.os }}
-        working-directory: ./src
-        run: go build -ldflags '-s -w' -o /tmp/tinifier .
+        run: go build -ldflags='-s -w' -o /tmp/tinifier .
 
       - name: Try to execute
         if: matrix.os == 'linux'
@@ -88,12 +85,12 @@ jobs:
     needs: [gofmt, test]
     steps:
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
       - name: Build image
-        run: docker build -t tinifier -f Dockerfile .
+        run: docker build -t tinifier:local --build-arg "APP_VERSION=${GITHUB_SHA}" -f ./Dockerfile .
 
       - name: Try to execute
-        run: docker run --rm tinifier -h
+        run: docker run --rm tinifier:local -V
