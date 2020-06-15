@@ -26,6 +26,45 @@ jobs:
       - name: Run Gofmt
         run: test -z "$(gofmt -l .)"
 
+  goimports:
+    name: Run goimports
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.14
+
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Install goimports
+        run: go get golang.org/x/tools/cmd/goimports
+
+      - name: Update PATH environment variable
+        run: echo "::set-env name=PATH::$HOME/go/bin:$PATH"
+
+      - name: Run goimports
+        run: command -v goimports && test -z "$(goimports -d .)"
+
+      - name: Show diff
+        if: failure()
+        run: goimports -d .
+
+  lint:
+    name: Run linters
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Run GolangCI-Lint # https://github.com/golangci/golangci-lint
+        run: docker run --rm -t -v $(pwd):/app -w /app golangci/golangci-lint:v1.24-alpine golangci-lint run -v
+
   test:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -44,11 +83,11 @@ jobs:
         run: go test -race -covermode=atomic -coverprofile /tmp/coverage.txt ./...
 
       - name: Upload Coverage report to CodeCov
+        continue-on-error: true
         uses: codecov/codecov-action@v1 # https://github.com/codecov/codecov-action
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: /tmp/coverage.txt
-          flags: unittests
           fail_ci_if_error: false
 
   build:
@@ -58,7 +97,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [linux, windows, darwin]
-    needs: [gofmt, test]
+    needs: [gofmt, goimports, lint, test]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -70,19 +109,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Generate version value
+        run: echo "::set-env name=APP_VERSION::${GITHUB_REF##*/}@`echo ${GITHUB_SHA} | cut -c1-8`"
+
       - name: Build application
         env:
           GOOS: ${{ matrix.os }}
-        run: go build -ldflags='-s -w' -o /tmp/tinifier .
+        run: go build -ldflags="-s -w -X tinifier/version.version=${APP_VERSION}" -o /tmp/tinifier .
 
       - name: Try to execute
         if: matrix.os == 'linux'
         run: /tmp/tinifier -V && /tmp/tinifier -h
 
+      - uses: actions/upload-artifact@v2
+        with:
+          name: tinifier
+          path: /tmp/tinifier
+
   image:
     name: Build docker image
     runs-on: ubuntu-latest
-    needs: [gofmt, test]
+    needs: [gofmt, goimports, lint, test]
     steps:
       - name: Check out code
         uses: actions/checkout@v2
