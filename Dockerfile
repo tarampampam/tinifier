@@ -28,7 +28,7 @@ RUN set -x \
     && go version \
     && GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X tinifier/version.version=${APP_VERSION}" -o /tmp/tinifier . \
     && upx -7 /tmp/tinifier \
-    && /tmp/tinifier -V \
+    && /tmp/tinifier version \
     && /tmp/tinifier -h
 
 # Image page: <https://hub.docker.com/_/alpine>

@@ -119,7 +119,7 @@ jobs:
 
       - name: Try to execute
         if: matrix.os == 'linux'
-        run: /tmp/tinifier -V && /tmp/tinifier -h
+        run: /tmp/tinifier version && /tmp/tinifier -h
 
       - uses: actions/upload-artifact@v2
         with:
@@ -140,4 +140,4 @@ jobs:
         run: docker build -t tinifier:local --build-arg "APP_VERSION=${GITHUB_SHA}" -f ./Dockerfile .
 
       - name: Try to execute
-        run: docker run --rm tinifier:local -V
+        run: docker run --rm tinifier:local version
