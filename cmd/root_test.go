@@ -18,7 +18,7 @@ func TestOptions_Struct(t *testing.T) {
 	}{
 		{
 			element: func() reflect.StructField {
-				field, _ := reflect.TypeOf(Options{}).FieldByName("Version")
+				field, _ := reflect.TypeOf(Root{}).FieldByName("Version")
 				return field
 			},
 			wantCommand:     "version",
@@ -27,7 +27,7 @@ func TestOptions_Struct(t *testing.T) {
 		},
 		{
 			element: func() reflect.StructField {
-				field, _ := reflect.TypeOf(Options{}).FieldByName("Compress")
+				field, _ := reflect.TypeOf(Root{}).FieldByName("Compress")
 				return field
 			},
 			wantCommand:     "compress",

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"tinifier/cmd/compress"
+	"tinifier/cmd/quota"
 	"tinifier/cmd/version"
 )
 
@@ -14,10 +15,11 @@ type (
 	subCommands struct {
 		Version  version.Command  `command:"version" alias:"v" description:"Display application version"`
 		Compress compress.Command `command:"compress" alias:"c" description:"Compress images"`
+		Quota    quota.Command    `command:"quota" alias:"q" description:"Get current used quota"`
 	}
 )
 
-type Options struct {
+type Root struct {
 	appOptions
 	subCommands
 }

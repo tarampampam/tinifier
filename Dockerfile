@@ -34,6 +34,8 @@ RUN set -x \
 # Image page: <https://hub.docker.com/_/alpine>
 FROM alpine:latest as runtime
 
+ARG APP_VERSION="undefined@docker"
+
 LABEL \
     org.label-schema.name="tinifier" \
     org.label-schema.description="Docker image with tinifier" \
@@ -41,6 +43,7 @@ LABEL \
     org.label-schema.vcs-url="https://github.com/tarampampam/tinifier" \
     org.label-schema.vendor="tarampampam" \
     org.label-schema.license="MIT" \
+    org.label-schema.version="$APP_VERSION"
     org.label-schema.schema-version="1.0"
 
 RUN set -x \

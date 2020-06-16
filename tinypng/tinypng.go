@@ -2,6 +2,7 @@ package tinypng
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -52,6 +53,7 @@ func NewClient(apiKey string, requestTimeout time.Duration) *Client {
 	}
 }
 
+// Compress takes image body and compress it using `tinypng.com`. You should do not forget to close `result.Compressed`.
 func (c *Client) Compress(body io.Reader) (*Result, error) {
 	sentResponse, sentErr := c.sendImage(body)
 	if sentErr != nil {
@@ -75,10 +77,8 @@ func (c *Client) Compress(body io.Reader) (*Result, error) {
 	}
 
 	// extract `compression-count` value
-	if val, ok := sentResponse.Header["Compression-Count"]; ok {
-		if count, err := strconv.ParseUint(val[0], 10, 32); err == nil {
-			result.CompressionCount = count
-		}
+	if count, countErr := c.extractCompressionCountFromResponse(sentResponse); countErr == nil {
+		result.CompressionCount = count
 	}
 
 	compressed, downloadingErr := c.downloadImage(result.Output.URL)
@@ -90,6 +90,33 @@ func (c *Client) Compress(body io.Reader) (*Result, error) {
 	result.Compressed = compressed
 
 	return &result, nil
+}
+
+func (c *Client) GetCompressionCount() (uint64, error) {
+	// If you know better way for getting current quota usage - please, make an issue in current repository
+	resp, err := c.sendImage(nil)
+	if err != nil {
+		return 0, err
+	}
+
+	_ = resp.Body.Close()
+
+	return c.extractCompressionCountFromResponse(resp)
+}
+
+// extract `compression-count` value
+func (c *Client) extractCompressionCountFromResponse(resp *http.Response) (uint64, error) {
+	const headerName string = "Compression-Count"
+
+	if val, ok := resp.Header[headerName]; ok {
+		if count, err := strconv.ParseUint(val[0], 10, 32); err == nil {
+			return count, nil
+		} else {
+			return 0, err
+		}
+	}
+
+	return 0, fmt.Errorf("header %s was not found in HTTP response", headerName)
 }
 
 func (c *Client) sendImage(body io.Reader) (*http.Response, error) {
