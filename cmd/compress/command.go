@@ -17,40 +17,41 @@ type Command struct {
 	Threads int `short:"t" long:"threads" default:"5" description:"Threads processing count"`
 }
 
-type (
-	task struct {
-		num uint32
-	}
-)
-
 // Follows `flags.Commander` interface (required for commands handling).
 func (*Command) Execute(_ []string) error { return nil }
 
 // Handle `serve` command.
 func (cmd *Command) Handle(l *log.Logger, _ []string) error {
+	// get tasks for processing
+	tasks, err := cmd.getTasks(l)
+	if err != nil {
+		return err
+	}
+
 	var (
-		totalSavedKb int64
-		wg           = sync.WaitGroup{}
-		tasksChan    = make(chan task, cmd.Threads)
-		ossChan      = make(chan os.Signal, 1) // channel for operational system signals
+		wg          = sync.WaitGroup{}
+		tasksChan   = make(chan task, cmd.Threads)
+		resultsChan = make(chan result)
+		ossChan     = make(chan os.Signal, 1) // channel for operational system signals
 	)
 
 	// "subscribe" for system signals
 	signal.Notify(ossChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	// create context
-	ctx, cancel := context.WithCancel(context.Background())
-
-	tasks, _ := cmd.getTasks(l)
-
 	// fill-up tasks channel
 	go cmd.pushTasks(l, tasks, tasksChan)
+
+	// create context
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// start workers
 	for i := 0; i < cmd.Threads; i++ {
 		wg.Add(1)
-		go cmd.work(l, ctx, tasksChan, &wg)
+		go cmd.work(l, ctx, tasksChan, resultsChan, &wg)
 	}
+
+	wg.Add(1)
+	go cmd.readResults(l, resultsChan, len(*tasks), &wg)
 
 	// listen for system signals in separate goroutine
 	go func() {
@@ -60,8 +61,6 @@ func (cmd *Command) Handle(l *log.Logger, _ []string) error {
 	}()
 
 	wg.Wait()
-
-	l.Infof("totalSavedKb = %d", totalSavedKb)
 
 	return nil
 }
@@ -85,7 +84,7 @@ func (cmd *Command) pushTasks(l *log.Logger, from *[]task, to chan task) {
 	}
 }
 
-func (cmd *Command) work(l *log.Logger, ctx context.Context, tasks chan task, wg *sync.WaitGroup) {
+func (cmd *Command) work(l *log.Logger, ctx context.Context, tasks chan task, results chan result, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -104,6 +103,26 @@ func (cmd *Command) work(l *log.Logger, ctx context.Context, tasks chan task, wg
 
 			time.Sleep(1 * time.Second)
 			l.WithField("num", task.num).Debug("worker process task", task)
+			results <- result{}
 		}
 	}
+}
+
+func (cmd *Command) readResults(l *log.Logger, results chan result, total int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var counter int
+
+	for {
+		result, isOpened := <-results
+		counter++
+
+		if !isOpened || counter >= total {
+			break
+		}
+
+		l.Info(result)
+	}
+
+	l.WithField("counter", counter).Info("stop results listener")
 }
