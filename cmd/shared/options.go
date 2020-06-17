@@ -3,7 +3,7 @@ package shared
 type APIKey string
 
 type WithAPIKey struct {
-	APIKey APIKey `short:"k" long:"api-key" env:"TINYPNG_API_KEY" description:"TinyPNG API key <https://tinypng.com/dashboard/api>"`
+	APIKey APIKey `short:"k" long:"api-key" env:"TINYPNG_API_KEY" description:"TinyPNG API key <https://tinypng.com/dashboard/api>"` //nolint:lll
 }
 
 func (key APIKey) String() string {

@@ -1,33 +1,29 @@
 package quota
 
 import (
+	"context"
+	"fmt"
 	"time"
 	"tinifier/cmd/shared"
 	"tinifier/tinypng"
-
-	log "github.com/sirupsen/logrus"
 )
+
+const tinypngRequestTimeout time.Duration = time.Second * 5
 
 type Command struct {
 	shared.WithAPIKey
 }
 
-// Follows `flags.Commander` interface (required for commands handling).
-func (*Command) Execute(_ []string) error { return nil }
+// Execute command.
+func (cmd *Command) Execute(_ []string) error {
+	client := tinypng.NewClient(cmd.APIKey.String(), tinypngRequestTimeout)
 
-// Handle `serve` command.
-func (cmd *Command) Handle(log *log.Logger, _ []string) error {
-	client := tinypng.NewClient(cmd.APIKey.String(), time.Second*5)
-
-	count, err := client.GetCompressionCount()
+	count, err := client.GetCompressionCount(context.Background())
 	if err != nil {
 		return err
 	}
 
-	log.
-		WithField("key", cmd.APIKey.Masked()).
-		WithField("quota", count).
-		Info("Currently used quota")
+	fmt.Printf("Currently used quota for key [%s] is %d\n", cmd.APIKey.Masked(), count)
 
 	return nil
 }

@@ -1,11 +1,13 @@
 package tinypng
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -38,6 +40,7 @@ type (
 		Input            Input   `json:"input"`
 		Output           Output  `json:"output"`
 		Error            *string `json:"error"`
+		Message          *string `json:"message"`
 		CompressionCount uint64  // used quota value
 		Compressed       io.ReadCloser
 	}
@@ -54,8 +57,8 @@ func NewClient(apiKey string, requestTimeout time.Duration) *Client {
 }
 
 // Compress takes image body and compress it using `tinypng.com`. You should do not forget to close `result.Compressed`.
-func (c *Client) Compress(body io.Reader) (*Result, error) {
-	sentResponse, sentErr := c.sendImage(body)
+func (c *Client) Compress(ctx context.Context, body io.Reader) (*Result, error) {
+	sentResponse, sentErr := c.sendImage(ctx, body)
 	if sentErr != nil {
 		return nil, sentErr
 	}
@@ -73,7 +76,12 @@ func (c *Client) Compress(body io.Reader) (*Result, error) {
 
 	// making sure that error is missing in response
 	if result.Error != nil {
-		return nil, errors.New(*result.Error)
+		var details = ""
+		if result.Message != nil {
+			details = " (" + strings.Trim(*result.Message, ". ") + ")"
+		}
+
+		return nil, errors.New("tinypng.com: " + *result.Error + details)
 	}
 
 	// extract `compression-count` value
@@ -81,7 +89,7 @@ func (c *Client) Compress(body io.Reader) (*Result, error) {
 		result.CompressionCount = count
 	}
 
-	compressed, downloadingErr := c.downloadImage(result.Output.URL)
+	compressed, downloadingErr := c.downloadImage(ctx, result.Output.URL)
 	if downloadingErr != nil {
 		return nil, downloadingErr
 	}
@@ -92,9 +100,9 @@ func (c *Client) Compress(body io.Reader) (*Result, error) {
 	return &result, nil
 }
 
-func (c *Client) GetCompressionCount() (uint64, error) {
+func (c *Client) GetCompressionCount(ctx context.Context) (uint64, error) {
 	// If you know better way for getting current quota usage - please, make an issue in current repository
-	resp, err := c.sendImage(nil)
+	resp, err := c.sendImage(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -109,18 +117,19 @@ func (c *Client) extractCompressionCountFromResponse(resp *http.Response) (uint6
 	const headerName string = "Compression-Count"
 
 	if val, ok := resp.Header[headerName]; ok {
-		if count, err := strconv.ParseUint(val[0], 10, 32); err == nil {
+		count, err := strconv.ParseUint(val[0], 10, 32)
+		if err == nil {
 			return count, nil
-		} else {
-			return 0, err
 		}
+
+		return 0, err
 	}
 
 	return 0, fmt.Errorf("header %s was not found in HTTP response", headerName)
 }
 
-func (c *Client) sendImage(body io.Reader) (*http.Response, error) {
-	request, requestErr := http.NewRequest(http.MethodPost, ENDPOINT, body)
+func (c *Client) sendImage(ctx context.Context, body io.Reader) (*http.Response, error) {
+	request, requestErr := http.NewRequestWithContext(ctx, http.MethodPost, ENDPOINT, body)
 	if requestErr != nil {
 		return nil, requestErr
 	}
@@ -136,8 +145,8 @@ func (c *Client) sendImage(body io.Reader) (*http.Response, error) {
 	return response, nil
 }
 
-func (c *Client) downloadImage(url string) (io.ReadCloser, error) {
-	request, requestErr := http.NewRequest(http.MethodGet, url, nil)
+func (c *Client) downloadImage(ctx context.Context, url string) (io.ReadCloser, error) {
+	request, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if requestErr != nil {
 		return nil, requestErr
 	}
@@ -145,7 +154,7 @@ func (c *Client) downloadImage(url string) (io.ReadCloser, error) {
 	// setup request API key
 	request.SetBasicAuth("api", c.apiKey)
 
-	response, responseErr := c.httpClient.Do(request)
+	response, responseErr := c.httpClient.Do(request) //nolint:bodyclose
 	if responseErr != nil {
 		return nil, responseErr
 	}
