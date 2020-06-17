@@ -43,7 +43,7 @@ LABEL \
     org.label-schema.vcs-url="https://github.com/tarampampam/tinifier" \
     org.label-schema.vendor="tarampampam" \
     org.label-schema.license="MIT" \
-    org.label-schema.version="$APP_VERSION"
+    org.label-schema.version="$APP_VERSION" \
     org.label-schema.schema-version="1.0"
 
 RUN set -x \
