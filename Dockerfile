@@ -47,7 +47,6 @@ LABEL \
     org.label-schema.schema-version="1.0"
 
 RUN set -x \
-    && mkdir /app \
     # Unprivileged user creation <https://stackoverflow.com/a/55757473/12429735RUN>
     && adduser \
         --disabled-password \
