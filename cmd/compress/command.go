@@ -96,9 +96,13 @@ func (cmd *Command) getTasks(extensions []string, targets []string) (*[]task, er
 		extensionsMap[ext] = true
 	}
 
-	for i, filePath := range targets {
+	var counter uint32 = 0
+
+	for _, filePath := range targets {
 		if _, ok := extensionsMap[strings.Trim(filepath.Ext(filePath), ". ")]; ok {
-			tasks = append(tasks, task{num: uint32(i), filePath: filePath})
+			tasks = append(tasks, task{num: counter, filePath: filePath})
+
+			counter++
 		}
 	}
 

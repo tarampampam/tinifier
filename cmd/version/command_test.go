@@ -1,39 +1,14 @@
 package version
 
 import (
-	"bytes"
-	"io"
-	"os"
 	"testing"
 
+	"github.com/kami-zh/go-capturer"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCommand_Execute(t *testing.T) {
 	t.Parallel()
-
-	captureOutput := func(f func()) string {
-		t.Helper()
-
-		r, w, err := os.Pipe()
-		if err != nil {
-			panic(err)
-		}
-
-		stdout := os.Stdout
-		os.Stdout = w
-
-		defer func() { os.Stdout = stdout }()
-
-		f()
-
-		_ = w.Close()
-
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-
-		return buf.String()
-	}
 
 	tests := []struct {
 		name             string
@@ -57,7 +32,7 @@ func TestCommand_Execute(t *testing.T) {
 
 			assert.NoError(t, cmd.Execute(tt.giveArgs))
 
-			output := captureOutput(func() {
+			output := capturer.CaptureStdout(func() {
 				err = cmd.Execute(tt.giveArgs)
 			})
 
