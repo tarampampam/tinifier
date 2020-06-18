@@ -1,16 +1,13 @@
 # IDEs
 /nbproject
 /.idea
+/.vscode
 
 # Temp dirs & trash
 /temp
 /tmp
-/.build
-/.docker
 .DS_Store
+*.cache
+*.out
 /cover*.*
-/src/cover*.*
-/src/*.png
-/src/*.jpg
-/src/tinifier
 /tinifier

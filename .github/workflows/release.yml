@@ -1,4 +1,4 @@
-name: Release
+name: release
 
 on:
   release: # Docs: <https://help.github.com/en/articles/events-that-trigger-workflows#release-event-release>
@@ -18,32 +18,37 @@ jobs:
             ext: '.exe'
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.13
+          go-version: 1.14
+
+      - name: Install dependencies
+        run: sudo apt-get install -y upx
 
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
+      - name: Generate version value
+        run: echo "::set-env name=APP_VERSION::${GITHUB_REF##*/}@`echo ${GITHUB_SHA} | cut -c1-8`"
+
+      - name: Generate target file name
+        run: echo "::set-env name=TARGET_FILE::tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+
       - name: Build application
-        working-directory: ./src
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
-        run: go build -ldflags '-s -w' -o ./../build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} .
+        run: go build -ldflags="-s -w -X tinifier/version.version=${APP_VERSION}" -o "/tmp/${TARGET_FILE}" .
 
-      - name: Pack binary
-        uses: docker://gact/upx:latest # https://github.com/marketplace/actions/upx-action
-        with:
-          file: "./build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
-          upx_args: '-7'
+      - name: Pack binary file
+        run: upx -7 "/tmp/${TARGET_FILE}"
 
-      - name: Upload to release
-        uses: docker://gact/upload-to-release:latest # https://github.com/actions-github/upload-to-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v1-release
         with:
-          file: "./build/tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
-          type: 'application/octet-stream'
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: /tmp/${{ env.TARGET_FILE }}
+          asset_name: ${{ env.TARGET_FILE }}
+          tag: ${{ github.ref }}
