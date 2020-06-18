@@ -1,6 +1,7 @@
 package compress
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,7 +20,7 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
-const tinypngRequestTimeout time.Duration = time.Second * 60
+const tinypngRequestTimeout time.Duration = time.Second * 80
 
 type Command struct {
 	shared.WithAPIKey
@@ -127,26 +128,34 @@ func (cmd *Command) work(ctx context.Context, c *tinypng.Client, tasks chan task
 
 			// open source file for reading
 			if readFile, openReadErr := os.OpenFile(task.filePath, os.O_RDONLY, 0); openReadErr == nil {
-				if resp, compressErr := c.Compress(ctx, readFile); compressErr == nil {
-					result.fileType = resp.Output.Type
-					result.originalSizeBytes = resp.Input.Size
-					result.compressedSizeBytes = resp.Output.Size
+				// copy file content into memory
+				buf := bytes.NewBuffer(make([]byte, 0))
+				if _, copyErr := io.Copy(buf, readFile); copyErr == nil {
+					readFile.Close()
 
-					// open source file for writing
-					if writeFile, openWriteErr := os.OpenFile(readFile.Name(), os.O_WRONLY|os.O_TRUNC, 0644); openWriteErr == nil {
-						if _, copyErr := io.Copy(writeFile, resp.Compressed); copyErr != nil {
-							result.error = copyErr
+					if resp, compressErr := c.Compress(ctx, buf); compressErr == nil {
+						result.fileType = resp.Output.Type
+						result.originalSizeBytes = resp.Input.Size
+						result.compressedSizeBytes = resp.Output.Size
+
+						// open source file for writing
+						if writeFile, openWriteErr := os.OpenFile(task.filePath, os.O_WRONLY|os.O_TRUNC, 0644); openWriteErr == nil {
+							if _, copyErr := io.Copy(writeFile, resp.Compressed); copyErr != nil {
+								result.error = copyErr
+							}
+
+							writeFile.Close()
+						} else {
+							result.error = openWriteErr
 						}
-
-						writeFile.Close()
 					} else {
-						result.error = openWriteErr
+						result.error = compressErr
 					}
 				} else {
-					result.error = compressErr
-				}
+					readFile.Close()
 
-				readFile.Close()
+					result.error = copyErr
+				}
 			} else {
 				result.error = openReadErr
 			}

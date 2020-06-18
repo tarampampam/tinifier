@@ -1,3 +1,4 @@
+// `tinypng.com` API client implementation.
 package tinypng
 
 import (
@@ -10,11 +11,13 @@ import (
 	"strings"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/json-iterator/go"
 )
 
+// ENDPOINT is `tinypng.com` API endpoint. Docs can be found here: <https://tinypng.com/developers/reference>
 const ENDPOINT string = "https://api.tinify.com/shrink"
 
+// Client describes `tinypng.com` API client
 type Client struct {
 	apiKey     string
 	httpClient *http.Client
@@ -22,11 +25,13 @@ type Client struct {
 }
 
 type (
+	// Input follows `input` response object structure.
 	Input struct {
 		Size uint64 `json:"size"` // eg.: `5851`
 		Type string `json:"type"` // eg.: `image/png`
 	}
 
+	// Output follows `output` response object structure.
 	Output struct {
 		Size   uint64  `json:"size"`   // eg.: `5851`
 		Type   string  `json:"type"`   // eg.: `image/png`
@@ -36,16 +41,18 @@ type (
 		URL    string  `json:"url"`    // eg.: `https://api.tinify.com/output/foobar`
 	}
 
+	// Result is compression result object with some additional properties.
 	Result struct {
-		Input            Input   `json:"input"`
-		Output           Output  `json:"output"`
-		Error            *string `json:"error"`
-		Message          *string `json:"message"`
-		CompressionCount uint64  // used quota value
-		Compressed       io.ReadCloser
+		Input            Input         `json:"input"`
+		Output           Output        `json:"output"`
+		Error            *string       `json:"error"`
+		Message          *string       `json:"message"`
+		CompressionCount uint64        // used quota value
+		Compressed       io.ReadCloser // IMPORTANT: must be closed on receiver side
 	}
 )
 
+// NewClient creates new `tinypng.com` API client instance.
 func NewClient(apiKey string, requestTimeout time.Duration) *Client {
 	return &Client{
 		apiKey: apiKey,
@@ -100,6 +107,7 @@ func (c *Client) Compress(ctx context.Context, body io.Reader) (*Result, error) 
 	return &result, nil
 }
 
+// GetCompressionCount returns used quota value.
 func (c *Client) GetCompressionCount(ctx context.Context) (uint64, error) {
 	// If you know better way for getting current quota usage - please, make an issue in current repository
 	resp, err := c.sendImage(ctx, nil)
@@ -112,7 +120,7 @@ func (c *Client) GetCompressionCount(ctx context.Context) (uint64, error) {
 	return c.extractCompressionCountFromResponse(resp)
 }
 
-// extract `compression-count` value
+// extractCompressionCountFromResponse extracts `compression-count` value from HTTP response.
 func (c *Client) extractCompressionCountFromResponse(resp *http.Response) (uint64, error) {
 	const headerName string = "Compression-Count"
 
@@ -128,6 +136,7 @@ func (c *Client) extractCompressionCountFromResponse(resp *http.Response) (uint6
 	return 0, fmt.Errorf("header %s was not found in HTTP response", headerName)
 }
 
+// sendImage sends image to the remote server.
 func (c *Client) sendImage(ctx context.Context, body io.Reader) (*http.Response, error) {
 	request, requestErr := http.NewRequestWithContext(ctx, http.MethodPost, ENDPOINT, body)
 	if requestErr != nil {
@@ -145,6 +154,7 @@ func (c *Client) sendImage(ctx context.Context, body io.Reader) (*http.Response,
 	return response, nil
 }
 
+// downloadImage downloads image by passed URL from remote server.
 func (c *Client) downloadImage(ctx context.Context, url string) (io.ReadCloser, error) {
 	request, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if requestErr != nil {
