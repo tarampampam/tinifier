@@ -44,7 +44,7 @@ func (cmd *Command) Execute(_ []string) error {
 		tasksChan   = make(chan task, cmd.Threads)
 		resultsWg   = sync.WaitGroup{}
 		resultsChan = make(chan result)
-		ossChan     = make(chan os.Signal, 1) // channel for operational system signals
+		ossChan     = make(chan os.Signal, 1) // channel for operation system signals
 		tiny        = tinypng.NewClient(cmd.APIKey.String(), tinypngRequestTimeout)
 	)
 

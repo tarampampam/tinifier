@@ -17,10 +17,14 @@ import (
 )
 
 func TestClientConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "https://api.tinify.com/shrink", ENDPOINT)
 }
 
 func TestNewClient(t *testing.T) {
+	t.Parallel()
+
 	const requestTimeout = time.Second * 123
 
 	fakeAPIKey := genRandAPIkey()
@@ -31,6 +35,8 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestClient_CompressNilBodyReturnsInputMissingError(t *testing.T) {
+	t.Parallel()
+
 	fakeAPIKey := genRandAPIkey()
 	c := NewClient(fakeAPIKey, time.Second*10)
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +61,8 @@ func TestClient_CompressNilBodyReturnsInputMissingError(t *testing.T) {
 }
 
 func TestClient_CompressRealImageSuccess(t *testing.T) {
+	t.Parallel()
+
 	fakeAPIKey := genRandAPIkey()
 	c := NewClient(fakeAPIKey, time.Second*10)
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +140,8 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 }
 
 func TestClient_GetCompressionCount(t *testing.T) {
+	t.Parallel()
+
 	fakeAPIKey := genRandAPIkey()
 
 	c := NewClient(fakeAPIKey, time.Second*10)

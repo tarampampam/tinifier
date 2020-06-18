@@ -34,6 +34,15 @@ func TestOptions_Struct(t *testing.T) {
 			wantAlias:       "c",
 			wantDescription: "Compress images",
 		},
+		{
+			element: func() reflect.StructField {
+				field, _ := reflect.TypeOf(Root{}).FieldByName("Quota")
+				return field
+			},
+			wantCommand:     "quota",
+			wantAlias:       "q",
+			wantDescription: "Get currently used quota",
+		},
 	}
 
 	for _, tt := range tests {

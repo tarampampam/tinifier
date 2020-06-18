@@ -39,7 +39,9 @@ func (e *fileExtensions) GetAll() (all []string) {
 	return all
 }
 
-func (t *targets) Expand() (files []string) {
+func (t *targets) Expand() []string {
+	files := make([]string, 0)
+
 	for _, path := range *t {
 		// Extract absolute path to the target
 		if absPath, err := filepath.Abs(path); err == nil {
