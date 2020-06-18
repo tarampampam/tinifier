@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,8 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const fakeApiKey = "foobar"
-
 func TestClientConstants(t *testing.T) {
 	assert.Equal(t, "https://api.tinify.com/shrink", ENDPOINT)
 }
@@ -24,19 +23,21 @@ func TestClientConstants(t *testing.T) {
 func TestNewClient(t *testing.T) {
 	const requestTimeout = time.Second * 123
 
-	c := NewClient(fakeApiKey, requestTimeout)
+	fakeAPIKey := genRandAPIkey()
+	c := NewClient(fakeAPIKey, requestTimeout)
 
-	assert.Equal(t, fakeApiKey, c.apiKey)
+	assert.Equal(t, fakeAPIKey, c.apiKey)
 	assert.Equal(t, requestTimeout, c.httpClient.Timeout)
 }
 
 func TestClient_CompressNilBodyReturnsInputMissingError(t *testing.T) {
-	c := NewClient(fakeApiKey, time.Second*10)
+	fakeAPIKey := genRandAPIkey()
+	c := NewClient(fakeAPIKey, time.Second*10)
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check requested URI path
 		assert.Equal(t, "/shrink", r.URL.Path)
 		// check auth header
-		assert.Equal(t, generateAuthHeaderValue(fakeApiKey), r.Header.Get("Authorization"))
+		assert.Equal(t, generateAuthHeaderValue(fakeAPIKey), r.Header.Get("Authorization"))
 
 		w.Header().Add("Compression-Count", "123")
 		_, _ = w.Write([]byte(`{"error":"InputMissing","message":"Input file is empty."}`))
@@ -54,12 +55,13 @@ func TestClient_CompressNilBodyReturnsInputMissingError(t *testing.T) {
 }
 
 func TestClient_CompressRealImageSuccess(t *testing.T) {
-	c := NewClient(fakeApiKey, time.Second*10)
+	fakeAPIKey := genRandAPIkey()
+	c := NewClient(fakeAPIKey, time.Second*10)
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/shrink":
 			// check auth header
-			assert.Equal(t, generateAuthHeaderValue(fakeApiKey), r.Header.Get("Authorization"))
+			assert.Equal(t, generateAuthHeaderValue(fakeAPIKey), r.Header.Get("Authorization"))
 
 			// check passed content
 			file, _ := ioutil.ReadFile("./image_test.png")
@@ -86,14 +88,13 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 			file, _ := ioutil.ReadFile("./image_compressed_test.png")
 
 			// check auth header
-			assert.Equal(t, generateAuthHeaderValue(fakeApiKey), r.Header.Get("Authorization"))
+			assert.Equal(t, generateAuthHeaderValue(fakeAPIKey), r.Header.Get("Authorization"))
 
 			_, _ = w.Write(file)
 
 		default:
 			t.Fatal("unexpected request")
 		}
-
 	})
 
 	httpClient, teardown := testingHTTPClient(h)
@@ -114,18 +115,31 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 	respBody, _ := ioutil.ReadAll(res.Compressed)
 	assert.Equal(t, compressed, respBody)
 
+	// check result values
 	assert.Equal(t, uint64(666), res.CompressionCount)
+	assert.Equal(t, uint64(4633), res.Input.Size)
+	assert.Equal(t, "image/png", res.Input.Type)
+	assert.Equal(t, uint64(1636), res.Output.Size)
+	assert.Equal(t, "image/png", res.Output.Type)
+	assert.Equal(t, uint64(128), res.Output.Width)
+	assert.Equal(t, uint64(128), res.Output.Height)
+	assert.Equal(t, float32(0.3531), res.Output.Ratio)
+	assert.Equal(t, "https://api.tinify.com/output/someRandomResultImageHash", res.Output.URL)
+	assert.Nil(t, res.Message)
+	assert.Nil(t, res.Error)
 
 	assert.Nil(t, res.Compressed.Close())
 }
 
 func TestClient_GetCompressionCount(t *testing.T) {
-	c := NewClient(fakeApiKey, time.Second*10)
+	fakeAPIKey := genRandAPIkey()
+
+	c := NewClient(fakeAPIKey, time.Second*10)
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check requested URI path
 		assert.Equal(t, "/shrink", r.URL.Path)
 		// check auth header
-		assert.Equal(t, generateAuthHeaderValue(fakeApiKey), r.Header.Get("Authorization"))
+		assert.Equal(t, generateAuthHeaderValue(fakeAPIKey), r.Header.Get("Authorization"))
 		w.Header().Add("Compression-Count", "444")
 
 		_, _ = w.Write([]byte(`{"error":"InputMissing","message":"Input file is empty."}`))
@@ -154,9 +168,24 @@ func testingHTTPClient(handler http.Handler) (*http.Client, func()) {
 			DialContext: func(_ context.Context, network, _ string) (net.Conn, error) {
 				return net.Dial(network, s.Listener.Addr().String())
 			},
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, //nolint:gosec
+			},
 		},
 	}
 
 	return cli, s.Close
+}
+
+func genRandAPIkey() string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	l := len(letterBytes)
+	b := make([]byte, 16)
+
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(l)]
+	}
+
+	return string(b)
 }

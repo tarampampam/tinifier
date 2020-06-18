@@ -109,7 +109,13 @@ func (cmd *Command) getTasks(extensions []string, targets []string) (*[]task, er
 	return &tasks, nil
 }
 
-func (cmd *Command) work(ctx context.Context, c *tinypng.Client, tasks chan task, res chan result, wg *sync.WaitGroup) {
+func (cmd *Command) work( //nolint:gocognit,funlen
+	ctx context.Context,
+	c *tinypng.Client,
+	tasks chan task,
+	res chan result,
+	wg *sync.WaitGroup,
+) {
 	defer wg.Done()
 
 	for {
@@ -148,6 +154,8 @@ func (cmd *Command) work(ctx context.Context, c *tinypng.Client, tasks chan task
 						} else {
 							result.error = openWriteErr
 						}
+
+						_ = resp.Compressed.Close()
 					} else {
 						result.error = compressErr
 					}
