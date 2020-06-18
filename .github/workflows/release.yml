@@ -72,7 +72,10 @@ jobs:
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_LOGIN }}" --password-stdin &> /dev/null
 
       - name: Build image
-        run: docker build --build-arg "APP_VERSION=${APP_VERSION}" --tag "tarampampam/tinifier:${IMAGE_TAG}" -f ./Dockerfile .
+        run: docker build --build-arg "APP_VERSION=${APP_VERSION}" --tag "tarampampam/tinifier:${IMAGE_TAG}" --tag "tarampampam/tinifier:latest" -f ./Dockerfile .
 
-      - name: Push image
+      - name: Push version image
         run: docker push "tarampampam/tinifier:${IMAGE_TAG}"
+
+      - name: Push latest image
+        run: docker push "tarampampam/tinifier:latest"
