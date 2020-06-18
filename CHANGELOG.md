@@ -4,11 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
-## UNRELEASED
+## v2.0.0
 
 ### Changed
 
-- WIP
+- Application was totally re-wrote
+- For different actions (like get version value, images compressing and used quota getting) was made separate sub-commands
+- For running application in docker-container uses unprivileged user
+
+### Added
+
+- Sub-command `quota` for currently used quota getting
+- Sub-command `version` for application version displaying
+- Sub-command `compress` for images compressing
+
+### Removed
+
+- Options `-v (verbose)`, `-V (version)`, `-q (quota)`, `-C (no-colors)` and `-m (max-errors)`
 
 ## v1.0.2
 

@@ -1,12 +1,6 @@
 name: release
 
 on:
-#  push: # @TODO: remove this rule
-#    branches:
-#      - master
-#    tags-ignore:
-#      - '**'
-#  pull_request:
   release: # Docs: <https://help.github.com/en/articles/events-that-trigger-workflows#release-event-release>
     types: [prereleased, published]
 
@@ -51,4 +45,10 @@ jobs:
       - name: Pack binary file
         run: upx -7 "/tmp/${TARGET_FILE}"
 
-      # @TODO: add step for uploading binary file into releases
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: /tmp/${{ env.TARGET_FILE }}
+          asset_name: ${{ env.TARGET_FILE }}
+          tag: ${{ github.ref }}

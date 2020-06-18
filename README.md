@@ -15,33 +15,37 @@
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-    <a href="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz" target="_blank"><img src="https://asciinema.org/a/LGL0Brjm0YzRPs7TcyXVTCSXz.svg" width="900"></a>
+    <a href="https://asciinema.org/a/340968?autoplay=1" target="_blank"><img src="https://asciinema.org/a/340968.svg" width="900"></a>
 </p>
 
 > API key can be passed in environment variable named `TINYPNG_API_KEY`
 
 > **Recursive (deep) directories walking is not supported**
 
+## :computer: Installing
+
+Download latest binary file from [releases page][link_releases] or use [docker image][link_docker_build].
+
 ## :fire: Usage example
 
-> [tinypng.com][tinypng.com] API key is required. You get own API key by pressing link "login" on service main page.
+> [tinypng.com][tinypng.com] API key is required. You can get own API key by pressing link "login" on service main page.
 
 Compress single image:
 
 ```bash
-$ tinifier -k 'YOUR-API-KEY-GOES-HERE' ./image.png
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./image.png
 ```
 
 Compress all `png` images in some directory and 2 another images:
 
 ```bash
-$ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./image-1.png ./image-2.png
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./image-1.png ./image-2.png
 ```
 
 Compress all images in some directory using 20 threads:
 
 ```bash
-$ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-directory
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-directory
 ```
 
 ## :whale: Using docker
@@ -49,25 +53,25 @@ $ tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-d
 Compress all images in **current** directory:
 
 ```bash
-$ docker run --rm \
+$ docker run --rm -ti \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
-    tarampampam/tinifier -k 'YOUR-API-KEY-GOES-HERE' .
+    tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' .
 ```
 
-or 
+or
 
 ```bash
-$ docker run --rm \
+$ docker run --rm -ti \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
     -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
-    tarampampam/tinifier .
+    tarampampam/tinifier compress .
 ```
 
 ### Testing
 
-For application testing we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
+For application testing and building we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
 
 ```shell
 $ make test
@@ -100,9 +104,9 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_build]:https://img.shields.io/github/workflow/status/tarampampam/tinifier/tests/master
 [badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
-[badge_size_latest]:https://images.microbadger.com/badges/image/tarampampam/tinifier.svg
+[badge_size_latest]:https://img.shields.io/docker/image-size/tarampampam/tinifier/latest?maxAge=30
 [badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
-[badge_language]:https://img.shields.io/badge/language-go_1.13-blue.svg?longCache=true
+[badge_language]:https://img.shields.io/github/go-mod/go-version/tarampampam/tinifier?longCache=true
 [badge_license]:https://img.shields.io/github/license/tarampampam/tinifier.svg?longCache=true
 [badge_release_date]:https://img.shields.io/github/release-date/tarampampam/tinifier.svg?maxAge=180
 [badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45

@@ -25,7 +25,7 @@ const tinypngRequestTimeout time.Duration = time.Second * 80
 type Command struct {
 	shared.WithAPIKey
 	FileExtensions fileExtensions `short:"e" long:"ext" default:"jpg,JPG,jpeg,JPEG,png,PNG" description:"Image file extensions"` //nolint:lll
-	Threads        int            `short:"t" long:"threads" default:"5" description:"Threads count"`
+	Threads        uint16         `short:"t" long:"threads" default:"5" description:"Threads count"`
 	Targets        struct {
 		Path targets `positional-arg-name:"files-and-directories" required:"true"`
 	} `positional-args:"yes"`
@@ -64,7 +64,7 @@ func (cmd *Command) Execute(_ []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// start workers
-	for i := 0; i < cmd.Threads; i++ {
+	for i := uint16(0); i < cmd.Threads; i++ {
 		tasksWg.Add(1)
 
 		go cmd.work(ctx, tiny, tasksChan, resultsChan, &tasksWg)
@@ -107,7 +107,7 @@ func (cmd *Command) getTasks(extensions []string, targets []string) (*[]task, er
 	}
 
 	if len(tasks) == 0 {
-		return nil, errors.New("there is no files for a work")
+		return nil, errors.New("files for a work was not found (check passed extensions and paths)")
 	}
 
 	return &tasks, nil
@@ -189,7 +189,7 @@ func (cmd *Command) readResults(results chan result, total int, wg *sync.WaitGro
 	}
 
 	// create UI elements
-	progressBar := newProgress("Compress files", total, os.Stderr)
+	progressBar := newProgress("Files compressing", total, os.Stderr)
 	table := newTable(os.Stdout)
 
 	// define counter for summary stats

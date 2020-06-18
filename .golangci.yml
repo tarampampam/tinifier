@@ -4,7 +4,6 @@ run:
   timeout: 2m
   skip-dirs:
     - .github
-    - src
 
 linters-settings:
   govet:

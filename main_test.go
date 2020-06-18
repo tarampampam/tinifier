@@ -21,6 +21,5 @@ func Test_Main(t *testing.T) {
 	})
 
 	assert.Contains(t, output, "Help Options")
-	assert.Contains(t, output, "Application Options")
 	assert.Contains(t, output, "Available commands")
 }
