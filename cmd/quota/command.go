@@ -10,6 +10,7 @@ import (
 
 const tinypngRequestTimeout time.Duration = time.Second * 5
 
+// Command is a `quota` command.
 type Command struct {
 	shared.WithAPIKey
 }

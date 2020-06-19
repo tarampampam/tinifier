@@ -22,6 +22,7 @@ import (
 
 const tinypngRequestTimeout time.Duration = time.Second * 80
 
+// Command is a `compress` command.
 type Command struct {
 	shared.WithAPIKey
 	FileExtensions fileExtensions `short:"e" long:"ext" default:"jpg,JPG,jpeg,JPEG,png,PNG" description:"Image file extensions"` //nolint:lll
@@ -96,7 +97,7 @@ func (cmd *Command) getTasks(extensions []string, targets []string) (*[]task, er
 		extensionsMap[ext] = true
 	}
 
-	var counter uint32 = 0
+	var counter uint32
 
 	for _, filePath := range targets {
 		if _, ok := extensionsMap[strings.Trim(filepath.Ext(filePath), ". ")]; ok {

@@ -5,6 +5,7 @@ import (
 	ver "tinifier/version"
 )
 
+// Command is a `version` command.
 type Command struct{}
 
 // Execute current command.

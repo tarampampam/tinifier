@@ -1,4 +1,4 @@
-// `tinypng.com` API client implementation.
+// Package tinypng is `tinypng.com` API client implementation.
 package tinypng
 
 import (
