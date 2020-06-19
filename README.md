@@ -54,7 +54,8 @@ Compress all images in **current** directory:
 
 ```bash
 $ docker run --rm -ti \
-    -v "$(pwd):/rootfs:rw" \
+    -u "$(id -u):$(id -g)" \
+    -v "$(pwd):/rootfs:rw" \    
     -w /rootfs \
     tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' .
 ```
@@ -63,6 +64,7 @@ or
 
 ```bash
 $ docker run --rm -ti \
+    -u "$(id -u):$(id -g)" \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
     -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
