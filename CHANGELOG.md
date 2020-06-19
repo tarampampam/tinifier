@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v2.1.0
+
+### Added
+
+- Total processed images count showing [#12]
+
+[#12]:https://github.com/tarampampam/tinifier/issues/12
+
 ## v2.0.0
 
 ### Changed

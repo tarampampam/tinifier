@@ -198,6 +198,7 @@ func (cmd *Command) readResults(results chan result, total int, wg *sync.WaitGro
 		totalOriginalBytes uint64
 		totalCompressedBytes,
 		totalSavedBytes int64
+		totalProcessed int64
 	)
 
 	defer func() {
@@ -233,6 +234,7 @@ func (cmd *Command) readResults(results chan result, total int, wg *sync.WaitGro
 			totalOriginalBytes += result.originalSizeBytes
 			totalSavedBytes += diffBytes
 			totalCompressedBytes += int64(result.compressedSizeBytes)
+			totalProcessed++
 
 			// append a row in a table
 			table.Append([]string{
@@ -261,8 +263,10 @@ func (cmd *Command) readResults(results chan result, total int, wg *sync.WaitGro
 	}
 
 	// append summary stats into table
-	table.SetFooter([]string{"", "", "Total saved", fmt.Sprintf("%s (-%0.2f%%)",
-		humanize.IBytes(uint64(totalSavedBytes)),
-		calcPercentageDiff(float64(totalCompressedBytes), float64(totalOriginalBytes)),
-	)})
+	table.SetFooter([]string{"", "", fmt.Sprintf("Total saved (%d files)", totalProcessed),
+		fmt.Sprintf("%s (-%0.2f%%)",
+			humanize.IBytes(uint64(totalSavedBytes)),
+			calcPercentageDiff(float64(totalCompressedBytes), float64(totalOriginalBytes)),
+		),
+	})
 }
