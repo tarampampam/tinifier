@@ -1,19 +1,21 @@
 package version
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
+
+	"github.com/tarampampam/tinifier/internal/pkg/version"
+
 	"github.com/spf13/cobra"
-	"tinifier/internal/pkg/version"
 )
 
 // NewCommand creates `version` command.
-func NewCommand(log *logrus.Logger) *cobra.Command {
+func NewCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
 		Aliases: []string{"v"},
 		Short:   "Display application version",
 		Run: func(*cobra.Command, []string) {
-			log.Info(version.Version())
+			fmt.Printf("version: %s\n", version.Version())
 		},
 	}
 }

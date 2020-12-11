@@ -1,11 +1,12 @@
 package cli
 
 import (
+	"github.com/tarampampam/tinifier/internal/pkg/cli/compress"
+	"github.com/tarampampam/tinifier/internal/pkg/cli/quota"
+	"github.com/tarampampam/tinifier/internal/pkg/cli/version"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"tinifier/internal/pkg/cli/compress"
-	"tinifier/internal/pkg/cli/quota"
-	"tinifier/internal/pkg/cli/version"
 )
 
 // NewCommand creates root command.
@@ -21,17 +22,16 @@ func NewCommand(log *logrus.Logger, appName string) *cobra.Command {
 
 			return nil
 		},
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-
 	cmd.AddCommand(
 		compress.NewCommand(log),
 		quota.NewCommand(log),
-		version.NewCommand(log),
+		version.NewCommand(),
 	)
 
 	return cmd

@@ -1,27 +1,27 @@
-#name: release
-#
-#on:
-#  release: # Docs: <https://help.github.com/en/articles/events-that-trigger-workflows#release-event-release>
-#    types: [published]
-#
-#jobs:
-#  build:
-#    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
-#    runs-on: ubuntu-latest
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        os: [linux, windows, darwin]
-#        arch: [amd64, 386]
-#        include:
-#          - os: windows
-#            ext: '.exe'
-#    steps:
-#      - name: Set up Go
-#        uses: actions/setup-go@v2
-#        with:
-#          go-version: 1.14
-#
+name: release
+
+on:
+  release: # Docs: <https://help.github.com/en/articles/events-that-trigger-workflows#release-event-release>
+    types: [published]
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, 386]
+        include:
+          - os: windows
+            ext: '.exe'
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.14
+
 #      - name: Install dependencies
 #        run: sudo apt-get install -y upx
 #

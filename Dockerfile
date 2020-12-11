@@ -7,8 +7,7 @@ ARG APP_VERSION="undefined@docker"
 
 RUN set -x \
     && mkdir /src \
-    # SSL ca certificates (ca-certificates is required to call HTTPS endpoints)
-    && apk add --no-cache ca-certificates upx \
+    && apk add --no-cache ca-certificates \
     && update-ca-certificates
 
 WORKDIR /src
@@ -17,51 +16,46 @@ COPY ./go.mod ./go.sum ./
 
 # Burn modules cache
 RUN set -x \
-    && go version \
     && go mod download \
     && go mod verify
 
-COPY . /src
+COPY . .
+
+# arguments to pass on each go tool link invocation
+ENV LDFLAGS="-s -w -X tinifier/internal/pkg/version.version=$APP_VERSION"
 
 RUN set -x \
-    && upx -V \
     && go version \
-    && GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X tinifier/version.version=${APP_VERSION}" -o /tmp/tinifier . \
-    && upx -7 /tmp/tinifier \
+    && CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/main.go \
     && /tmp/tinifier version \
     && /tmp/tinifier -h
 
-# Image page: <https://hub.docker.com/_/alpine>
-FROM alpine:latest as runtime
+# prepare rootfs for runtime
+RUN set -x \
+    && mkdir -p /tmp/rootfs/etc/ssl \
+    && mkdir -p /tmp/rootfs/bin \
+    && cp -R /etc/ssl/certs /tmp/rootfs/etc/ssl/certs \
+    && echo 'appuser:x:10001:10001::/nonexistent:/sbin/nologin' > /tmp/rootfs/etc/passwd \
+    && mv /tmp/tinifier /tmp/rootfs/bin/tinifier
+
+# use empty filesystem
+FROM scratch
 
 ARG APP_VERSION="undefined@docker"
 
 LABEL \
-    org.label-schema.name="tinifier" \
-    org.label-schema.description="Docker image with tinifier" \
-    org.label-schema.url="https://github.com/tarampampam/tinifier" \
-    org.label-schema.vcs-url="https://github.com/tarampampam/tinifier" \
-    org.label-schema.vendor="tarampampam" \
-    org.label-schema.license="MIT" \
-    org.label-schema.version="$APP_VERSION" \
-    org.label-schema.schema-version="1.0"
-
-RUN set -x \
-    # Unprivileged user creation <https://stackoverflow.com/a/55757473/12429735RUN>
-    && adduser \
-        --disabled-password \
-        --gecos "" \
-        --home "/nonexistent" \
-        --shell "/sbin/nologin" \
-        --no-create-home \
-        --uid "10001" \
-        "appuser"
-
-# Use an unprivileged user
-USER appuser:appuser
+    org.opencontainers.image.title="tinifier" \
+    org.opencontainers.image.description="CLI client for images compressing using tinypng.com API" \
+    org.opencontainers.image.url="https://github.com/tarampampam/tinifier" \
+    org.opencontainers.image.source="https://github.com/tarampampam/tinifier" \
+    org.opencontainers.image.vendor="tarampampam" \
+    org.opencontainers.image.version="$APP_VERSION" \
+    org.opencontainers.image.licenses="MIT"
 
 # Import from builder
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /tmp/tinifier /bin/tinifier
+COPY --from=builder /tmp/rootfs /
+
+# Use an unprivileged user
+USER appuser
 
 ENTRYPOINT ["/bin/tinifier"]
