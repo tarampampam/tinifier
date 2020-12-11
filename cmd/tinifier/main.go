@@ -15,10 +15,13 @@ func main() {
 		cmd    = cli.NewCommand(logger, filepath.Base(os.Args[0]))
 	)
 
+	// configure logger (setup global properties)
+	logger.SetOutput(os.Stdout) // not sure here
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:          true,
-		TimestampFormat:        "2006-01-02 15:04:05.000",
+		TimestampFormat:        "15:04:05.000",
 		DisableLevelTruncation: true,
+		PadLevelText:           true,
 	})
 
 	if err := cmd.Execute(); err != nil {

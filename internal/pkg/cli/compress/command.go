@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -27,18 +28,20 @@ const (
 )
 
 type executeProperties struct {
-	targets      []string
-	apiKey       string
-	threadsCount uint
+	targets         []string
+	apiKey          string
+	threadsCount    uint8
+	maxErrorsToStop uint32
 }
 
 // NewCommand creates `compress` command.
 func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 	var (
-		apiKey         string
-		fileExtensions []string
-		threadsCount   uint
-		recursive      bool
+		apiKey          string
+		fileExtensions  []string
+		threadsCount    uint8
+		maxErrorsToStop uint32
+		recursive       bool
 	)
 
 	cmd := &cobra.Command{
@@ -92,9 +95,10 @@ func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 			sort.Strings(targets)
 
 			return execute(log, executeProperties{
-				targets:      targets,
-				apiKey:       apiKey,
-				threadsCount: threadsCount,
+				targets:         targets,
+				apiKey:          apiKey,
+				threadsCount:    threadsCount,
+				maxErrorsToStop: maxErrorsToStop,
 			})
 		},
 	}
@@ -108,19 +112,27 @@ func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 	)
 
 	cmd.Flags().StringSliceVarP(
-		&fileExtensions, // var
-		"ext",           // name
-		"e",             // short
+		&fileExtensions,                                      // var
+		"ext",                                                // name
+		"e",                                                  // short
 		[]string{"jpg", "JPG", "jpeg", "JPEG", "png", "PNG"}, // default
 		"image file extensions (without leading dots)",
 	)
 
-	cmd.Flags().UintVarP(
-		&threadsCount,          // var
-		"threads",              // name
-		"t",                    // short
-		uint(runtime.NumCPU()), // default
+	cmd.Flags().Uint8VarP(
+		&threadsCount,           // var
+		"threads",               // name
+		"t",                     // short
+		uint8(runtime.NumCPU()), // default
 		"threads count",
+	)
+
+	cmd.Flags().Uint32VarP(
+		&maxErrorsToStop, // var
+		"max-errors",     // name
+		"",               // short
+		10,               // default
+		"maximum errors count to stop the process, set 0 to disable",
 	)
 
 	cmd.Flags().BoolVarP(
@@ -162,7 +174,8 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	log.WithFields(logrus.Fields{
 		"api key":       props.apiKey,
 		"threads count": props.threadsCount,
-		"targets":       props.targets,
+		"max errors":    props.maxErrorsToStop,
+		// "targets":    props.targets,
 		"targets count": len(props.targets),
 	}).Debug("Running")
 
@@ -213,10 +226,12 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 			APIKey:         props.apiKey,
 			RequestTimeout: httpRequestTimeout,
 		})
+		errorsCounter   uint32
+		stopWorkingOnce sync.Once
 	)
 
 	// run workers (using many goroutines)
-	for i := uint(0); i < props.threadsCount; i++ {
+	for i := uint8(0); i < props.threadsCount; i++ {
 		workersWg.Add(1)
 
 		go func(ctx context.Context, tasksCh <-chan fileCompressionTask, resultsCh chan<- fileCompressionResult) {
@@ -233,7 +248,21 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 						return
 					}
 
-					resultsCh <- compressFile(ctx, tiny, task)
+					result := compressFile(ctx, tiny, task)
+
+					if props.maxErrorsToStop > 0 && result.error != nil {
+						if current := atomic.AddUint32(&errorsCounter, 1); current >= props.maxErrorsToStop {
+							stopWorkingOnce.Do(func() {
+								log.Errorf("Too many (%d) errors occurred, stopping the process", current)
+
+								cancel() // too many errors occurred, we must to stop the process
+							})
+						}
+					}
+
+					resultsCh <- result
+
+					log.Info(task.filePath) // TODO for debug
 				}
 			}
 		}(ctx, tasksCh, resultsCh)
@@ -241,7 +270,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 
 	var (
 		resultsWg = new(sync.WaitGroup)
-		stats     = compressionStatistic{mu: sync.RWMutex{}}
+		stats     = compressionStatistic{}
 	)
 
 	resultsWg.Add(1)
@@ -250,8 +279,8 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 		defer resultsWg.Done()
 
 		for {
-			result, isOpened := <-resultsCh // read result
-			if !isOpened {
+			result, isOpened := <-resultsCh
+			if !isOpened { // channel is closed AND is empty
 				return
 			}
 
@@ -265,16 +294,26 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 		}
 	}(resultsCh, &stats)
 
-	workersWg.Wait()
-	close(resultsCh)
-	resultsWg.Wait()
+	workersWg.Wait()       // wait for workers completed state
+	close(resultsCh)       // close results channel (in this case "results reader" will stops)
+	signal.Stop(signalsCh) // stop os signals listening
+	resultsWg.Wait()       // wait for results goroutine exiting
+	cancel()               // cancel context ("service" goroutines must stops)
 
 	return printResults(&stats)
 }
 
 func compressFile(ctx context.Context, tiny *tinypng.Client, task fileCompressionTask) fileCompressionResult {
 	// TODO write code (read file, compress, overwrite file)
-	return fileCompressionResult{}
+	time.Sleep(time.Millisecond * 100)
+
+	return fileCompressionResult{
+		error:               errors.New("test err"),
+		fileType:            "image/png",
+		filePath:            task.filePath,
+		originalSizeBytes:   111,
+		compressedSizeBytes: 100,
+	}
 }
 
 func printResults(stats *compressionStatistic) error {
