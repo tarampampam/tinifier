@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	apiKeyEnvName                    = "TINYPNG_API_KEY"
-	apiKeyMinLength    uint8         = 8
-	httpRequestTimeout time.Duration = time.Second * 80
+	apiKeyEnvName            = "TINYPNG_API_KEY"
+	apiKeyMinLength    uint8 = 8
+	httpRequestTimeout       = time.Second * 80
 )
 
 type executeProperties struct {
@@ -112,9 +112,9 @@ func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 	)
 
 	cmd.Flags().StringSliceVarP(
-		&fileExtensions,                                      // var
-		"ext",                                                // name
-		"e",                                                  // short
+		&fileExtensions, // var
+		"ext",           // name
+		"e",             // short
 		[]string{"jpg", "JPG", "jpeg", "JPEG", "png", "PNG"}, // default
 		"image file extensions (without leading dots)",
 	)
@@ -147,30 +147,25 @@ func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 }
 
 type (
-	fileCompressionTask struct {
+	task struct {
 		filePath string
 	}
 
-	fileCompressionResult struct {
-		error               error
+	taskResult struct {
 		fileType            string
 		filePath            string
 		originalSizeBytes   uint64
 		compressedSizeBytes uint64
 	}
 
-	compressionStatistic struct {
-		mu sync.RWMutex
-
-		originalBytes   uint64
-		compressedBytes uint64
-		savedBytes      int64
-		totalFiles      uint32
+	taskError struct {
+		task task
+		err  error
 	}
 )
 
 // execute current command.
-func execute(log *logrus.Logger, props executeProperties) error { //nolint:funlen
+func execute(log *logrus.Logger, props executeProperties) (lastError error) { //nolint:funlen,gocognit
 	log.WithFields(logrus.Fields{
 		"api key":       props.apiKey,
 		"threads count": props.threadsCount,
@@ -178,8 +173,6 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 		// "targets":    props.targets,
 		"targets count": len(props.targets),
 	}).Debug("Running")
-
-	log.Infof("To compress: %d files", len(props.targets))
 
 	// make a channel for system signals and "subscribe" for some of them
 	signalsCh := make(chan os.Signal, 1)
@@ -189,24 +182,58 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// cancel context on OS signal in separate goroutine
-	go func(ctx context.Context, signalsCh <-chan os.Signal) {
+	go func(signalsCh <-chan os.Signal) {
 		select {
 		case sig := <-signalsCh:
 			log.WithField("signal", sig).Warn("Stopping by OS signal..")
+
+			lastError = errors.New("stopped by OS signal")
+
 			cancel()
 
 		case <-ctx.Done():
 			break
 		}
-	}(ctx, signalsCh)
+	}(signalsCh)
 
 	var (
-		tasksCh   = make(chan fileCompressionTask, props.threadsCount)
-		resultsCh = make(chan fileCompressionResult, props.threadsCount)
+		startedAt = time.Now()
+		channels  = struct {
+			tasks   chan task
+			results chan taskResult
+			errors  chan taskError
+		}{
+			tasks:   make(chan task, props.threadsCount),
+			results: make(chan taskResult, props.threadsCount),
+			errors:  make(chan taskError),
+		}
 	)
 
+	go func(errorsCh <-chan taskError, errorsLimit uint32) {
+		var errorsCounter uint32
+
+		for {
+			compErr, isOpened := <-errorsCh
+			if !isOpened { // channel is closed AND empty
+				return
+			}
+
+			log.WithError(compErr.err).
+				WithField("file", compErr.task.filePath).
+				Error("Compression failed")
+
+			if errorsLimit > 0 && errorsCounter >= errorsLimit {
+				log.Errorf("Too many (%d) errors occurred, stopping the process", errorsCounter)
+
+				cancel() // too many errors occurred, we must to stop the process
+			}
+
+			errorsCounter++
+		}
+	}(channels.errors, props.maxErrorsToStop)
+
 	// fill-up tasks channel using single separate goroutine
-	go func(ctx context.Context, tasksCh chan<- fileCompressionTask) {
+	go func(tasksCh chan<- task) {
 		defer close(tasksCh) // important
 
 		for _, filePath := range props.targets {
@@ -215,26 +242,25 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 				return
 
 			default:
-				tasksCh <- fileCompressionTask{filePath: filePath}
+				tasksCh <- task{filePath: filePath}
 			}
 		}
-	}(ctx, tasksCh)
+	}(channels.tasks)
 
 	var (
-		workersWg = new(sync.WaitGroup)
-		tiny      = tinypng.NewClient(tinypng.ClientConfig{
+		workersWg    sync.WaitGroup
+		tasksCounter uint32 // atomic usage
+		tiny         = tinypng.NewClient(tinypng.ClientConfig{
 			APIKey:         props.apiKey,
 			RequestTimeout: httpRequestTimeout,
 		})
-		errorsCounter   uint32
-		stopWorkingOnce sync.Once
 	)
 
 	// run workers (using many goroutines)
 	for i := uint8(0); i < props.threadsCount; i++ {
 		workersWg.Add(1)
 
-		go func(ctx context.Context, tasksCh <-chan fileCompressionTask, resultsCh chan<- fileCompressionResult) {
+		go func(tasksCh <-chan task, resultsCh chan<- taskResult, errorsCh chan<- taskError, tasksTotal int) {
 			defer workersWg.Done()
 
 			for {
@@ -243,80 +269,62 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 					return
 
 				default:
-					task, isOpened := <-tasksCh // read task
+					t, isOpened := <-tasksCh // read task
 					if !isOpened {
 						return
 					}
 
-					result := compressFile(ctx, tiny, task)
+					log.Infof(
+						"[%d of %d] Compressing file \"%s\"",
+						atomic.AddUint32(&tasksCounter, 1), tasksTotal, t.filePath,
+					)
 
-					if props.maxErrorsToStop > 0 && result.error != nil {
-						if current := atomic.AddUint32(&errorsCounter, 1); current >= props.maxErrorsToStop {
-							stopWorkingOnce.Do(func() {
-								log.Errorf("Too many (%d) errors occurred, stopping the process", current)
+					result, err := compressFile(ctx, tiny, t)
 
-								cancel() // too many errors occurred, we must to stop the process
-							})
-						}
+					if err != nil {
+						errorsCh <- taskError{task: t, err: err}
+					} else {
+						resultsCh <- result
 					}
-
-					resultsCh <- result
-
-					log.Info(task.filePath) // TODO for debug
 				}
 			}
-		}(ctx, tasksCh, resultsCh)
+		}(channels.tasks, channels.results, channels.errors, len(props.targets))
 	}
 
-	var (
-		resultsWg = new(sync.WaitGroup)
-		stats     = compressionStatistic{}
-	)
+	var resultsWg sync.WaitGroup
 
 	resultsWg.Add(1)
 	// read results using single separate goroutine
-	go func(resultsCh <-chan fileCompressionResult, stats *compressionStatistic) {
+	go func() {
 		defer resultsWg.Done()
 
-		for {
-			result, isOpened := <-resultsCh
-			if !isOpened { // channel is closed AND is empty
-				return
-			}
+		reader := newResultsReader()
 
-			stats.mu.Lock()
-			stats.originalBytes += result.originalSizeBytes
-			stats.compressedBytes += result.compressedSizeBytes
-			stats.savedBytes += int64(result.originalSizeBytes - result.compressedSizeBytes)
-			stats.totalFiles++
-			stats.mu.Unlock()
-			// TODO write code (show progress bar, log, etc)
-		}
-	}(resultsCh, &stats)
+		reader.Read(channels.results) // blocked here
+		reader.Draw()
+	}()
 
-	workersWg.Wait()       // wait for workers completed state
-	close(resultsCh)       // close results channel (in this case "results reader" will stops)
+	workersWg.Wait()        // wait for workers completed state
+	close(channels.results) // close results channel ("results reader" will stops when channel will be empty)
+	close(channels.errors)
 	signal.Stop(signalsCh) // stop os signals listening
-	resultsWg.Wait()       // wait for results goroutine exiting
-	cancel()               // cancel context ("service" goroutines must stops)
 
-	return printResults(&stats)
+	log.Infof("Completed in %s", time.Since(startedAt))
+
+	resultsWg.Wait() // wait for "results reader" exiting
+	cancel()         // cancel context anyway (important)
+
+	return lastError
 }
 
-func compressFile(ctx context.Context, tiny *tinypng.Client, task fileCompressionTask) fileCompressionResult {
+//nolint
+func compressFile(ctx context.Context, tiny *tinypng.Client, task task) (taskResult, error) {
 	// TODO write code (read file, compress, overwrite file)
-	time.Sleep(time.Millisecond * 100)
-
-	return fileCompressionResult{
-		error:               errors.New("test err"),
+	// defer time.Sleep(time.Millisecond * 1000)
+	return taskResult{
 		fileType:            "image/png",
 		filePath:            task.filePath,
 		originalSizeBytes:   111,
-		compressedSizeBytes: 100,
-	}
-}
-
-func printResults(stats *compressionStatistic) error {
-	// TODO write code (show stats in a table)
-	return nil
+		compressedSizeBytes: 122,
+	}, nil // errors.New("foo err")
 }

@@ -19,7 +19,7 @@ func main() {
 	logger.SetOutput(os.Stdout) // not sure here
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:          true,
-		TimestampFormat:        "15:04:05.000",
+		TimestampFormat:        "15:04:05", // .000
 		DisableLevelTruncation: true,
 		PadLevelText:           true,
 	})

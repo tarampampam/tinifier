@@ -22,11 +22,6 @@ const (
 	httpRequestTimeout time.Duration = time.Second * 5
 )
 
-type result struct {
-	count uint64
-	err   error
-}
-
 // NewCommand creates `quota` command.
 func NewCommand(log *logrus.Logger) *cobra.Command {
 	var APIKey string
@@ -66,8 +61,13 @@ func NewCommand(log *logrus.Logger) *cobra.Command {
 	return cmd
 }
 
+type result struct { // FIXME
+	count uint64
+	err   error
+}
+
 // execute current command.
-func execute(log *logrus.Logger, apiKey string) error {
+func execute(log *logrus.Logger, apiKey string) (lastError error) {
 	log.WithField("api key", apiKey).Debug("Running")
 
 	// make a channel for system signals and "subscribe" for some of them
@@ -82,6 +82,9 @@ func execute(log *logrus.Logger, apiKey string) error {
 		select {
 		case sig := <-signalsCh:
 			log.WithField("signal", sig).Warn("Stopping by OS signal..")
+
+			lastError = errors.New("stopped by OS signal")
+
 			cancel()
 
 		case <-ctx.Done():
@@ -124,5 +127,5 @@ func execute(log *logrus.Logger, apiKey string) error {
 
 	fmt.Printf("Used quota is: %d\n", res.count)
 
-	return nil
+	return lastError
 }
