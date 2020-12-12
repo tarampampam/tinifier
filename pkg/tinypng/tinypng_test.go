@@ -64,7 +64,7 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 			assert.Equal(t, generateAuthHeaderValue(fakeAPIKey), r.Header.Get("Authorization"))
 
 			// check passed content
-			file, _ := ioutil.ReadFile("./image_test.png")
+			file, _ := ioutil.ReadFile("./testdata/image_test.png")
 			reqBody, _ := ioutil.ReadAll(r.Body)
 			assert.Equal(t, file, reqBody)
 
@@ -85,7 +85,7 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 								}`))
 
 		case "/output/someRandomResultImageHash":
-			file, _ := ioutil.ReadFile("./image_compressed_test.png")
+			file, _ := ioutil.ReadFile("./testdata/image_compressed_test.png")
 
 			// check auth header
 			assert.Equal(t, generateAuthHeaderValue(fakeAPIKey), r.Header.Get("Authorization"))
@@ -102,7 +102,7 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 
 	c.httpClient = httpClient
 
-	file, fileErr := ioutil.ReadFile("./image_test.png")
+	file, fileErr := ioutil.ReadFile("./testdata/image_test.png")
 	assert.Nil(t, fileErr)
 
 	res, err := c.Compress(context.Background(), bytes.NewBuffer(file))
@@ -111,7 +111,7 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 	assert.Nil(t, err)
 
 	// check compressed image content
-	compressed, _ := ioutil.ReadFile("./image_compressed_test.png")
+	compressed, _ := ioutil.ReadFile("./testdata/image_compressed_test.png")
 	respBody, _ := ioutil.ReadAll(res.Compressed)
 	assert.Equal(t, compressed, respBody)
 

@@ -95,12 +95,17 @@ func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 
 			sort.Strings(targets)
 
-			return execute(log, executeProperties{
+			err = execute(log, executeProperties{ // FIXME
 				targets:         targets,
 				apiKey:          apiKey,
 				threadsCount:    threadsCount,
 				maxErrorsToStop: maxErrorsToStop,
 			})
+
+			log.Warn(err)
+
+			return err
+
 		},
 	}
 
@@ -335,6 +340,8 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	close(resultsCh) // close results channel ("results reader" will stops when channel will be empty)
 	close(errorsCh)  // close errors channel
 	resultsWg.Wait() // wait for "results reader" exiting
+
+	// FIXME exit code on context canceling
 
 	log.Infof("Completed in %s", time.Since(startedAt))
 
