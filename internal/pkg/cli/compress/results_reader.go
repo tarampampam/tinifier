@@ -33,36 +33,27 @@ func newResultsReader() resultsReader {
 	}
 }
 
-// Read reads compression results from passed channel until channel is not closed. Each read message updates summary
-// statistics and append rows into a table with results.
-func (rr *resultsReader) Read(channel <-chan taskResult) {
-	for {
-		result, isOpened := <-channel
-		if !isOpened { // channel is closed AND empty
-			return
-		}
+func (rr *resultsReader) Append(result taskResult) {
+	rr.stats.originalSizeBytes += result.originalSizeBytes
+	rr.stats.compressedSizeBytes += result.compressedSizeBytes
+	rr.stats.savedBytes += int64(result.originalSizeBytes) - int64(result.compressedSizeBytes)
+	rr.stats.totalFiles++
 
-		rr.stats.originalSizeBytes += result.originalSizeBytes
-		rr.stats.compressedSizeBytes += result.compressedSizeBytes
-		rr.stats.savedBytes += int64(result.originalSizeBytes) - int64(result.compressedSizeBytes)
-		rr.stats.totalFiles++
-
-		// append a row in a table
-		rr.table.Append([]string{
-			filepath.Base(result.filePath), // File Name
-			result.fileType,                // Type
-			fmt.Sprintf( // Size Difference
-				"%s  →  %s",
-				humanize.IBytes(result.originalSizeBytes),
-				humanize.IBytes(result.compressedSizeBytes),
-			),
-			fmt.Sprintf( // Saved
-				"%s (-%0.2f%%)",
-				rr.humanBytesDiff(float64(result.originalSizeBytes), float64(result.compressedSizeBytes)),
-				rr.percentageDiff(float64(result.compressedSizeBytes), float64(result.originalSizeBytes)),
-			),
-		})
-	}
+	// append a row in a table
+	rr.table.Append([]string{
+		filepath.Base(result.filePath), // File Name
+		result.fileType,                // Type
+		fmt.Sprintf( // Size Difference
+			"%s  →  %s",
+			humanize.IBytes(result.originalSizeBytes),
+			humanize.IBytes(result.compressedSizeBytes),
+		),
+		fmt.Sprintf( // Saved
+			"%s (-%0.2f%%)",
+			rr.humanBytesDiff(float64(result.originalSizeBytes), float64(result.compressedSizeBytes)),
+			rr.percentageDiff(float64(result.compressedSizeBytes), float64(result.originalSizeBytes)),
+		),
+	})
 }
 
 // Draw the table with results.

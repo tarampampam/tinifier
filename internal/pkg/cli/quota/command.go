@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	apiKeyEnvName                    = "TINYPNG_API_KEY"
-	apiKeyMinLength    uint8         = 8
-	httpRequestTimeout time.Duration = time.Second * 5
+	apiKeyEnvName      string = "TINYPNG_API_KEY"
+	apiKeyMinLength    uint8  = 8
+	httpRequestTimeout        = time.Second * 5
 )
 
 // NewCommand creates `quota` command.
@@ -61,71 +61,73 @@ func NewCommand(log *logrus.Logger) *cobra.Command {
 	return cmd
 }
 
-type result struct { // FIXME
-	count uint64
-	err   error
-}
-
 // execute current command.
-func execute(log *logrus.Logger, apiKey string) (lastError error) {
+func execute(log *logrus.Logger, apiKey string) error { //nolint:funlen
 	log.WithField("api key", apiKey).Debug("Running")
 
 	// make a channel for system signals and "subscribe" for some of them
 	signalsCh := make(chan os.Signal, 1)
 	signal.Notify(signalsCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
+	defer func() {
+		signal.Stop(signalsCh)
+		close(signalsCh)
+	}()
+
 	// main context creation
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// cancel context on OS signal in separate goroutine
-	go func(ctx context.Context, signalsCh <-chan os.Signal) {
+	go func(signalsCh <-chan os.Signal) {
 		select {
-		case sig := <-signalsCh:
-			log.WithField("signal", sig).Warn("Stopping by OS signal..")
+		case sig, opened := <-signalsCh:
+			if opened && sig != nil {
+				log.WithField("signal", sig).Warn("Stopping by OS signal..")
 
-			lastError = errors.New("stopped by OS signal")
-
-			cancel()
+				cancel()
+			}
 
 		case <-ctx.Done():
 			break
 		}
-	}(ctx, signalsCh)
+	}(signalsCh)
 
-	// client creation
-	client := tinypng.NewClient(tinypng.ClientConfig{
-		APIKey:         apiKey,
-		RequestTimeout: httpRequestTimeout,
-	})
-
-	// result channel
-	resultCh := make(chan result)
+	countCh, errCh := make(chan uint64), make(chan error)
 
 	// execute client call in separate goroutine
-	go func(out chan<- result) {
+	go func(countCh chan<- uint64, errCh chan<- error, apiKey string) {
+		defer func() {
+			close(countCh)
+			close(errCh)
+		}()
+
+		client := tinypng.NewClient(tinypng.ClientConfig{
+			APIKey:         apiKey,
+			RequestTimeout: httpRequestTimeout,
+		})
+
 		count, err := client.GetCompressionCount(ctx)
 		if err != nil {
-			out <- result{err: err}
+			errCh <- err
 
 			return
 		}
 
-		out <- result{count: count}
-	}(resultCh)
+		countCh <- count
+	}(countCh, errCh, apiKey)
 
-	// ...and wait for result
-	res := <-resultCh
+	// and wait for results (or context canceling)
+	select {
+	case count := <-countCh:
+		fmt.Printf("Used quota is: %d\n", count)
 
-	close(resultCh)
-	cancel()
-	signal.Stop(signalsCh)
-	close(signalsCh)
+	case err := <-errCh:
+		return err
 
-	if res.err != nil {
-		return res.err
+	case <-ctx.Done():
+		return errors.New("working canceled")
 	}
 
-	fmt.Printf("Used quota is: %d\n", res.count)
-
-	return lastError
+	return nil
 }
