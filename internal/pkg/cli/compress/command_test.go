@@ -1,8 +1,8 @@
 package compress
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -14,7 +14,6 @@ import (
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
 	"bou.ke/monkey"
-	"github.com/kami-zh/go-capturer"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -41,14 +40,14 @@ func copyTestdata(t *testing.T, destination string) error {
 
 		if info.IsDir() {
 			return os.Mkdir(filepath.Join(destination, relPath), 0755)
-		} else {
-			data, err := ioutil.ReadFile(filepath.Join(source, relPath))
-			if err != nil {
-				return err
-			}
-
-			return ioutil.WriteFile(filepath.Join(destination, relPath), data, 0777)
 		}
+
+		data, readErr := ioutil.ReadFile(filepath.Join(source, relPath))
+		if readErr != nil {
+			return readErr
+		}
+
+		return ioutil.WriteFile(filepath.Join(destination, relPath), data, info.Mode())
 	})
 }
 
@@ -58,10 +57,13 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 
 	assert.NoError(t, copyTestdata(t, tmpDir)) // copy testdata into temporary directory
 
-	defer func(d string) { assert.Nil(t, os.RemoveAll(d)) }(tmpDir) // remove temp dir after all
+	defer func(d string) { assert.NoError(t, os.RemoveAll(d)) }(tmpDir) // remove temp dir after all
+
+	output := bytes.NewBuffer(make([]byte, 0))
 
 	logger := logrus.New()
-	//logger.SetOutput(ioutil.Discard)
+	logger.SetLevel(logrus.TraceLevel)
+	logger.SetOutput(output)
 
 	var (
 		where *tinypng.Client
@@ -73,7 +75,24 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 		reflect.TypeOf(where), what, func(_ *tinypng.Client, ctx context.Context, body io.Reader) (*tinypng.Result, error) {
 			defer guard.Restore()
 
-			return nil, errors.New("foo error")
+			return &tinypng.Result{
+				Input: tinypng.Input{
+					Size: 100,
+					Type: "image/png",
+				},
+				Output: tinypng.Output{
+					Size:   90,
+					Type:   "image/png",
+					Width:  50,
+					Height: 50,
+					Ratio:  0.123,
+					URL:    "https://foo.com/bar",
+				},
+				Error:            nil,
+				Message:          nil,
+				CompressionCount: 123,
+				Compressed:       ioutil.NopCloser(bytes.NewBufferString("compressed ok")),
+			}, nil
 		},
 	)
 
@@ -83,9 +102,15 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 		tmpDir,
 	})
 
-	output := capturer.CaptureStdout(func() {
-		assert.NoError(t, cmd.Execute())
-	})
+	assert.NoError(t, cmd.Execute())
 
-	t.Log(output)
+	outString := output.String()
+
+	assert.Contains(t, outString, "image_compressed_test.png")
+	assert.Contains(t, outString, "image_test.png")
+	assert.Contains(t, outString, "Total saved (2 files)")
+}
+
+func TestCommand(t *testing.T) {
+	t.Skip("Write better tests")
 }

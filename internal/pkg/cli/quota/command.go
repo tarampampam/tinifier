@@ -120,7 +120,7 @@ func execute(log *logrus.Logger, apiKey string) error { //nolint:funlen
 	// and wait for results (or context canceling)
 	select {
 	case count := <-countCh:
-		fmt.Printf("Used quota is: %d\n", count)
+		fmt.Fprintf(os.Stdout, "Used quota is: %d\n", count)
 
 	case err := <-errCh:
 		return err

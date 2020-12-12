@@ -95,17 +95,12 @@ func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
 
 			sort.Strings(targets)
 
-			err = execute(log, executeProperties{ // FIXME
+			return execute(log, executeProperties{
 				targets:         targets,
 				apiKey:          apiKey,
 				threadsCount:    threadsCount,
 				maxErrorsToStop: maxErrorsToStop,
 			})
-
-			log.Warn(err)
-
-			return err
-
 		},
 	}
 
@@ -170,6 +165,26 @@ type (
 	}
 )
 
+type syncError struct {
+	mu  sync.RWMutex
+	err error
+}
+
+// Set the error (thread-safe).
+func (e *syncError) Set(err error) {
+	e.mu.Lock()
+	e.err = err
+	e.mu.Unlock()
+}
+
+// Get the error (thread-safe).
+func (e *syncError) Get() error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.err
+}
+
 // execute current command (compress passed files).
 //
 // Goroutines working schema:
@@ -191,6 +206,8 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 		"targets count": len(props.targets),
 	}).Debug("Running")
 
+	var execErr syncError // is used for "thread safe" execution error changing
+
 	// make a channel for system signals and "subscribe" for some of them
 	signalsCh := make(chan os.Signal, 1)
 	signal.Notify(signalsCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -202,7 +219,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 
 	// main context creation
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer cancel() // call cancellation function after all for "service" goroutines stopping
 
 	startedAt := time.Now() // save "started at" timestamp
 
@@ -212,8 +229,9 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 		case sig, opened := <-signalsCh:
 			if opened && sig != nil {
 				log.WithField("signal", sig).Warn("Stopping by OS signal..")
+				execErr.Set(errors.New("stopped by OS signal"))
 
-				cancel()
+				cancel() // we must to stop by OS signal
 			}
 
 		case <-ctx.Done():
@@ -256,6 +274,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 
 			if errorsLimit > 0 && errorsCounter >= errorsLimit {
 				log.Errorf("Too many (%d) errors occurred, stopping the process", errorsCounter)
+				execErr.Set(errors.New("too many errors occurred"))
 
 				cancel() // too many errors occurred, we must to stop the process
 			}
@@ -284,25 +303,31 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 
 			for {
 				select {
-				case <-ctx.Done():
+				case <-ctx.Done(): // high "select" priority
 					return
 
-				case t, isOpened := <-tasksCh: // read task
-					if !isOpened {
+				default: // lower priority
+					select {
+					case <-ctx.Done():
 						return
-					}
 
-					log.Infof(
-						"[%d of %d] Compressing file \"%s\"",
-						atomic.AddUint32(&tasksCounter, 1), total, t.filePath,
-					)
+					case t, isOpened := <-tasksCh: // read the task
+						if !isOpened {
+							return
+						}
 
-					result, err := compressFile(ctx, tiny, t)
+						log.Infof(
+							"[%d of %d] Compressing file \"%s\"",
+							atomic.AddUint32(&tasksCounter, 1), total, t.filePath,
+						)
 
-					if err != nil {
-						errorsCh <- taskError{task: t, err: err}
-					} else {
-						resultsCh <- *result
+						result, err := compressFile(ctx, tiny, t)
+
+						if err != nil {
+							errorsCh <- taskError{task: t, err: err}
+						} else {
+							resultsCh <- *result
+						}
 					}
 				}
 			}
@@ -314,7 +339,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	resultsWg.Add(1)
 	// read results using single separate goroutine
 	go func(resultsCh <-chan taskResult) {
-		reader := newResultsReader()
+		reader := newResultsReader(log.Out)
 
 		defer func() {
 			reader.Draw()
@@ -341,11 +366,9 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	close(errorsCh)  // close errors channel
 	resultsWg.Wait() // wait for "results reader" exiting
 
-	// FIXME exit code on context canceling
-
 	log.Infof("Completed in %s", time.Since(startedAt))
 
-	return nil
+	return execErr.Get()
 }
 
 // compressFile reads file from passed task, compress them using tinypng client, and overwrite original file with

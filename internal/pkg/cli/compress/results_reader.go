@@ -2,8 +2,8 @@ package compress
 
 import (
 	"fmt"
+	"io"
 	"math"
-	"os"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
@@ -21,9 +21,9 @@ type resultsReader struct {
 }
 
 // newResultsReader creates results reader instance.
-func newResultsReader() resultsReader {
+func newResultsReader(writer io.Writer) resultsReader {
 	// create and configure table
-	table := tablewriter.NewWriter(os.Stdout)
+	table := tablewriter.NewWriter(writer)
 	table.SetAutoFormatHeaders(false)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"File Name", "Type", "Size Difference", "Saved"})
