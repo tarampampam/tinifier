@@ -6,7 +6,7 @@ import (
 
 	"github.com/tarampampam/tinifier/internal/pkg/cli"
 
-	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus" // TODO change to zap
 )
 
 func main() {

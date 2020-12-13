@@ -36,8 +36,8 @@ func NewLocator(locations []string, extensions []string) (*Locator, error) {
 	}
 
 	// convert extensions into map (for faster searching)
-	for _, ext := range extensions {
-		l.extMap[ext] = struct{}{}
+	for i := range extensions {
+		l.extMap[extensions[i]] = struct{}{}
 	}
 
 	return l, nil

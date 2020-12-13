@@ -176,5 +176,8 @@ func (c *Client) downloadImage(ctx context.Context, url string) (io.ReadCloser, 
 		return nil, err
 	}
 
+	// FIXME do NOT return http response body (convert it into "something readable", use "some buffer" from function
+	//       params or something else)
+
 	return response.Body, nil
 }
