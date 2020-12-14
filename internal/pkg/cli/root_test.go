@@ -3,13 +3,15 @@ package cli
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSubcommands(t *testing.T) {
-	cmd := NewCommand(logrus.New(), "unit test")
+	atom := zap.NewAtomicLevel()
+	cmd := NewCommand(zap.NewNop(), &atom, "unit test")
 
 	cases := []struct {
 		giveName string
@@ -35,7 +37,8 @@ func TestSubcommands(t *testing.T) {
 }
 
 func TestFlags(t *testing.T) {
-	cmd := NewCommand(logrus.New(), "unit test")
+	atom := zap.NewAtomicLevel()
+	cmd := NewCommand(zap.NewNop(), &atom, "unit test")
 
 	cases := []struct {
 		giveName      string

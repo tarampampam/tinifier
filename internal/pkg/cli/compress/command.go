@@ -18,8 +18,8 @@ import (
 	"github.com/tarampampam/tinifier/internal/pkg/files"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 const (
@@ -36,7 +36,7 @@ type executeProperties struct {
 }
 
 // NewCommand creates `compress` command.
-func NewCommand(log *logrus.Logger) *cobra.Command { //nolint:funlen
+func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 	var (
 		apiKey          string
 		fileExtensions  []string
@@ -197,14 +197,13 @@ func (e *syncError) Get() error {
 //                               |-| workers | --------> | errors watcher |
 //                                 |---------|           |----------------|
 //
-func execute(log *logrus.Logger, props executeProperties) error { //nolint:funlen,gocognit,gocyclo
-	log.WithFields(logrus.Fields{
-		"api key":       props.apiKey,
-		"threads count": props.threadsCount,
-		"max errors":    props.maxErrorsToStop,
-		// "targets":    props.targets,
-		"targets count": len(props.targets),
-	}).Debug("Running")
+func execute(log *zap.Logger, props executeProperties) error { //nolint:funlen,gocognit,gocyclo
+	log.Debug("Running",
+		zap.String("api key", props.apiKey),
+		zap.Uint8("api key", props.threadsCount),
+		zap.Uint32("max errors", props.maxErrorsToStop),
+		zap.Int("targets count", len(props.targets)),
+	)
 
 	var execErr syncError // is used for "thread safe" execution error changing
 
@@ -228,7 +227,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 		select {
 		case sig, opened := <-signalsCh:
 			if opened && sig != nil {
-				log.WithField("signal", sig).Warn("Stopping by OS signal..")
+				log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
 				execErr.Set(errors.New("stopped by OS signal"))
 
 				cancel() // we must to stop by OS signal
@@ -268,12 +267,13 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 				return
 			}
 
-			log.WithError(taskErr.err).
-				WithField("file", taskErr.task.filePath).
-				Error("Compression failed")
+			log.Error("Compression failed",
+				zap.Error(taskErr.err),
+				zap.String("file", taskErr.task.filePath),
+			)
 
 			if errorsLimit > 0 && errorsCounter >= errorsLimit {
-				log.Errorf("Too many (%d) errors occurred, stopping the process", errorsCounter)
+				log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", errorsCounter))
 				execErr.Set(errors.New("too many errors occurred"))
 
 				cancel() // too many errors occurred, we must to stop the process
@@ -285,7 +285,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 
 	var (
 		workersWg    sync.WaitGroup
-		tasksCounter uint32 // atomic usage only
+		tasksCounter uint32 // atomic usage only // FIXME atomic.NewUInt32
 		resultsCh    = make(chan taskResult, props.threadsCount)
 	)
 
@@ -307,6 +307,8 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 					return
 
 				default: // lower priority
+					// TODO check chx error here instead upper `select`
+
 					select {
 					case <-ctx.Done():
 						return
@@ -316,10 +318,10 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 							return
 						}
 
-						log.Infof(
+						log.Info(fmt.Sprintf(
 							"[%d of %d] Compressing file \"%s\"",
 							atomic.AddUint32(&tasksCounter, 1), total, t.filePath,
-						)
+						))
 
 						result, err := compressFile(ctx, tiny, t)
 
@@ -339,7 +341,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	resultsWg.Add(1)
 	// read results using single separate goroutine
 	go func(resultsCh <-chan taskResult) {
-		reader := newResultsReader(log.Out)
+		reader := newResultsReader(os.Stdout)
 
 		defer func() {
 			reader.Draw()
@@ -352,10 +354,10 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 				return
 			}
 
-			log.WithFields(logrus.Fields{
-				"old size": result.originalSizeBytes,
-				"new size": result.compressedSizeBytes,
-			}).Debugf("File \"%s\" compressed successful", result.filePath)
+			log.Debug(fmt.Sprintf("File \"%s\" compressed successful", result.filePath),
+				zap.Uint64("old size", result.originalSizeBytes),
+				zap.Uint64("new size", result.compressedSizeBytes),
+			)
 
 			reader.Append(result)
 		}
@@ -366,7 +368,7 @@ func execute(log *logrus.Logger, props executeProperties) error { //nolint:funle
 	close(errorsCh)  // close errors channel
 	resultsWg.Wait() // wait for "results reader" exiting
 
-	log.Infof("Completed in %s", time.Since(startedAt))
+	log.Info(fmt.Sprintf("Completed in %s", time.Since(startedAt)))
 
 	return execErr.Get()
 }

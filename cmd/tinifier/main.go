@@ -1,30 +1,37 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/tarampampam/tinifier/internal/pkg/cli"
 
-	"github.com/sirupsen/logrus" // TODO change to zap
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
-	var (
-		logger = logrus.New()
-		cmd    = cli.NewCommand(logger, filepath.Base(os.Args[0]))
-	)
+	var atomicLogLevel, logEncoderConfig = zap.NewAtomicLevel(), zap.NewDevelopmentEncoderConfig()
 
-	// configure logger (setup global properties)
-	logger.SetOutput(os.Stdout) // not sure here
-	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:          true,
-		TimestampFormat:        "15:04:05", // .000
-		DisableLevelTruncation: true,
-		PadLevelText:           true,
-	})
+	logEncoderConfig.EncodeLevel = zapcore.LowercaseColorLevelEncoder
+	logEncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
+
+	logger := zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(logEncoderConfig),
+		zapcore.Lock(os.Stdout),
+		atomicLogLevel,
+	))
+
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			fmt.Println(err.Error())
+		}
+	}()
+
+	var cmd = cli.NewCommand(logger, &atomicLogLevel, filepath.Base(os.Args[0]))
 
 	if err := cmd.Execute(); err != nil {
-		logger.Fatal(err) // `os.Exit(1)` here
+		logger.Fatal(err.Error()) // `os.Exit(1)` here
 	}
 }

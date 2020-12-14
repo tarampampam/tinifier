@@ -2,7 +2,6 @@ package quota
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,8 +11,9 @@ import (
 
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
-	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 )
 
 // NewCommand creates `quota` command.
-func NewCommand(log *logrus.Logger) *cobra.Command {
+func NewCommand(log *zap.Logger) *cobra.Command {
 	var APIKey string
 
 	cmd := &cobra.Command{
@@ -62,8 +62,8 @@ func NewCommand(log *logrus.Logger) *cobra.Command {
 }
 
 // execute current command.
-func execute(log *logrus.Logger, apiKey string) error { //nolint:funlen
-	log.WithField("api key", apiKey).Debug("Running")
+func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
+	log.Debug("Running", zap.String("api key", apiKey))
 
 	// make a channel for system signals and "subscribe" for some of them
 	signalsCh := make(chan os.Signal, 1)
@@ -83,7 +83,7 @@ func execute(log *logrus.Logger, apiKey string) error { //nolint:funlen
 		select {
 		case sig, opened := <-signalsCh:
 			if opened && sig != nil {
-				log.WithField("signal", sig).Warn("Stopping by OS signal..")
+				log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
 
 				cancel()
 			}
@@ -109,6 +109,10 @@ func execute(log *logrus.Logger, apiKey string) error { //nolint:funlen
 
 		count, err := client.GetCompressionCount(ctx)
 		if err != nil {
+			if err == tinypng.CompressionCountHeaderNotFoundErr {
+				err = errors.Wrap(err, "wrong API key")
+			}
+
 			errCh <- err
 
 			return

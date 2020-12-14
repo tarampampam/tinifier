@@ -5,19 +5,19 @@ import (
 	"github.com/tarampampam/tinifier/internal/pkg/cli/quota"
 	"github.com/tarampampam/tinifier/internal/pkg/cli/version"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 // NewCommand creates root command.
-func NewCommand(log *logrus.Logger, appName string) *cobra.Command {
+func NewCommand(log *zap.Logger, atomicLogLevel *zap.AtomicLevel, appName string) *cobra.Command {
 	var verbose bool
 
 	cmd := &cobra.Command{
 		Use: appName,
 		PersistentPreRunE: func(*cobra.Command, []string) error {
 			if verbose {
-				log.SetLevel(logrus.DebugLevel)
+				atomicLogLevel.SetLevel(zap.DebugLevel)
 			}
 
 			return nil

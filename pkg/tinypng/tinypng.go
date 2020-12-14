@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -56,6 +55,8 @@ type (
 		Compressed       io.ReadCloser // IMPORTANT: must be closed on receiver side
 	}
 )
+
+var CompressionCountHeaderNotFoundErr = errors.New("header \"Compression-Count\" was not found in HTTP response")
 
 // NewClient creates new `tinypng.com` API client instance.
 func NewClient(config ClientConfig) *Client {
@@ -140,7 +141,7 @@ func (c *Client) extractCompressionCountFromResponse(resp *http.Response) (uint6
 		return 0, err
 	}
 
-	return 0, fmt.Errorf("header %s was not found in HTTP response", headerName)
+	return 0, CompressionCountHeaderNotFoundErr
 }
 
 // sendImage sends image to the remote server.
@@ -177,7 +178,8 @@ func (c *Client) downloadImage(ctx context.Context, url string) (io.ReadCloser, 
 	}
 
 	// FIXME do NOT return http response body (convert it into "something readable", use "some buffer" from function
-	//       params or something else)
+	//       params or something else). Also we should copy response into memory (for processing "downloading errors"
+	//       inside this function (not on caller side))
 
 	return response.Body, nil
 }
