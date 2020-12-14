@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/tarampampam/tinifier/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
 	"github.com/pkg/errors"
@@ -65,33 +64,21 @@ func NewCommand(log *zap.Logger) *cobra.Command {
 func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 	log.Debug("Running", zap.String("api key", apiKey))
 
-	// make a channel for system signals and "subscribe" for some of them
-	signalsCh := make(chan os.Signal, 1)
-	signal.Notify(signalsCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	var (
+		ctx, cancel = context.WithCancel(context.Background()) // main context creation
+		oss         = breaker.NewOSSignals(ctx)                // OS signals listener
+	)
+
+	oss.Subscribe(func(sig os.Signal) {
+		log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
+
+		cancel()
+	})
 
 	defer func() {
-		signal.Stop(signalsCh)
-		close(signalsCh)
+		cancel()   // call cancellation function after all for "service" goroutines stopping
+		oss.Stop() // stop system signals listening
 	}()
-
-	// main context creation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// cancel context on OS signal in separate goroutine
-	go func(signalsCh <-chan os.Signal) {
-		select {
-		case sig, opened := <-signalsCh:
-			if opened && sig != nil {
-				log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
-
-				cancel()
-			}
-
-		case <-ctx.Done():
-			break
-		}
-	}(signalsCh)
 
 	countCh, errCh := make(chan uint64), make(chan error)
 
@@ -109,7 +96,7 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 
 		count, err := client.GetCompressionCount(ctx)
 		if err != nil {
-			if err == tinypng.CompressionCountHeaderNotFoundErr {
+			if err == tinypng.ErrCompressionCountHeaderNotFound {
 				err = errors.Wrap(err, "wrong API key")
 			}
 

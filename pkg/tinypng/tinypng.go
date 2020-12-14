@@ -56,7 +56,7 @@ type (
 	}
 )
 
-var CompressionCountHeaderNotFoundErr = errors.New("header \"Compression-Count\" was not found in HTTP response")
+var ErrCompressionCountHeaderNotFound = errors.New("header \"Compression-Count\" was not found in HTTP response")
 
 // NewClient creates new `tinypng.com` API client instance.
 func NewClient(config ClientConfig) *Client {
@@ -89,7 +89,7 @@ func (c *Client) Compress(ctx context.Context, body io.Reader) (*Result, error) 
 		var details = ""
 
 		if result.Error != nil {
-			details += *result.Message
+			details += *result.Error
 		}
 
 		if result.Message != nil {
@@ -141,7 +141,7 @@ func (c *Client) extractCompressionCountFromResponse(resp *http.Response) (uint6
 		return 0, err
 	}
 
-	return 0, CompressionCountHeaderNotFoundErr
+	return 0, ErrCompressionCountHeaderNotFound
 }
 
 // sendImage sends image to the remote server.

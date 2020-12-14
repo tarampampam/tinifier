@@ -59,8 +59,6 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 
 	defer func(d string) { assert.NoError(t, os.RemoveAll(d)) }(tmpDir) // remove temp dir after all
 
-	//output := bytes.NewBuffer(make([]byte, 0))
-
 	logger := zap.NewNop()
 
 	var (
@@ -100,13 +98,7 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 		tmpDir,
 	})
 
-	assert.NoError(t, cmd.Execute())
-
-	//outString := output.String()
-	//
-	//assert.Contains(t, outString, "image_compressed_test.png")
-	//assert.Contains(t, outString, "image_test.png")
-	//assert.Contains(t, outString, "Total saved (2 files)")
+	assert.NoError(t, cmd.Execute()) // TODO write asserts
 }
 
 func TestCommand(t *testing.T) {

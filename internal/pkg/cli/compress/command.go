@@ -4,18 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/signal"
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
+	"github.com/tarampampam/tinifier/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/internal/pkg/files"
+	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
+	"github.com/tarampampam/tinifier/internal/pkg/threadsafe"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
 	"github.com/spf13/cobra"
@@ -25,15 +24,8 @@ import (
 const (
 	apiKeyEnvName            = "TINYPNG_API_KEY"
 	apiKeyMinLength    uint8 = 8
-	httpRequestTimeout       = time.Second * 80
+	httpRequestTimeout       = time.Second * 90
 )
-
-type executeProperties struct {
-	targets         []string
-	apiKey          string
-	threadsCount    uint8
-	maxErrorsToStop uint32
-}
 
 // NewCommand creates `compress` command.
 func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
@@ -95,12 +87,7 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 
 			sort.Strings(targets)
 
-			return execute(log, executeProperties{
-				targets:         targets,
-				apiKey:          apiKey,
-				threadsCount:    threadsCount,
-				maxErrorsToStop: maxErrorsToStop,
-			})
+			return execute(log, targets, apiKey, threadsCount, maxErrorsToStop)
 		},
 	}
 
@@ -147,273 +134,103 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 	return cmd
 }
 
-type (
-	task struct {
-		filePath string
-	}
-
-	taskResult struct {
-		fileType            string
-		filePath            string
-		originalSizeBytes   uint64
-		compressedSizeBytes uint64
-	}
-
-	taskError struct {
-		task task
-		err  error
-	}
-)
-
-type syncError struct {
-	mu  sync.RWMutex
-	err error
-}
-
-// Set the error (thread-safe).
-func (e *syncError) Set(err error) {
-	e.mu.Lock()
-	e.err = err
-	e.mu.Unlock()
-}
-
-// Get the error (thread-safe).
-func (e *syncError) Get() error {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	return e.err
-}
-
 // execute current command (compress passed files).
-//
-// Goroutines working schema:
-//
-//                         |---------|       results     |----------------|
-//                         | |---------|   ------------> | results reader |
-// |-----------|   tasks   |-| |---------|               |----------------|
-// | scheduler |  -------->  |-| |---------|
-// |-----------|               |-| |---------|  errors   |----------------|
-//                               |-| workers | --------> | errors watcher |
-//                                 |---------|           |----------------|
-//
-func execute(log *zap.Logger, props executeProperties) error { //nolint:funlen,gocognit,gocyclo
+func execute( //nolint:funlen
+	log *zap.Logger,
+	targets []string,
+	apiKey string,
+	threadsCount uint8,
+	maxErrorsToStop uint32,
+) error {
 	log.Debug("Running",
-		zap.String("api key", props.apiKey),
-		zap.Uint8("api key", props.threadsCount),
-		zap.Uint32("max errors", props.maxErrorsToStop),
-		zap.Int("targets count", len(props.targets)),
+		zap.String("api key", apiKey),
+		zap.Uint8("threads count", threadsCount),
+		zap.Uint32("max errors", maxErrorsToStop),
+		zap.Int("targets count", len(targets)),
 	)
-
-	var execErr syncError // is used for "thread safe" execution error changing
-
-	// make a channel for system signals and "subscribe" for some of them
-	signalsCh := make(chan os.Signal, 1)
-	signal.Notify(signalsCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-
-	defer func() {
-		signal.Stop(signalsCh)
-		close(signalsCh)
-	}()
-
-	// main context creation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // call cancellation function after all for "service" goroutines stopping
-
-	startedAt := time.Now() // save "started at" timestamp
-
-	// cancel context on OS signal in separate goroutine
-	go func(signalsCh <-chan os.Signal) {
-		select {
-		case sig, opened := <-signalsCh:
-			if opened && sig != nil {
-				log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
-				execErr.Set(errors.New("stopped by OS signal"))
-
-				cancel() // we must to stop by OS signal
-			}
-
-		case <-ctx.Done():
-			break
-		}
-	}(signalsCh)
-
-	tasksCh := make(chan task, props.threadsCount) // channel for compression tasks
-
-	// fill-up tasks channel (schedule) using single separate goroutine
-	go func(tasksCh chan<- task) {
-		defer close(tasksCh) // important
-
-		for _, filePath := range props.targets {
-			select {
-			case <-ctx.Done():
-				return
-
-			default:
-				tasksCh <- task{filePath: filePath}
-			}
-		}
-	}(tasksCh)
-
-	errorsCh := make(chan taskError) // channel for compression task errors
-
-	// start "errors watcher" in separate goroutine
-	go func(errorsCh <-chan taskError, errorsLimit uint32) {
-		var errorsCounter uint32
-
-		for {
-			taskErr, isOpened := <-errorsCh
-			if !isOpened { // channel is closed AND empty
-				return
-			}
-
-			log.Error("Compression failed",
-				zap.Error(taskErr.err),
-				zap.String("file", taskErr.task.filePath),
-			)
-
-			if errorsLimit > 0 && errorsCounter >= errorsLimit {
-				log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", errorsCounter))
-				execErr.Set(errors.New("too many errors occurred"))
-
-				cancel() // too many errors occurred, we must to stop the process
-			}
-
-			errorsCounter++
-		}
-	}(errorsCh, props.maxErrorsToStop)
 
 	var (
-		workersWg    sync.WaitGroup
-		tasksCounter uint32 // atomic usage only // FIXME atomic.NewUInt32
-		resultsCh    = make(chan taskResult, props.threadsCount)
+		execError threadsafe.ErrorBag // for thread-safe "last error" returning
+
+		ctx, cancel = context.WithCancel(context.Background()) // main context creation
+		startedAt   = time.Now()                               // save "started at" timestamp
+		oss         = breaker.NewOSSignals(ctx)                // OS signals listener
 	)
 
-	// run workers (using many goroutines)
-	for i := uint8(0); i < props.threadsCount; i++ {
-		workersWg.Add(1)
+	oss.Subscribe(func(sig os.Signal) {
+		log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
+		execError.Wrap(errors.New("stopped by OS signal"))
 
-		go func(tasksCh <-chan task, resultsCh chan<- taskResult, errorsCh chan<- taskError, total int, key string) {
-			defer workersWg.Done()
+		cancel() // we must to stop by OS signal
+	})
 
-			tiny := tinypng.NewClient(tinypng.ClientConfig{
-				APIKey:         key,
-				RequestTimeout: httpRequestTimeout,
-			})
+	defer func() {
+		cancel()   // call cancellation function after all for "service" goroutines stopping
+		oss.Stop() // stop system signals listening
+	}()
 
-			for {
-				select {
-				case <-ctx.Done(): // high "select" priority
-					return
+	var (
+		tasksCounter, errorsCounter, compressedCounter uint32 // counters (atomic usage only)
 
-				default: // lower priority
-					// TODO check chx error here instead upper `select`
+		comp pipeline.Compressor = newCompressor(ctx, tinypng.NewClient(tinypng.ClientConfig{ // images compressor
+			APIKey:         apiKey,
+			RequestTimeout: httpRequestTimeout,
+		}))
 
-					select {
-					case <-ctx.Done():
-						return
+		reader = newResultsReader(os.Stdout) // results reader (pretty results writer)
+	)
 
-					case t, isOpened := <-tasksCh: // read the task
-						if !isOpened {
-							return
-						}
+	onError := func(err pipeline.TaskError) { // task errors handler
+		count := atomic.AddUint32(&errorsCounter, 1)
 
-						log.Info(fmt.Sprintf(
-							"[%d of %d] Compressing file \"%s\"",
-							atomic.AddUint32(&tasksCounter, 1), total, t.filePath,
-						))
+		log.Error("Compression failed",
+			zap.Error(err.Error),
+			zap.String("file", err.Task.FilePath),
+		)
 
-						result, err := compressFile(ctx, tiny, t)
+		if maxErrorsToStop > 0 && count >= maxErrorsToStop {
+			log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", count))
+			execError.Wrap(errors.New("too many errors occurred"))
 
-						if err != nil {
-							errorsCh <- taskError{task: t, err: err}
-						} else {
-							resultsCh <- *result
-						}
-					}
-				}
-			}
-		}(tasksCh, resultsCh, errorsCh, len(props.targets), props.apiKey)
+			cancel() // too many errors occurred, we must to stop the process
+		}
 	}
 
-	var resultsWg sync.WaitGroup
+	onResult := func(res pipeline.TaskResult) { // task results handler
+		count := atomic.AddUint32(&compressedCounter, 1)
 
-	resultsWg.Add(1)
-	// read results using single separate goroutine
-	go func(resultsCh <-chan taskResult) {
-		reader := newResultsReader(os.Stdout)
+		log.Debug(fmt.Sprintf("[%d of %d] File \"%s\" compressed successful", count, len(targets), res.FilePath),
+			zap.Uint64("old size", res.OriginalSize),
+			zap.Uint64("new size", res.CompressedSize),
+		)
 
-		defer func() {
-			reader.Draw()
-			resultsWg.Done()
-		}()
+		reader.Append(res)
+	}
 
-		for {
-			result, isOpened := <-resultsCh
-			if !isOpened { // channel is closed AND empty
-				return
-			}
+	pipe := pipeline.NewPipeline(ctx, filePathsToTasks(targets), comp, onResult, onError)
 
-			log.Debug(fmt.Sprintf("File \"%s\" compressed successful", result.filePath),
-				zap.Uint64("old size", result.originalSizeBytes),
-				zap.Uint64("new size", result.compressedSizeBytes),
-			)
+	pipe.PreWorkerRun = func(task pipeline.Task) { // attach custom pre-worker-run handler
+		log.Info(fmt.Sprintf(
+			"[%d of %d] Compressing file \"%s\"",
+			atomic.AddUint32(&tasksCounter, 1), len(targets), task.FilePath,
+		))
+	}
 
-			reader.Append(result)
-		}
-	}(resultsCh)
-
-	workersWg.Wait() // wait for workers completed state
-	close(resultsCh) // close results channel ("results reader" will stops when channel will be empty)
-	close(errorsCh)  // close errors channel
-	resultsWg.Wait() // wait for "results reader" exiting
+	<-pipe.Run(threadsCount) // wait until job is done
+	reader.Draw()            // draw results table
 
 	log.Info(fmt.Sprintf("Completed in %s", time.Since(startedAt)))
 
-	return execErr.Get()
+	return execError.Get()
 }
 
-// compressFile reads file from passed task, compress them using tinypng client, and overwrite original file with
-// compressed image content.
-func compressFile(ctx context.Context, tiny *tinypng.Client, task task) (*taskResult, error) {
-	fileRead, err := os.OpenFile(task.filePath, os.O_RDONLY, 0) // open file for reading
-	if err != nil {
-		return nil, err
+// filePathsToTasks converts slice with file paths into pipeline.Task's slice.
+func filePathsToTasks(in []string) []pipeline.Task {
+	result := make([]pipeline.Task, 0, len(in))
+
+	for i := 0; i < len(in); i++ {
+		result = append(result, pipeline.Task{FilePath: in[i]})
 	}
 
-	stat, err := fileRead.Stat()
-	if err != nil {
-		fileRead.Close() // do not forget to close file
-
-		return nil, err
-	}
-
-	resp, err := tiny.Compress(ctx, fileRead)
-
-	fileRead.Close() // file was compressed (successful or not), and must be closed
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Compressed.Close()
-
-	fileWrite, err := os.OpenFile(task.filePath, os.O_WRONLY|os.O_TRUNC, stat.Mode()) // open file for writing
-	if err != nil {
-		return nil, err
-	}
-
-	defer fileWrite.Close()
-
-	_, err = io.Copy(fileWrite, resp.Compressed)
-	if err != nil {
-		return nil, err
-	}
-
-	return &taskResult{
-		fileType:            resp.Output.Type,
-		filePath:            task.filePath,
-		originalSizeBytes:   resp.Input.Size,
-		compressedSizeBytes: resp.Output.Size,
-	}, nil
+	return result
 }

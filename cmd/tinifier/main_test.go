@@ -46,7 +46,7 @@ func Test_MainWrongCommand(t *testing.T) {
 
 	os.Args = []string{"", "foo bar"}
 
-	output := capturer.CaptureStderr(func() {
+	output := capturer.CaptureStdout(func() {
 		main()
 	})
 

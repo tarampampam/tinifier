@@ -6,6 +6,8 @@ import (
 	"math"
 	"path/filepath"
 
+	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
+
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 )
@@ -13,10 +15,10 @@ import (
 type resultsReader struct {
 	table *tablewriter.Table
 	stats struct {
-		originalSizeBytes   uint64
-		compressedSizeBytes uint64
-		savedBytes          int64
-		totalFiles          uint32
+		originalSize   uint64
+		compressedSize uint64
+		savedBytes     int64
+		totalFiles     uint32
 	}
 }
 
@@ -33,25 +35,25 @@ func newResultsReader(writer io.Writer) resultsReader {
 	}
 }
 
-func (rr *resultsReader) Append(result taskResult) {
-	rr.stats.originalSizeBytes += result.originalSizeBytes
-	rr.stats.compressedSizeBytes += result.compressedSizeBytes
-	rr.stats.savedBytes += int64(result.originalSizeBytes) - int64(result.compressedSizeBytes)
+func (rr *resultsReader) Append(result pipeline.TaskResult) {
+	rr.stats.originalSize += result.OriginalSize
+	rr.stats.compressedSize += result.CompressedSize
+	rr.stats.savedBytes += int64(result.OriginalSize) - int64(result.CompressedSize)
 	rr.stats.totalFiles++
 
 	// append a row in a table
 	rr.table.Append([]string{
-		filepath.Base(result.filePath), // File Name
-		result.fileType,                // Type
+		filepath.Base(result.FilePath), // File Name
+		result.FileType,                // Type
 		fmt.Sprintf( // Size Difference
 			"%s  →  %s",
-			humanize.IBytes(result.originalSizeBytes),
-			humanize.IBytes(result.compressedSizeBytes),
+			humanize.IBytes(result.OriginalSize),
+			humanize.IBytes(result.CompressedSize),
 		),
 		fmt.Sprintf( // Saved
 			"%s (-%0.2f%%)",
-			rr.humanBytesDiff(float64(result.originalSizeBytes), float64(result.compressedSizeBytes)),
-			rr.percentageDiff(float64(result.compressedSizeBytes), float64(result.originalSizeBytes)),
+			rr.humanBytesDiff(float64(result.OriginalSize), float64(result.CompressedSize)),
+			rr.percentageDiff(float64(result.CompressedSize), float64(result.OriginalSize)),
 		),
 	})
 }
@@ -64,7 +66,7 @@ func (rr *resultsReader) Draw() {
 		fmt.Sprintf("Total saved (%d files)", rr.stats.totalFiles), // Size Difference
 		fmt.Sprintf("%s (-%0.2f%%)", // Saved
 			rr.humanBytesDiff(float64(rr.stats.savedBytes)),
-			rr.percentageDiff(float64(rr.stats.compressedSizeBytes), float64(rr.stats.originalSizeBytes)),
+			rr.percentageDiff(float64(rr.stats.compressedSize), float64(rr.stats.originalSize)),
 		),
 	})
 
