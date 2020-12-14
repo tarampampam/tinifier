@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 	})
 
 	assert.Contains(t, output, "quota is:")
-	assert.Contains(t, output, strconv.FormatUint(1234321, 10))
+	assert.Contains(t, output, "1234321")
 }
 
 func Test_CommandErroredRunning(t *testing.T) {

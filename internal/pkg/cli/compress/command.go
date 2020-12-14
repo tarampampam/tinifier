@@ -170,7 +170,7 @@ func execute( //nolint:funlen
 	}()
 
 	var (
-		tasksCounter, errorsCounter, compressedCounter uint32 // counters (atomic usage only)
+		tasksCounter, errorsCounter uint32 // counters (atomic usage only)
 
 		comp pipeline.Compressor = newCompressor(ctx, tinypng.NewClient(tinypng.ClientConfig{ // images compressor
 			APIKey:         apiKey,
@@ -190,18 +190,17 @@ func execute( //nolint:funlen
 
 		if maxErrorsToStop > 0 && count >= maxErrorsToStop {
 			log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", count))
-			execError.Wrap(errors.New("too many errors occurred"))
+			execError.Set(errors.New("too many errors occurred"))
 
 			cancel() // too many errors occurred, we must to stop the process
 		}
 	}
 
 	onResult := func(res pipeline.TaskResult) { // task results handler
-		count := atomic.AddUint32(&compressedCounter, 1)
-
-		log.Debug(fmt.Sprintf("[%d of %d] File \"%s\" compressed successful", count, len(targets), res.FilePath),
+		log.Debug(fmt.Sprintf("File \"%s\" compressed successful", res.FilePath),
 			zap.Uint64("old size", res.OriginalSize),
 			zap.Uint64("new size", res.CompressedSize),
+			zap.Uint64("used quota", res.UsedQuota),
 		)
 
 		reader.Append(res)
@@ -216,7 +215,7 @@ func execute( //nolint:funlen
 		))
 	}
 
-	<-pipe.Run(threadsCount) // wait until job is done
+	<-pipe.Run(threadsCount) // wait until all jobs is done
 	reader.Draw()            // draw results table
 
 	log.Info(fmt.Sprintf("Completed in %s", time.Since(startedAt)))

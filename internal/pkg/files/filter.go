@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 )
 
-// FilterMissed drops any strings, that not points to existing file or directory.
+// FilterMissed drops any strings, that not points to existing files or directories.
 func FilterMissed(paths []string) []string {
 	result := make([]string, 0)
 

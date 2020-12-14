@@ -112,8 +112,7 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 
 	// check compressed image content
 	compressed, _ := ioutil.ReadFile("./testdata/image_compressed_test.png")
-	respBody, _ := ioutil.ReadAll(res.Compressed)
-	assert.Equal(t, compressed, respBody)
+	assert.Equal(t, compressed, res.Compressed)
 
 	// check result values
 	assert.Equal(t, uint64(666), res.CompressionCount)
@@ -127,8 +126,6 @@ func TestClient_CompressRealImageSuccess(t *testing.T) {
 	assert.Equal(t, "https://api.tinify.com/output/someRandomResultImageHash", res.Output.URL)
 	assert.Nil(t, res.Message)
 	assert.Nil(t, res.Error)
-
-	assert.Nil(t, res.Compressed.Close())
 }
 
 func TestClient_GetCompressionCount(t *testing.T) {

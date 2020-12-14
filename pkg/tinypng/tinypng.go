@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,16 @@ type (
 )
 
 type (
+	// Result is compression result object with some additional properties.
+	Result struct {
+		Input            Input   `json:"input"`
+		Output           Output  `json:"output"`
+		Error            *string `json:"error"`
+		Message          *string `json:"message"`
+		CompressionCount uint64  // used quota value
+		Compressed       []byte
+	}
+
 	// Input follows `input` response object structure.
 	Input struct {
 		Size uint64 `json:"size"` // eg.: `5851`
@@ -43,16 +54,6 @@ type (
 		Height uint64  `json:"height"` // eg.: `512`
 		Ratio  float32 `json:"ratio"`  // eg.: `0.9058`
 		URL    string  `json:"url"`    // eg.: `https://api.tinify.com/output/foobar`
-	}
-
-	// Result is compression result object with some additional properties.
-	Result struct {
-		Input            Input         `json:"input"`
-		Output           Output        `json:"output"`
-		Error            *string       `json:"error"`
-		Message          *string       `json:"message"`
-		CompressionCount uint64        // used quota value
-		Compressed       io.ReadCloser // IMPORTANT: must be closed on receiver side
 	}
 )
 
@@ -163,7 +164,7 @@ func (c *Client) sendImage(ctx context.Context, body io.Reader) (*http.Response,
 }
 
 // downloadImage downloads image by passed URL from remote server.
-func (c *Client) downloadImage(ctx context.Context, url string) (io.ReadCloser, error) {
+func (c *Client) downloadImage(ctx context.Context, url string) ([]byte, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -176,10 +177,12 @@ func (c *Client) downloadImage(ctx context.Context, url string) (io.ReadCloser, 
 	if err != nil {
 		return nil, err
 	}
+	defer response.Body.Close()
 
-	// FIXME do NOT return http response body (convert it into "something readable", use "some buffer" from function
-	//       params or something else). Also we should copy response into memory (for processing "downloading errors"
-	//       inside this function (not on caller side))
+	content, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
 
-	return response.Body, nil
+	return content, nil
 }

@@ -48,6 +48,7 @@ type (
 		FilePath       string
 		OriginalSize   uint64 // in bytes
 		CompressedSize uint64 // in bytes
+		UsedQuota      uint64 // aka "CompressionCount"
 	}
 
 	// TaskError contains all information about task compressing error.

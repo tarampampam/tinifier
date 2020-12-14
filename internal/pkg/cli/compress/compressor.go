@@ -1,6 +1,7 @@
 package compress
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -42,8 +43,6 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		return nil, err
 	}
 
-	defer resp.Compressed.Close()
-
 	fileWrite, err := os.OpenFile(t.FilePath, os.O_WRONLY|os.O_TRUNC, stat.Mode()) // open file for writing
 	if err != nil {
 		return nil, err
@@ -51,7 +50,7 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 
 	defer fileWrite.Close()
 
-	_, err = io.Copy(fileWrite, resp.Compressed)
+	_, err = io.Copy(fileWrite, bytes.NewReader(resp.Compressed))
 	if err != nil {
 		return nil, err
 	}
@@ -61,5 +60,6 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		FilePath:       t.FilePath,
 		OriginalSize:   resp.Input.Size,
 		CompressedSize: resp.Output.Size,
+		UsedQuota:      resp.CompressionCount,
 	}, nil
 }
