@@ -13,27 +13,27 @@ import (
 
 	"github.com/tarampampam/tinifier/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/internal/pkg/files"
+	"github.com/tarampampam/tinifier/internal/pkg/keys"
 	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
 	"github.com/tarampampam/tinifier/internal/pkg/threadsafe"
-	"github.com/tarampampam/tinifier/pkg/tinypng"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
 const (
-	apiKeyEnvName            = "TINYPNG_API_KEY"
-	apiKeyMinLength    uint8 = 8
-	httpRequestTimeout       = time.Second * 90
+	apiKeyEnvName         = "TINYPNG_API_KEY"
+	apiKeyMinLength uint8 = 8
 )
 
 // NewCommand creates `compress` command.
 func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 	var (
-		apiKey          string
+		apiKeys         []string
 		fileExtensions  []string
 		threadsCount    uint8
 		maxErrorsToStop uint32
+		maxAPIKeyErrors uint32
 		recursive       bool
 	)
 
@@ -51,16 +51,22 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 				return errors.New("wrong threads value")
 			}
 
-			if apiKey == "" {
+			if maxAPIKeyErrors < 1 {
+				return errors.New("wrong maximum API key errors value")
+			}
+
+			if len(apiKeys) == 0 {
 				if envAPIKey := strings.Trim(os.Getenv(apiKeyEnvName), " "); envAPIKey != "" {
-					apiKey = envAPIKey
+					apiKeys = append(apiKeys, envAPIKey)
 				} else {
 					return errors.New("API key was not provided")
 				}
 			}
 
-			if uint8(len(apiKey)) <= apiKeyMinLength {
-				return fmt.Errorf("API key (%s) is too short", apiKey)
+			for i := 0; i < len(apiKeys); i++ {
+				if uint8(len(apiKeys[i])) <= apiKeyMinLength {
+					return fmt.Errorf("API key (%s) is too short", apiKeys[i])
+				}
 			}
 
 			return nil
@@ -87,16 +93,19 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 
 			sort.Strings(targets)
 
-			return execute(log, targets, apiKey, threadsCount, maxErrorsToStop)
+			return execute(log, targets, apiKeys, threadsCount, maxAPIKeyErrors, maxErrorsToStop)
 		},
 	}
 
-	cmd.Flags().StringVarP(
-		&apiKey,   // var
-		"api-key", // name
-		"k",       // short
-		"",        // default
-		fmt.Sprintf("TinyPNG API key <https://tinypng.com/dashboard/api> [$%s]", apiKeyEnvName),
+	cmd.Flags().StringSliceVarP(
+		&apiKeys,   // var
+		"api-key",  // name
+		"k",        // short
+		[]string{}, // default
+		fmt.Sprintf(
+			"TinyPNG API key <https://tinypng.com/dashboard/api> (multiple keys are allowed) [$%s]",
+			apiKeyEnvName,
+		),
 	)
 
 	cmd.Flags().StringSliceVarP(
@@ -123,6 +132,14 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 		"maximum errors count to stop the process, set 0 to disable",
 	)
 
+	cmd.Flags().Uint32VarP(
+		&maxAPIKeyErrors, // var
+		"max-key-errors", // name
+		"",               // short
+		3,                // default
+		"maximum API key errors (compression retries) to disable the key",
+	)
+
 	cmd.Flags().BoolVarP(
 		&recursive,  // var
 		"recursive", // name
@@ -138,16 +155,23 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 func execute( //nolint:funlen
 	log *zap.Logger,
 	targets []string,
-	apiKey string,
+	apiKeys []string,
 	threadsCount uint8,
+	maxAPIKeyErrors uint32,
 	maxErrorsToStop uint32,
 ) error {
 	log.Debug("Running",
-		zap.String("api key", apiKey),
+		zap.Strings("api keys", apiKeys),
 		zap.Uint8("threads count", threadsCount),
+		zap.Uint32("max api key errors", maxAPIKeyErrors),
 		zap.Uint32("max errors", maxErrorsToStop),
 		zap.Int("targets count", len(targets)),
 	)
+
+	keysKeeper := keys.NewKeeper(int(maxAPIKeyErrors))
+	if err := keysKeeper.Add(apiKeys...); err != nil {
+		return err
+	}
 
 	var (
 		execError threadsafe.ErrorBag // for thread-safe "last error" returning
@@ -172,12 +196,8 @@ func execute( //nolint:funlen
 	var (
 		tasksCounter, errorsCounter uint32 // counters (atomic usage only)
 
-		comp pipeline.Compressor = newCompressor(ctx, tinypng.NewClient(tinypng.ClientConfig{ // images compressor
-			APIKey:         apiKey,
-			RequestTimeout: httpRequestTimeout,
-		}))
-
-		reader = newResultsReader(os.Stdout) // results reader (pretty results writer)
+		comp   pipeline.Compressor = newCompressor(ctx, log, &keysKeeper)
+		reader                     = newResultsReader(os.Stdout) // results reader (pretty results writer)
 	)
 
 	onError := func(err pipeline.TaskError) { // task errors handler

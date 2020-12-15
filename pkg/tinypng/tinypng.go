@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,7 @@ const ENDPOINT string = "https://api.tinify.com/shrink"
 type (
 	// Client describes `tinypng.com` API client
 	Client struct {
+		mu         sync.Mutex
 		apiKey     string
 		httpClient *http.Client
 	}
@@ -73,6 +75,13 @@ func NewClient(config ClientConfig) *Client {
 			Timeout: config.RequestTimeout, // Set request timeout
 		},
 	}
+}
+
+// SetAPIKey updates client API key.
+func (c *Client) SetAPIKey(key string) {
+	c.mu.Lock()
+	c.apiKey = key
+	c.mu.Unlock()
 }
 
 // Compress takes image body and compress it using `tinypng.com`. You should do not forget to close `result.Compressed`.

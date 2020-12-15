@@ -4,54 +4,86 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"os"
+	"time"
 
+	"github.com/tarampampam/tinifier/internal/pkg/keys"
 	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
+
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
+)
+
+const (
+	httpRequestTimeout    = time.Second * 90
+	maxCompressionRetries = 1000
+	compressionRetryAfter = time.Millisecond * 500
 )
 
 type compressor struct {
-	ctx  context.Context
-	tiny *tinypng.Client
+	ctx    context.Context
+	log    *zap.Logger
+	keeper *keys.Keeper
 }
 
 // newCompressor creates new tinypng images compressor.
-func newCompressor(ctx context.Context, tiny *tinypng.Client) compressor {
-	return compressor{ctx: ctx, tiny: tiny}
+func newCompressor(ctx context.Context, log *zap.Logger, keeper *keys.Keeper) compressor {
+	return compressor{ctx: ctx, log: log, keeper: keeper}
 }
 
 // Compress reads file from passed task, compress them using tinypng client, and overwrite original file with
 // compressed image content.
 func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
-	fileRead, err := os.OpenFile(t.FilePath, os.O_RDONLY, 0) // open file for reading
+	source, stat, err := c.readFile(t.FilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	stat, err := fileRead.Stat()
-	if err != nil {
-		fileRead.Close() // do not forget to close file
+	tiny := tinypng.NewClient(tinypng.ClientConfig{RequestTimeout: httpRequestTimeout})
 
-		return nil, err
+	var (
+		resp          *tinypng.Result
+		fallbackBreak uint
+	)
+
+	for {
+		if fallbackBreak++; fallbackBreak > maxCompressionRetries {
+			return nil, errors.New("too many retries (REPORT ABOUT THIS ERROR TO DEVELOPERS)")
+		}
+
+		apiKey, err := c.keeper.Get()
+		if err != nil {
+			return nil, errors.Wrap(err, "no one key can be used")
+		}
+
+		tiny.SetAPIKey(apiKey)
+
+		resp, err = tiny.Compress(c.ctx, bytes.NewBuffer(source))
+		if err != nil { // compressing failed
+			if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
+				if reportingErr := c.keeper.ReportKeyError(apiKey, 1); reportingErr != nil {
+					return nil, reportingErr
+				}
+			}
+
+			c.log.Warn("Remote error occurred, retrying", zap.Error(err), zap.String("key", apiKey))
+
+			select {
+			case <-c.ctx.Done():
+				return nil, errors.New("compressing canceled")
+
+			case <-time.After(compressionRetryAfter):
+			}
+
+			continue // try to use the next key
+		}
+
+		break
 	}
 
-	resp, err := c.tiny.Compress(c.ctx, fileRead)
-
-	fileRead.Close() // file was compressed (successful or not), and must be closed
-
-	if err != nil {
-		return nil, err
-	}
-
-	fileWrite, err := os.OpenFile(t.FilePath, os.O_WRONLY|os.O_TRUNC, stat.Mode()) // open file for writing
-	if err != nil {
-		return nil, err
-	}
-
-	defer fileWrite.Close()
-
-	_, err = io.Copy(fileWrite, bytes.NewReader(resp.Compressed))
-	if err != nil {
+	if err := c.writeFile(t.FilePath, resp.Compressed, stat.Mode()); err != nil {
 		return nil, err
 	}
 
@@ -62,4 +94,41 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		CompressedSize: resp.Output.Size,
 		UsedQuota:      resp.CompressionCount,
 	}, nil
+}
+
+func (c compressor) readFile(filePath string) ([]byte, os.FileInfo, error) {
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0) // open file for reading
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	buf, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return buf, stat, nil
+}
+
+func (c compressor) writeFile(filePath string, content []byte, mode os.FileMode) error {
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC, mode) // open file for writing
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	_, err = io.Copy(file, bytes.NewReader(content))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
