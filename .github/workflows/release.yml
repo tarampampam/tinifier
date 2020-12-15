@@ -7,75 +7,74 @@ on:
 jobs:
   build:
     name: Build for ${{ matrix.os }} (${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
         os: [linux, windows, darwin]
         arch: [amd64, 386]
-        include:
-          - os: windows
-            ext: '.exe'
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.14
 
-      - name: Install dependencies
-        run: sudo apt-get install -y upx
-
       - name: Check out code
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
 
-      - name: Generate version value
-        run: echo "::set-env name=APP_VERSION::${GITHUB_REF##*/}@`echo ${GITHUB_SHA} | cut -c1-8`"
+      - name: Generate builder values
+        id: values
+        run: |
+          echo "::set-output name=version::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`"
+          echo "::set-output name=binary-name::tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`"
 
-      - name: Generate target file name
-        run: echo "::set-env name=TARGET_FILE::tinifier-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}"
+      - name: Install Go dependencies
+        run: go mod download
 
       - name: Build application
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
-        run: go build -ldflags="-s -w -X tinifier/version.version=${APP_VERSION}" -o "/tmp/${TARGET_FILE}" .
+          CGO_ENABLED: 0
+          LDFLAGS: -s -w -X tinifier/internal/pkg/version.version=${{ steps.values.outputs.version }}
+        run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.binary-name }}" ./cmd/tinifier/main.go
 
-      - name: Pack binary file
-        run: upx -7 "/tmp/${TARGET_FILE}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.values.outputs.binary-name }}
+          path: ${{ steps.values.outputs.binary-name }}
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: /tmp/${{ env.TARGET_FILE }}
-          asset_name: ${{ env.TARGET_FILE }}
+          file: ${{ steps.values.outputs.binary-name }}
+          asset_name: ${{ steps.values.outputs.binary-name }}
           tag: ${{ github.ref }}
 
-  docker-image:
+  docker:
     name: Build docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-
-      - name: Generate version value
-        run: echo "::set-env name=APP_VERSION::${GITHUB_REF##*/}@`echo ${GITHUB_SHA} | cut -c1-8`"
-
-      - name: Generate image tag value
-        run: echo "::set-env name=IMAGE_TAG::${GITHUB_REF##*/[vV]}" # `/refs/tags/v1.2.3` -> `1.2.3`
 
       - name: Make docker login
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_LOGIN }}" --password-stdin &> /dev/null
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_LOGIN }}" --password-stdin
 
-      - name: Build image
-        run: docker build --build-arg "APP_VERSION=${APP_VERSION}" --tag "tarampampam/tinifier:${IMAGE_TAG}" --tag "tarampampam/tinifier:latest" -f ./Dockerfile .
+      - name: Generate builder values
+        id: values
+        run: echo "::set-output name=version::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`"
 
-      - name: Push version image
-        run: docker push "tarampampam/tinifier:${IMAGE_TAG}"
+      - name: Build image # TODO add `latest` tag building
+        run: |
+          docker build \
+            --tag "tarampampam/tinifier:${{ steps.values.outputs.version }}" \
+            --build-arg "APP_VERSION=${{ steps.values.outputs.version }}" \
+            .
 
-      - name: Push latest image
-        run: docker push "tarampampam/tinifier:latest"
+      - name: Push image into registry # TODO add `latest` tag pushing
+        run: docker push "tarampampam/tinifier:${{ steps.values.outputs.version }}"

@@ -24,6 +24,8 @@ This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your loca
 
 ## :computer: Installing
 
+_WIP_
+
 Download latest binary file from [releases page][link_releases] or use [docker image][link_docker_build].
 
 ## :fire: Usage example
@@ -55,7 +57,7 @@ Compress all images in **current** directory:
 ```bash
 $ docker run --rm -ti \
     -u "$(id -u):$(id -g)" \
-    -v "$(pwd):/rootfs:rw" \    
+    -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
     tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' .
 ```

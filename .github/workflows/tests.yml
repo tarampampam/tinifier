@@ -9,65 +9,22 @@ on:
   pull_request:
 
 jobs:
-  gofmt:
-    name: Run gofmt
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.14
-
-      - name: Check out code
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-
-      - name: Run Gofmt
-        run: test -z "$(gofmt -l .)"
-
-  goimports:
-    name: Run goimports
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.14
-
-      - name: Check out code
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-
-      - name: Install goimports
-        run: go get golang.org/x/tools/cmd/goimports
-
-      - name: Update PATH environment variable
-        run: echo "::set-env name=PATH::$HOME/go/bin:$PATH"
-
-      - name: Run goimports
-        run: command -v goimports && test -z "$(goimports -d .)"
-
-      - name: Show diff
-        if: failure()
-        run: goimports -d .
-
-  lint:
-    name: Run linters
-    runs-on: ubuntu-latest
+  golangci-lint:
+    name: Golang-CI (lint)
+    runs-on: ubuntu-20.04
     steps:
       - name: Check out code
         uses: actions/checkout@v2
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v2 # Action page: <https://github.com/golangci/golangci-lint-action>
         with:
-          fetch-depth: 1
+          version: v1.33 # without patch version
+          only-new-issues: false # show only new issues if it's a pull request
 
-      - name: Run GolangCI-Lint # https://github.com/golangci/golangci-lint
-        run: docker run --rm -t -v $(pwd):/app -w /app golangci/golangci-lint:v1.24-alpine golangci-lint run -v
-
-  test:
+  go-test:
     name: Unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -76,8 +33,16 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v2
+
+      - name: Go modules Cache # Docs: <https://git.io/JfAKn#go---modules>
+        uses: actions/cache@v2
         with:
-          fetch-depth: 1
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Install Go dependencies
+        run: go mod download
 
       - name: Run Unit tests
         run: go test -race -covermode=atomic -coverprofile /tmp/coverage.txt ./...
@@ -91,13 +56,14 @@ jobs:
           fail_ci_if_error: false
 
   build:
-    name: Build for ${{ matrix.os }} and execute
-    runs-on: ubuntu-latest
+    name: Build for ${{ matrix.os }}
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, windows, darwin]
-    needs: [gofmt, goimports, lint, test]
+        os: [linux, windows, darwin] # linux, freebsd, darwin, windows
+        arch: [amd64]                # amd64, 386
+    needs: [golangci-lint, go-test]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -106,38 +72,62 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
 
       - name: Generate version value
-        run: echo "::set-env name=APP_VERSION::${GITHUB_REF##*/}@`echo ${GITHUB_SHA} | cut -c1-8`"
+        id: version # for PR this value will be `merge@__hash__`, SO: <https://stackoverflow.com/a/59780579/2252921>
+        run: echo "::set-output name=value::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`@`echo ${GITHUB_SHA} | cut -c1-8`"
+
+      - name: Go modules Cache # Docs: <https://git.io/JfAKn#go---modules>
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Install Go dependencies
+        run: go mod download
 
       - name: Build application
         env:
           GOOS: ${{ matrix.os }}
-        run: go build -ldflags="-s -w -X tinifier/version.version=${APP_VERSION}" -o /tmp/tinifier .
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+          LDFLAGS: -s -w -X tinifier/internal/pkg/version.version=${{ steps.version.outputs.value }}
+        run: go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/main.go
 
       - name: Try to execute
         if: matrix.os == 'linux'
         run: /tmp/tinifier version && /tmp/tinifier -h
 
-      - uses: actions/upload-artifact@v2
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
         with:
-          name: tinifier
+          name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
           path: /tmp/tinifier
+          if-no-files-found: error
+          retention-days: 7
 
   image:
     name: Build docker image
-    runs-on: ubuntu-latest
-    needs: [gofmt, goimports, lint, test]
+    runs-on: ubuntu-20.04
+    needs: [golangci-lint, go-test]
     steps:
       - name: Check out code
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
+
+      - name: Generate version value
+        id: version # for PR this value will be `merge@__hash__`, SO: <https://stackoverflow.com/a/59780579/2252921>
+        run: echo "::set-output name=value::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`@`echo ${GITHUB_SHA} | cut -c1-8`"
 
       - name: Build image
-        run: docker build -t tinifier:local --build-arg "APP_VERSION=${GITHUB_SHA}" -f ./Dockerfile .
+        run: docker build -t tinifier:local --build-arg "APP_VERSION=${{ steps.version.outputs.value }}" -f ./Dockerfile .
 
       - name: Try to execute
         run: docker run --rm tinifier:local version
+
+      - name: Scan image
+        uses: anchore/scan-action@v2 # action page: <https://github.com/anchore/scan-action>
+        with:
+          image: tinifier:local
+          fail-build: true
+          severity-cutoff: low # negligible, low, medium, high or critical

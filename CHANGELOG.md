@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## UNRELEASED
+
+### Added
+
+- Multiple keys support for `compress` command
+- Flag `--max-errors` _(maximum errors count to stop the process)_ for `compress` command
+- Flag `--max-key-errors` _(maximum API key errors (compression retries) to disable the key)_ for `compress` command
+- Flag `--recursive` (`-r`) _(search for files in listed directories recursively)_ for `compress` command
+- Compression retries
+
+### Changed
+
+- Source code totally re-wrote
+- Dependency `github.com/jessevdk/go-flags` replaced with `github.com/spf13/cobra`
+- Package `github.com/tarampampam/tinifier/pkg/tinypng` can be installed into another go-applications
+
+### Removed
+
+- Progress bar (package `github.com/schollz/progressbar/v3`)
+
+### Fixed
+
+- Errors handling in a lot of places
+
 ## v2.1.0
 
 ### Added
