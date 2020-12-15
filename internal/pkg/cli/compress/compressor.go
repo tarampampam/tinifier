@@ -17,7 +17,7 @@ import (
 
 const (
 	httpRequestTimeout    = time.Second * 90
-	maxCompressionRetries = 1000
+	maxCompressionRetries = 600
 	compressionRetryAfter = time.Millisecond * 500
 )
 
