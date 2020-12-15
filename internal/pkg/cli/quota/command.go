@@ -96,10 +96,6 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 
 		count, err := client.GetCompressionCount(ctx)
 		if err != nil {
-			if err == tinypng.ErrCompressionCountHeaderNotFound {
-				err = errors.Wrap(err, "wrong API key")
-			}
-
 			errCh <- err
 
 			return

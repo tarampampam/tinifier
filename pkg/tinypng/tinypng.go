@@ -57,7 +57,13 @@ type (
 	}
 )
 
-var ErrCompressionCountHeaderNotFound = errors.New("header \"Compression-Count\" was not found in HTTP response")
+const errorsPrefix = "tinypng.com: "
+
+var (
+	ErrCompressionCountHeaderNotFound = errors.New(errorsPrefix + "HTTP header \"Compression-Count\" was not found")
+	ErrTooManyRequests                = errors.New(errorsPrefix + "too many requests (limit has been exceeded)")
+	ErrUnauthorized                   = errors.New(errorsPrefix + "unauthorized (invalid credentials)")
+)
 
 // NewClient creates new `tinypng.com` API client instance.
 func NewClient(config ClientConfig) *Client {
@@ -78,6 +84,14 @@ func (c *Client) Compress(ctx context.Context, body io.Reader) (*Result, error) 
 
 	defer sentResponse.Body.Close()
 
+	switch sentResponse.StatusCode {
+	case http.StatusUnauthorized:
+		return nil, ErrUnauthorized
+
+	case http.StatusTooManyRequests:
+		return nil, ErrTooManyRequests
+	}
+
 	var result = Result{}
 
 	// read response json
@@ -87,17 +101,7 @@ func (c *Client) Compress(ctx context.Context, body io.Reader) (*Result, error) 
 
 	// making sure that error is missing in response
 	if result.Error != nil {
-		var details = ""
-
-		if result.Error != nil {
-			details += *result.Error
-		}
-
-		if result.Message != nil {
-			details += " (" + strings.Trim(*result.Message, ". ") + ")"
-		}
-
-		return nil, errors.New("tinypng.com: " + details)
+		return nil, c.formatResponseError(result)
 	}
 
 	// extract `compression-count` value
@@ -116,6 +120,24 @@ func (c *Client) Compress(ctx context.Context, body io.Reader) (*Result, error) 
 	return &result, nil
 }
 
+func (c *Client) formatResponseError(result Result) error {
+	var details string
+
+	if result.Error != nil {
+		details += *result.Error
+	}
+
+	if result.Message != nil {
+		details += " (" + strings.Trim(*result.Message, ". ") + ")"
+	}
+
+	if details == "" {
+		details = "error does not contains information"
+	}
+
+	return errors.New(errorsPrefix + details)
+}
+
 // GetCompressionCount returns used quota value.
 func (c *Client) GetCompressionCount(ctx context.Context) (uint64, error) {
 	// If you know better way for getting current quota usage - please, make an issue in current repository
@@ -126,7 +148,19 @@ func (c *Client) GetCompressionCount(ctx context.Context) (uint64, error) {
 
 	_ = resp.Body.Close()
 
-	return c.extractCompressionCountFromResponse(resp)
+	count, err := c.extractCompressionCountFromResponse(resp)
+
+	if err != nil {
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			return 0, ErrUnauthorized
+
+		case http.StatusTooManyRequests:
+			return 0, ErrTooManyRequests
+		}
+	}
+
+	return count, err
 }
 
 // extractCompressionCountFromResponse extracts `compression-count` value from HTTP response.

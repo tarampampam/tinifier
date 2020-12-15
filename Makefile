@@ -31,6 +31,7 @@ build: ## Build app binary file
 fmt: ## Run source code formatter tools
 	docker-compose run $(DC_RUN_ARGS) -e "GO111MODULE=off" --no-deps app sh -c 'go get golang.org/x/tools/cmd/goimports && $$GOPATH/bin/goimports -d -w .'
 	docker-compose run $(DC_RUN_ARGS) --no-deps app gofmt -s -w -d .
+	docker-compose run $(DC_RUN_ARGS) --no-deps app go mod tidy
 
 lint: ## Run app linters
 	docker-compose run --rm --no-deps golint golangci-lint run

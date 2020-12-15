@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -24,9 +23,12 @@ func main() {
 	))
 
 	defer func() {
-		if err := logger.Sync(); err != nil {
-			fmt.Println(err.Error())
-		}
+		/*
+			if err := logger.Sync(); err != nil {
+				fmt.Println(err.Error()) // FIXME error is here, when `fmt.Println()` somewhere in code
+			}
+		*/
+		_ = logger.Sync()
 	}()
 
 	var cmd = cli.NewCommand(logger, &atomicLogLevel, filepath.Base(os.Args[0]))
