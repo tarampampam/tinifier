@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/tarampampam/tinifier/internal/pkg/keys"
 	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
@@ -25,11 +24,16 @@ const (
 type compressor struct {
 	ctx    context.Context
 	log    *zap.Logger
-	keeper *keys.Keeper
+	keeper tinyKeysKeeper
+}
+
+type tinyKeysKeeper interface {
+	Get() (string, error)
+	ReportKeyError(key string, delta int) error
 }
 
 // newCompressor creates new tinypng images compressor.
-func newCompressor(ctx context.Context, log *zap.Logger, keeper *keys.Keeper) compressor {
+func newCompressor(ctx context.Context, log *zap.Logger, keeper tinyKeysKeeper) compressor {
 	return compressor{ctx: ctx, log: log, keeper: keeper}
 }
 
@@ -48,6 +52,7 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		fallbackBreak uint
 	)
 
+retryLoop:
 	for {
 		if fallbackBreak++; fallbackBreak > maxCompressionRetries {
 			return nil, errors.New("too many retries (REPORT ABOUT THIS ERROR TO DEVELOPERS)")
@@ -61,26 +66,24 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		tiny.SetAPIKey(apiKey)
 
 		resp, err = tiny.Compress(c.ctx, bytes.NewBuffer(source))
-		if err != nil { // compressing failed
-			if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
-				if reportingErr := c.keeper.ReportKeyError(apiKey, 1); reportingErr != nil {
-					return nil, reportingErr
-				}
-			}
-
-			c.log.Warn("Remote error occurred, retrying", zap.Error(err), zap.String("key", apiKey))
-
-			select {
-			case <-c.ctx.Done():
-				return nil, errors.New("compressing canceled")
-
-			case <-time.After(compressionRetryAfter):
-			}
-
-			continue // try to use the next key
+		if err == nil {
+			break retryLoop // compressed successful
 		}
 
-		break
+		if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
+			if reportingErr := c.keeper.ReportKeyError(apiKey, 1); reportingErr != nil {
+				return nil, reportingErr
+			}
+		}
+
+		c.log.Warn("Remote error occurred, retrying", zap.Error(err), zap.String("key", apiKey))
+
+		select {
+		case <-c.ctx.Done():
+			return nil, errors.New("compressing canceled")
+
+		case <-time.After(compressionRetryAfter):
+		}
 	}
 
 	if err := c.writeFile(t.FilePath, resp.Compressed, stat.Mode()); err != nil {
