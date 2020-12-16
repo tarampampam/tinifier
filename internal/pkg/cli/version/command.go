@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/tarampampam/tinifier/internal/pkg/version"
 
@@ -15,7 +16,7 @@ func NewCommand() *cobra.Command {
 		Aliases: []string{"v"},
 		Short:   "Display application version",
 		Run: func(*cobra.Command, []string) {
-			fmt.Printf("version: %s\n", version.Version())
+			_, _ = fmt.Fprintf(os.Stdout, "version: %s\n", version.Version())
 		},
 	}
 }

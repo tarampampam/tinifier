@@ -7,9 +7,9 @@ import (
 
 // Compressor compress the image, that described in the Task. On successful compression it returns TaskResult with
 // compression details, or an error on any fuck-up.
-type Compressor interface {
+type Compressor interface { // TODO(jetexe) private interface
 	// Compress the image.
-	Compress(Task) (*TaskResult, error)
+	Compress(Task) (*TaskResult, error) // TODO(jetexe) pass ctx for compress operation canceling?
 }
 
 // The CompressorFunc is an adapter to allow the use of ordinary functions as Compressor.
@@ -31,7 +31,7 @@ type CompressingPipeline struct {
 	ctx          context.Context
 	tasks        []Task
 	compressor   Compressor
-	PreWorkerRun func(Task)
+	PreWorkerRun func(Task) // TODO(jetexe) declare separate type?
 	onResult     ResultHandler
 	onError      ErrorHandler
 }
@@ -59,7 +59,7 @@ type (
 )
 
 // NewPipeline creates new pipeline.
-func NewPipeline(
+func NewPipeline( // TODO(jetexe) rename to NewCompressingPipeline
 	ctx context.Context,
 	tasks []Task,
 	compressor Compressor,
@@ -75,80 +75,17 @@ func NewPipeline(
 	}
 }
 
-// runScheduler fill-up tasks queue.
-func (p *CompressingPipeline) runScheduler(queue chan<- Task) {
-	for i := 0; i < len(p.tasks); i++ {
-		select {
-		case <-p.ctx.Done():
-			return
-
-		case queue <- p.tasks[i]:
-			continue
-		}
-	}
-}
-
-// runWorker reads tasks from the queue and call Compressor for image compressing. Results will be published into
-// required channels.
-func (p *CompressingPipeline) runWorker(queue <-chan Task, results chan<- TaskResult, errors chan<- TaskError) {
-	for {
-		select {
-		case <-p.ctx.Done():
-			return
-
-		case task, isOpened := <-queue:
-			if p.ctx.Err() != nil || !isOpened {
-				return
-			}
-
-			if p.PreWorkerRun != nil {
-				p.PreWorkerRun(task)
-			}
-
-			if result, err := p.compressor.Compress(task); err != nil {
-				errors <- TaskError{Task: task, Error: err}
-			} else {
-				results <- *result
-			}
-		}
-	}
-}
-
-// runResultsWatcher reads compression results and call the onResult handler.
-func (p *CompressingPipeline) runResultsWatcher(results <-chan TaskResult) {
-	for {
-		result, isOpened := <-results
-		if !isOpened {
-			return
-		}
-
-		p.onResult(result)
-	}
-}
-
-// runResultsWatcher reads compression errors and call the onError handler.
-func (p *CompressingPipeline) runErrorsWatcher(errors <-chan TaskError) {
-	for {
-		taskErr, isOpened := <-errors
-		if !isOpened {
-			return
-		}
-
-		p.onError(taskErr)
-	}
-}
-
 // Run starts compression pipeline.
 //
 // Goroutines working schema:
 //
-//                         |---------|       results     |-----------------|
-//                         | |---------|   ------------> | results watcher |
-// |-----------|   tasks   |-| |---------|               |-----------------|
-// | scheduler |  -------->  |-| |---------|
-// |-----------|               |-| |---------|  errors   |----------------|
-//                               |-| workers | --------> | errors watcher |
-//                                 |---------|           |----------------|
+// 	                         |---------|       results     |-----------------|
+// 	                         | |---------|   ------------> | results watcher |
+// 	 |-----------|   tasks   |-| |---------|               |-----------------|
+// 	 | scheduler |  -------->  |-| |---------|
+// 	 |-----------|               |-| |---------|  errors   |----------------|
+// 	                               |-| workers | --------> | errors watcher |
+// 	                                 |---------|           |----------------|
 //
 func (p *CompressingPipeline) Run(workersCount uint8) <-chan struct{} {
 	var (
@@ -200,4 +137,67 @@ func (p *CompressingPipeline) Run(workersCount uint8) <-chan struct{} {
 	}()
 
 	return done
+}
+
+// runScheduler fill-up tasks queue.
+func (p *CompressingPipeline) runScheduler(queue chan<- Task) {
+	for i := 0; i < len(p.tasks); i++ {
+		select {
+		case <-p.ctx.Done():
+			return
+
+		case queue <- p.tasks[i]:
+			continue
+		}
+	}
+}
+
+// runWorker reads tasks from the queue and call Compressor for image compressing. Results will be published into
+// required channels.
+func (p *CompressingPipeline) runWorker(queue <-chan Task, results chan<- TaskResult, errors chan<- TaskError) {
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+
+		case task, isOpened := <-queue:
+			if p.ctx.Err() != nil || !isOpened {
+				return
+			}
+
+			if p.PreWorkerRun != nil { // TODO(jetexe) use mutex? read about closure concurrency
+				p.PreWorkerRun(task)
+			}
+
+			if result, err := p.compressor.Compress(task); err != nil {
+				errors <- TaskError{Task: task, Error: err}
+			} else {
+				results <- *result
+			}
+		}
+	}
+}
+
+// runResultsWatcher reads compression results and call the onResult handler.
+func (p *CompressingPipeline) runResultsWatcher(results <-chan TaskResult) {
+	for {
+		result, isOpened := <-results
+		if !isOpened {
+			return
+		}
+
+		p.onResult(result)
+	}
+}
+
+// runResultsWatcher reads compression errors and call the onError handler.
+func (p *CompressingPipeline) runErrorsWatcher(errors <-chan TaskError) {
+	for {
+		taskErr, isOpened := <-errors
+		if !isOpened {
+			return
+		}
+
+		p.onError(taskErr)
+	}
 }

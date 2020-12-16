@@ -7,7 +7,7 @@ import (
 )
 
 // ErrorBag allows to get/set/wrap error concurrently.
-type ErrorBag struct {
+type ErrorBag struct { // TODO(jetexe) rename to "Error"? bag for one?
 	mu  sync.RWMutex
 	err error
 }

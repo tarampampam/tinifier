@@ -5,7 +5,9 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
@@ -17,8 +19,8 @@ import (
 
 const (
 	httpRequestTimeout    = time.Second * 90
-	maxCompressionRetries = 600
-	compressionRetryAfter = time.Millisecond * 500
+	maxCompressionRetries = 200
+	compressionRetryAfter = time.Millisecond * 1500
 
 	// Smallest possible PNG image size is 67 bytes <https://garethrees.org/2007/11/14/pngcrush/>
 	//                   JPG image - 125 bytes <https://stackoverflow.com/a/24124454/2252921>
@@ -33,7 +35,7 @@ type compressor struct {
 
 type tinyKeysKeeper interface {
 	Get() (string, error)
-	ReportKeyError(key string, delta int) error
+	ReportKey(key string, delta int) error
 }
 
 // newCompressor creates new tinypng images compressor.
@@ -53,16 +55,20 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		return nil, errors.New("original file size is too small")
 	}
 
+	if !strings.HasPrefix(http.DetectContentType(source), "image/") { // TODO move into tinypng package
+		return nil, errors.New("is not image")
+	}
+
 	tiny := tinypng.NewClient(tinypng.ClientConfig{RequestTimeout: httpRequestTimeout})
 
 	var (
-		resp          *tinypng.Result
-		fallbackBreak uint
+		resp         *tinypng.Result
+		retryCounter uint
 	)
 
 retryLoop:
 	for {
-		if fallbackBreak++; fallbackBreak > maxCompressionRetries {
+		if retryCounter++; retryCounter > maxCompressionRetries {
 			return nil, errors.New("too many retries (REPORT ABOUT THIS ERROR TO DEVELOPERS)")
 		}
 
@@ -78,18 +84,19 @@ retryLoop:
 			break retryLoop // compressed successful
 		}
 
-		// TODO handle error "InputMissing (Input file is empty)" - break this loop
+		if err == tinypng.ErrBadRequest {
+			return nil, errors.Wrap(err, "wrong input file")
+		}
 
 		if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
-			if reportingErr := c.keeper.ReportKeyError(apiKey, 1); reportingErr != nil {
-				return nil, reportingErr
-			}
+			_ = c.keeper.ReportKey(apiKey, 1) // keys reporting errors is not important for us
 		}
 
 		c.log.Warn("Remote error occurred, retrying",
-			zap.Error(err),
+			zap.String("error", err.Error()),
 			zap.String("file", t.FilePath),
 			zap.String("key", apiKey),
+			zap.Uint("retry", retryCounter),
 		)
 
 		select {

@@ -31,7 +31,7 @@ func NewCommand(log *zap.Logger) *cobra.Command {
 		Short:   "Get currently used quota",
 		PreRunE: func(*cobra.Command, []string) error {
 			if APIKey == "" {
-				if envAPIKey := strings.Trim(os.Getenv(apiKeyEnvName), " "); envAPIKey != "" {
+				if envAPIKey := strings.Trim(os.Getenv(apiKeyEnvName), " "); envAPIKey != "" { // TODO(jetexe) os.LookupEnv
 					APIKey = envAPIKey
 				} else {
 					return errors.New("API key was not provided")

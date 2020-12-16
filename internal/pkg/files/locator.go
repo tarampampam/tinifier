@@ -7,11 +7,6 @@ import (
 	"path/filepath"
 )
 
-type Finder interface {
-	// Find search for files somewhere.
-	Find(recursive bool) ([]string, error)
-}
-
 type Locator struct {
 	// locations list (files or directories)
 	locations []string
@@ -73,7 +68,7 @@ func (l *Locator) Find(recursive bool) ([]string, error) { //nolint:gocognit
 						fileList[path] = struct{}{}
 					}
 
-					return nil
+					return err
 				}); err != nil {
 					return nil, err
 				}
@@ -93,10 +88,11 @@ func (l *Locator) Find(recursive bool) ([]string, error) { //nolint:gocognit
 	}
 
 	// convert map into slice
-	result := make([]string, 0, len(fileList))
+	result, i := make([]string, len(fileList), len(fileList)), 0
 	for k := range fileList {
-		result = append(result, k)
+		result[i], i = k, i + 1
 	}
+	fileList = nil // GC is our bro?
 
 	return result, nil
 }

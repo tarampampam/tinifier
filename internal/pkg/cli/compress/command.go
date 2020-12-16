@@ -109,9 +109,9 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 	)
 
 	cmd.Flags().StringSliceVarP(
-		&fileExtensions, // var
-		"ext",           // name
-		"e",             // short
+		&fileExtensions,                                      // var
+		"ext",                                                // name
+		"e",                                                  // short
 		[]string{"jpg", "JPG", "jpeg", "JPEG", "png", "PNG"}, // default
 		"image file extensions (without leading dots)",
 	)
@@ -174,7 +174,7 @@ func execute( //nolint:funlen
 	}
 
 	var (
-		execError threadsafe.ErrorBag // for thread-safe "last error" returning
+		execError threadsafe.ErrorBag // for thread-safe "last error" returning TODO(jetexe) use channel len(1) instead this
 
 		ctx, cancel = context.WithCancel(context.Background()) // main context creation
 		startedAt   = time.Now()                               // save "started at" timestamp
@@ -196,15 +196,15 @@ func execute( //nolint:funlen
 	var (
 		tasksCounter, errorsCounter uint32 // counters (atomic usage only)
 
-		comp   pipeline.Compressor = newCompressor(ctx, log, &keysKeeper)
-		reader                     = newResultsReader(os.Stdout) // results reader (pretty results writer)
+		comp   = newCompressor(ctx, log, &keysKeeper)
+		reader = newResultsReader(os.Stdout) // results reader (pretty results writer)
 	)
 
 	onError := func(err pipeline.TaskError) { // task errors handler
 		count := atomic.AddUint32(&errorsCounter, 1)
 
 		log.Error("Compression failed",
-			zap.Error(err.Error),
+			zap.String("error", err.Error.Error()),
 			zap.String("file", err.Task.FilePath),
 		)
 

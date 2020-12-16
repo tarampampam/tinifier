@@ -9,22 +9,22 @@ import (
 func TestKeeper_Add_Get_Report(t *testing.T) {
 	k := NewKeeper(5)
 
-	// get on empty storage must returns an error
+	// get on empty state must returns an error
 	_, err := k.Get()
-	assert.EqualError(t, err, ErrEmptyKeysStorage.Error())
+	assert.EqualError(t, err, ErrNoUsableKey.Error())
 
 	// appending without error
 	assert.NoError(t, k.Add("foo", "bar"))
 
-	// even two keys in a storage - first by default will be returned
+	// even two keys in a state - first by default will be returned
 	got, err := k.Get()
 	assert.NoError(t, err)
 	assert.Contains(t, []string{"foo", "bar"}, got)
 
 	// report first key
-	assert.NoError(t, k.ReportKeyError("foo", 4))
+	assert.NoError(t, k.ReportKey("foo", 4))
 
-	assert.Error(t, k.ReportKeyError("non-exists", 0)) // non-exists key trigger an error
+	assert.Error(t, k.ReportKey("non-exists", 0)) // non-exists key trigger an error
 
 	// logic without changes
 	got, err = k.Get()
@@ -32,7 +32,7 @@ func TestKeeper_Add_Get_Report(t *testing.T) {
 	assert.Contains(t, []string{"foo", "bar"}, got)
 
 	// one more report - and first key is no longer used
-	assert.NoError(t, k.ReportKeyError("foo", 1))
+	assert.NoError(t, k.ReportKey("foo", 1))
 
 	for i := 0; i < 100; i++ {
 		got, err = k.Get()
@@ -41,7 +41,7 @@ func TestKeeper_Add_Get_Report(t *testing.T) {
 	}
 
 	// report second key
-	assert.NoError(t, k.ReportKeyError("bar", 999))
+	assert.NoError(t, k.ReportKey("bar", 999))
 	_, err = k.Get()
 	assert.EqualError(t, err, ErrNoUsableKey.Error())
 }
@@ -63,6 +63,7 @@ func TestKeeper_Remove(t *testing.T) {
 	assert.NoError(t, k.Add("foo", "bar"))
 
 	k.Remove("foo")
+	k.Remove() // for coverage only
 
 	got, err := k.Get()
 	assert.NoError(t, err)
@@ -71,5 +72,5 @@ func TestKeeper_Remove(t *testing.T) {
 	k.Remove("bar", "some", "another", "keys")
 
 	_, err = k.Get()
-	assert.EqualError(t, err, ErrEmptyKeysStorage.Error())
+	assert.EqualError(t, err, ErrNoUsableKey.Error())
 }
