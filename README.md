@@ -11,6 +11,7 @@
 [![Go Report][badge_goreport]][link_goreport]
 [![Image size][badge_size_latest]][link_docker_build]
 [![License][badge_license]][link_license]
+[![Chat][badge_discord]][link_discord]
 
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
@@ -73,7 +74,7 @@ $ docker run --rm -ti \
     tarampampam/tinifier compress .
 ```
 
-### Testing
+## Testing
 
 For application testing and building we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
 
@@ -86,6 +87,10 @@ Or build binary file:
 ```shell
 $ make build
 ```
+
+## Releasing
+
+_WIP_
 
 ## Changelog
 
@@ -116,8 +121,9 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45
 [badge_issues]:https://img.shields.io/github/issues/tarampampam/tinifier.svg?maxAge=45
 [badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
-[link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
+[badge_discord]:https://img.shields.io/discord/788484223563595837
 
+[link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
 [link_coverage]:https://codecov.io/gh/tarampampam/tinifier
 [link_build]:https://github.com/tarampampam/tinifier/actions
 [link_docker_build]:https://hub.docker.com/r/tarampampam/tinifier/
@@ -128,5 +134,6 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_issues]:https://github.com/tarampampam/tinifier/issues
 [link_create_issue]:https://github.com/tarampampam/tinifier/issues/new/choose
 [link_pulls]:https://github.com/tarampampam/tinifier/pulls
+[link_discord]:https://discord.gg/pTAtuWzJbz
 
 [tinypng.com]:https://tinypng.com/

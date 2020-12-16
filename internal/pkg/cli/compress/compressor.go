@@ -19,6 +19,10 @@ const (
 	httpRequestTimeout    = time.Second * 90
 	maxCompressionRetries = 600
 	compressionRetryAfter = time.Millisecond * 500
+
+	// Smallest possible PNG image size is 67 bytes <https://garethrees.org/2007/11/14/pngcrush/>
+	//                   JPG image - 125 bytes <https://stackoverflow.com/a/24124454/2252921>
+	minimalImageFileSize = 67 // bytes
 )
 
 type compressor struct {
@@ -43,6 +47,10 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 	source, stat, err := c.readFile(t.FilePath)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(source) < minimalImageFileSize {
+		return nil, errors.New("original file size is too small")
 	}
 
 	tiny := tinypng.NewClient(tinypng.ClientConfig{RequestTimeout: httpRequestTimeout})
@@ -70,13 +78,19 @@ retryLoop:
 			break retryLoop // compressed successful
 		}
 
+		// TODO handle error "InputMissing (Input file is empty)" - break this loop
+
 		if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
 			if reportingErr := c.keeper.ReportKeyError(apiKey, 1); reportingErr != nil {
 				return nil, reportingErr
 			}
 		}
 
-		c.log.Warn("Remote error occurred, retrying", zap.Error(err), zap.String("key", apiKey))
+		c.log.Warn("Remote error occurred, retrying",
+			zap.Error(err),
+			zap.String("file", t.FilePath),
+			zap.String("key", apiKey),
+		)
 
 		select {
 		case <-c.ctx.Done():

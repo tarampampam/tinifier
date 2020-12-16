@@ -59,7 +59,7 @@ func (k *Keeper) Remove(keys ...string) {
 	}
 }
 
-func (k *Keeper) ReportKeyError(key string, delta int) error {
+func (k *Keeper) ReportKeyError(key string, delta int) error { // TODO delete invalid key right here
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -72,7 +72,7 @@ func (k *Keeper) ReportKeyError(key string, delta int) error {
 	return ErrKeyNotExists
 }
 
-func (k *Keeper) Get() (string, error) {
+func (k *Keeper) Get() (string, error) { // TODO randomize returned key
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 

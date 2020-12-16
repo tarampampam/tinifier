@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 ### Removed
 
 - Progress bar (package `github.com/schollz/progressbar/v3`)
+- Binary file packing (using `upx`)
 
 ### Fixed
 
