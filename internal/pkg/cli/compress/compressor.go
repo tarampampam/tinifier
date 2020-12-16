@@ -59,10 +59,11 @@ func (c compressor) Compress(t pipeline.Task) (*pipeline.TaskResult, error) {
 		return nil, errors.New("is not image")
 	}
 
-	tiny := tinypng.NewClient(tinypng.ClientConfig{RequestTimeout: httpRequestTimeout})
+	tiny := tinypng.NewClient("", tinypng.WithContext(c.ctx), tinypng.WithDefaultTimeout(httpRequestTimeout))
 
 	var (
-		resp         *tinypng.Result
+		resp         *tinypng.CompressionResult
+		compressed io.Reader
 		retryCounter uint
 	)
 
@@ -79,7 +80,7 @@ retryLoop:
 
 		tiny.SetAPIKey(apiKey)
 
-		resp, err = tiny.Compress(c.ctx, bytes.NewBuffer(source))
+		resp, compressed, err = tiny.Compress(bytes.NewBuffer(source))
 		if err == nil {
 			break retryLoop // compressed successful
 		}
@@ -107,7 +108,7 @@ retryLoop:
 		}
 	}
 
-	if err := c.writeFile(t.FilePath, resp.Compressed, stat.Mode()); err != nil {
+	if err := c.writeFile(t.FilePath, compressed, stat.Mode()); err != nil {
 		return nil, err
 	}
 
@@ -141,7 +142,7 @@ func (c compressor) readFile(filePath string) ([]byte, os.FileInfo, error) {
 	return buf, stat, nil
 }
 
-func (c compressor) writeFile(filePath string, content []byte, mode os.FileMode) error {
+func (c compressor) writeFile(filePath string, content io.Reader, mode os.FileMode) error {
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC, mode) // open file for writing
 	if err != nil {
 		return err
@@ -149,7 +150,7 @@ func (c compressor) writeFile(filePath string, content []byte, mode os.FileMode)
 
 	defer file.Close()
 
-	_, err = io.Copy(file, bytes.NewReader(content))
+	_, err = io.Copy(file, content)
 	if err != nil {
 		return err
 	}

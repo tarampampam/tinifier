@@ -89,12 +89,9 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 			close(errCh)
 		}()
 
-		client := tinypng.NewClient(tinypng.ClientConfig{
-			APIKey:         apiKey,
-			RequestTimeout: httpRequestTimeout,
-		})
+		client := tinypng.NewClient(apiKey, tinypng.WithContext(ctx))
 
-		count, err := client.GetCompressionCount(ctx)
+		count, err := client.GetCompressionCount(httpRequestTimeout)
 		if err != nil {
 			errCh <- err
 
