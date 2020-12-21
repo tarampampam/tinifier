@@ -99,6 +99,7 @@ func (c *Client) SetAPIKey(key string) {
 // Compress reads image from passed source and compress them on tinypng side. Compressed result will be wrote to the
 // passed destination (additional information about compressed image will be returned too).
 // You can use two timeouts - first for image uploading and response waiting, and second - for image downloading.
+// If the provided src is also an io.Closer - it will be closed automatically by HTTP client.
 func (c *Client) Compress(src io.Reader, dest io.Writer, timeouts ...time.Duration) (*CompressionResult, error) {
 	var compressTimeout, downloadTimeout = c.defaultTimeout, c.defaultTimeout // setup defaults
 

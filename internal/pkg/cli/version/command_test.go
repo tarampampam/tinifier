@@ -1,6 +1,7 @@
 package version
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/kami-zh/go-capturer"
@@ -16,4 +17,5 @@ func TestCommandRun(t *testing.T) {
 	})
 
 	assert.Contains(t, output, "0.0.0@undefined")
+	assert.Contains(t, output, runtime.Version())
 }

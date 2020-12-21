@@ -79,7 +79,7 @@ func (c Compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.Ta
 			)
 
 			if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
-				_ = c.keeper.ReportKey(apiKey, 1)
+				_ = c.keeper.ReportKey(apiKey, 1) // TODO do not report about the key - delete it
 			}
 
 			if _, seekErr := srcFile.Seek(0, io.SeekStart); seekErr != nil {
