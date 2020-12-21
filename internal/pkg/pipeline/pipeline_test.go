@@ -9,10 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type compressorFunc func(context.Context, Task) (*TaskResult, error)
+
+func (f compressorFunc) Compress(ctx context.Context, t Task) (*TaskResult, error) { return f(ctx, t) }
+
 func TestCompressingPipeline_RunSimple(t *testing.T) {
 	var successCount, errorsCount, preWorkerRunCounter uint32
 
-	var comp CompressorFunc = func(task Task) (*TaskResult, error) {
+	var comp compressorFunc = func(ctx context.Context, task Task) (*TaskResult, error) {
 		// emulate error when task filepath is "bar"
 		if task.FilePath == "bar" {
 			return nil, errors.New("fake error")
@@ -34,15 +38,14 @@ func TestCompressingPipeline_RunSimple(t *testing.T) {
 		atomic.AddUint32(&errorsCount, 1)
 	}
 
-	pipe := NewPipeline(
+	pipe := NewCompressingPipeline(
 		context.Background(),
 		[]Task{{FilePath: "foo"}, {FilePath: "bar"}, {FilePath: "baz"}},
 		comp,
 		onResult,
 		onError,
+		WithPreWorkerRun(func(task Task) { atomic.AddUint32(&preWorkerRunCounter, 1) }),
 	)
-
-	pipe.PreWorkerRun = func(task Task) { atomic.AddUint32(&preWorkerRunCounter, 1) }
 
 	<-pipe.Run(2)
 
@@ -54,7 +57,7 @@ func TestCompressingPipeline_RunSimple(t *testing.T) {
 func TestCompressingPipeline_RunWithCxtCancellation(t *testing.T) {
 	var successCount, errorsCount, preWorkerRunCounter uint32
 
-	var comp CompressorFunc = func(task Task) (*TaskResult, error) {
+	var comp compressorFunc = func(ctx context.Context, task Task) (*TaskResult, error) {
 		t.Error("should not be executed")
 
 		return &TaskResult{FilePath: task.FilePath}, nil
@@ -66,15 +69,14 @@ func TestCompressingPipeline_RunWithCxtCancellation(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 	)
 
-	pipe := NewPipeline(
+	pipe := NewCompressingPipeline(
 		ctx,
 		[]Task{{FilePath: "foo"}, {FilePath: "bar"}},
 		comp,
 		onResult,
 		onError,
+		WithPreWorkerRun(func(task Task) { atomic.AddUint32(&preWorkerRunCounter, 1) }),
 	)
-
-	pipe.PreWorkerRun = func(task Task) { atomic.AddUint32(&preWorkerRunCounter, 1) }
 
 	cancel() // all tasks must be canceled
 

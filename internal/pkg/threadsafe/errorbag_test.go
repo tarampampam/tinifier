@@ -8,7 +8,7 @@ import (
 )
 
 func TestErrorBag_SetUnset(t *testing.T) {
-	var b ErrorBag
+	var b Error
 
 	assert.NoError(t, b.Get())
 
@@ -23,7 +23,11 @@ func TestErrorBag_SetUnset(t *testing.T) {
 }
 
 func TestErrorBag_Wrap(t *testing.T) {
-	var b ErrorBag
+	var b Error
+
+	b.Wrap(nil)
+
+	assert.Nil(t, b.Get())
 
 	b.Wrap(errors.New("foo"))
 

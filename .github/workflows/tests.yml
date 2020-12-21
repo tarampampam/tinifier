@@ -22,6 +22,17 @@ jobs:
           version: v1.33 # without patch version
           only-new-issues: false # show only new issues if it's a pull request
 
+  gitleaks:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Check for GitLeaks
+        uses: zricethezav/gitleaks-action@v1.2.0 # Action page: <https://github.com/zricethezav/gitleaks-action>
+
   go-test:
     name: Unit tests
     runs-on: ubuntu-20.04

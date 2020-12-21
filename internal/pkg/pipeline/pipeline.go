@@ -5,33 +5,25 @@ import (
 	"sync"
 )
 
-// Compressor compress the image, that described in the Task. On successful compression it returns TaskResult with
+// compressor compress the image, that described in the Task. On successful compression it returns TaskResult with
 // compression details, or an error on any fuck-up.
-type Compressor interface { // TODO(jetexe) private interface
+type compressor interface {
 	// Compress the image.
-	Compress(Task) (*TaskResult, error) // TODO(jetexe) pass ctx for compress operation canceling?
+	Compress(context.Context, Task) (*TaskResult, error)
 }
 
-// The CompressorFunc is an adapter to allow the use of ordinary functions as Compressor.
-type CompressorFunc func(Task) (*TaskResult, error)
-
-// Compress calls f(t).
-func (f CompressorFunc) Compress(t Task) (*TaskResult, error) { return f(t) }
-
 type (
-	// ResultHandler processes task result.
-	ResultHandler func(TaskResult)
-
-	// ErrorHandler processes task error.
-	ErrorHandler func(TaskError)
+	TaskHandler   func(Task)       // TaskHandler pre/post task processing
+	ResultHandler func(TaskResult) // ResultHandler processes task result
+	ErrorHandler  func(TaskError)  // ErrorHandler processes task error
 )
 
 // CompressingPipeline is main tasks pipeline structure.
 type CompressingPipeline struct {
 	ctx          context.Context
 	tasks        []Task
-	compressor   Compressor
-	PreWorkerRun func(Task) // TODO(jetexe) declare separate type?
+	compressor   compressor
+	preWorkerRun TaskHandler
 	onResult     ResultHandler
 	onError      ErrorHandler
 }
@@ -58,24 +50,31 @@ type (
 	}
 )
 
-// NewPipeline creates new pipeline.
-func NewPipeline( // TODO(jetexe) rename to NewCompressingPipeline
+// NewCompressingPipeline creates new pipeline.
+func NewCompressingPipeline(
 	ctx context.Context,
 	tasks []Task,
-	compressor Compressor,
+	compressor compressor,
 	onResult ResultHandler,
 	onError ErrorHandler,
+	options ...CompressingPipelineOption,
 ) CompressingPipeline {
-	return CompressingPipeline{
+	p := CompressingPipeline{
 		ctx:        ctx,
 		tasks:      tasks,
 		compressor: compressor,
 		onResult:   onResult,
 		onError:    onError,
 	}
+
+	for i := 0; i < len(options); i++ {
+		options[i](&p)
+	}
+
+	return p
 }
 
-// Run starts compression pipeline.
+// Run the compression pipeline.
 //
 // Goroutines working schema:
 //
@@ -152,7 +151,7 @@ func (p *CompressingPipeline) runScheduler(queue chan<- Task) {
 	}
 }
 
-// runWorker reads tasks from the queue and call Compressor for image compressing. Results will be published into
+// runWorker reads tasks from the queue and call compressor for image compressing. Results will be published into
 // required channels.
 func (p *CompressingPipeline) runWorker(queue <-chan Task, results chan<- TaskResult, errors chan<- TaskError) {
 	for {
@@ -165,11 +164,11 @@ func (p *CompressingPipeline) runWorker(queue <-chan Task, results chan<- TaskRe
 				return
 			}
 
-			if p.PreWorkerRun != nil { // TODO(jetexe) use mutex? read about closure concurrency
-				p.PreWorkerRun(task)
+			if p.preWorkerRun != nil {
+				p.preWorkerRun(task)
 			}
 
-			if result, err := p.compressor.Compress(task); err != nil {
+			if result, err := p.compressor.Compress(p.ctx, task); err != nil {
 				errors <- TaskError{Task: task, Error: err}
 			} else {
 				results <- *result

@@ -91,7 +91,7 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 
 		client := tinypng.NewClient(apiKey, tinypng.WithContext(ctx))
 
-		count, err := client.GetCompressionCount(httpRequestTimeout)
+		count, err := client.CompressionCount(httpRequestTimeout)
 		if err != nil {
 			errCh <- err
 
@@ -104,7 +104,7 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 	// and wait for results (or context canceling)
 	select {
 	case count := <-countCh:
-		fmt.Fprintf(os.Stdout, "Used quota is: %d\n", count)
+		_, _ = fmt.Fprintf(os.Stdout, "Used quota is: %d\n", count)
 
 	case err := <-errCh:
 		return err

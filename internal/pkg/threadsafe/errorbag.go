@@ -6,28 +6,28 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ErrorBag allows to get/set/wrap error concurrently.
-type ErrorBag struct { // TODO(jetexe) rename to "Error"? bag for one?
+// Error allows to get/set/wrap error concurrently.
+type Error struct {
 	mu  sync.RWMutex
 	err error
 }
 
 // Set sets the error.
-func (b *ErrorBag) Set(err error) {
+func (b *Error) Set(err error) {
 	b.mu.Lock()
 	b.err = err
 	b.mu.Unlock()
 }
 
 // Unset unsets the error.
-func (b *ErrorBag) Unset() {
+func (b *Error) Unset() {
 	b.mu.Lock()
 	b.err = nil
 	b.mu.Unlock()
 }
 
 // Wrap set error in a bag if it does not set, or wrap the error instead.
-func (b *ErrorBag) Wrap(err error) {
+func (b *Error) Wrap(err error) {
 	if err == nil {
 		return
 	}
@@ -42,7 +42,7 @@ func (b *ErrorBag) Wrap(err error) {
 }
 
 // Get returns an error from the bag.
-func (b *ErrorBag) Get() error {
+func (b *Error) Get() error {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 

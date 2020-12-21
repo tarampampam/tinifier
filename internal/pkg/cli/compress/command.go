@@ -109,9 +109,9 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 	)
 
 	cmd.Flags().StringSliceVarP(
-		&fileExtensions,                                      // var
-		"ext",                                                // name
-		"e",                                                  // short
+		&fileExtensions, // var
+		"ext",           // name
+		"e",             // short
 		[]string{"jpg", "JPG", "jpeg", "JPEG", "png", "PNG"}, // default
 		"image file extensions (without leading dots)",
 	)
@@ -168,13 +168,13 @@ func execute( //nolint:funlen
 		zap.Int("targets count", len(targets)),
 	)
 
-	keysKeeper := keys.NewKeeper(int(maxAPIKeyErrors))
+	keysKeeper := keys.NewKeeper(2) //nolint:gomnd
 	if err := keysKeeper.Add(apiKeys...); err != nil {
 		return err
 	}
 
 	var (
-		execError threadsafe.ErrorBag // for thread-safe "last error" returning TODO(jetexe) use channel len(1) instead this
+		execError threadsafe.Error // for thread-safe "last error" returning TODO(jetexe) use channel len(1) instead this
 
 		ctx, cancel = context.WithCancel(context.Background()) // main context creation
 		startedAt   = time.Now()                               // save "started at" timestamp
@@ -196,7 +196,7 @@ func execute( //nolint:funlen
 	var (
 		tasksCounter, errorsCounter uint32 // counters (atomic usage only)
 
-		comp   = newCompressor(ctx, log, &keysKeeper)
+		comp   = NewCompressor(log, &keysKeeper, 5, time.Second)
 		reader = newResultsReader(os.Stdout) // results reader (pretty results writer)
 	)
 
@@ -226,14 +226,21 @@ func execute( //nolint:funlen
 		reader.Append(res)
 	}
 
-	pipe := pipeline.NewPipeline(ctx, filePathsToTasks(targets), comp, onResult, onError)
-
-	pipe.PreWorkerRun = func(task pipeline.Task) { // attach custom pre-worker-run handler
+	var preWorkerRun pipeline.TaskHandler = func(task pipeline.Task) { // attach custom pre-worker-run handler
 		log.Info(fmt.Sprintf(
 			"[%d of %d] Compressing file \"%s\"",
 			atomic.AddUint32(&tasksCounter, 1), len(targets), task.FilePath,
 		))
 	}
+
+	pipe := pipeline.NewCompressingPipeline(
+		ctx,
+		filePathsToTasks(targets),
+		comp,
+		onResult,
+		onError,
+		pipeline.WithPreWorkerRun(preWorkerRun),
+	)
 
 	<-pipe.Run(threadsCount) // wait until all jobs is done
 	reader.Draw()            // draw results table

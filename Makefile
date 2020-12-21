@@ -2,9 +2,7 @@
 # Makefile readme (ru): <http://linux.yaroslavl.ru/docs/prog/gnu_make_3-79_russian_manual.html>
 # Makefile readme (en): <https://www.gnu.org/software/make/manual/html_node/index.html#SEC_Contents>
 
-cwd = $(shell pwd)
-
-SHELL = /bin/sh
+SHELL = /bin/bash
 LDFLAGS = "-s -w -X tinifier/internal/pkg/version.version=$(shell git rev-parse HEAD)"
 
 DC_RUN_ARGS = --rm --user "$(shell id -u):$(shell id -g)"
@@ -48,6 +46,25 @@ cover: ## Run app tests with coverage report
 shell: ## Start shell into container with golang
 	docker-compose run $(DC_RUN_ARGS) app bash
 
+.ONESHELL:
+playground: ## Make application playground (init images for a work)
+	@test -d ./temp && rm -R ./temp
+	@mkdir -p ./temp/jpg/large ./temp/jpg/medium ./temp/png
+	@for i in {1..6}; do \
+  		echo -n "Large JPG image $$i downloading.. "; \
+  		curl -SsL 'https://picsum.photos/5000/3200' -o "./temp/jpg/large/image_5000x3200_$$i.jpg" && echo -e "\033[1;32m done\033[0m"; \
+	done
+	@for i in {1..8}; do \
+		echo -n "Medium JPG image $$i downloading.. "; \
+		curl -SsL 'https://picsum.photos/1024/768' -o "./temp/jpg/medium/image_1024x768_$$i.jpg" && echo -e "\033[1;32m done\033[0m"; \
+	done
+	@for i in {1..25}; do \
+		echo -n "PNG image $$i downloading.. ";
+		curl -SsL "https://dummyimage.com/6$$ix4$$i/$$i/ffo.png" -o "./temp/png/image_$$i.png" && echo -e "\033[1;32m done\033[0m"; \
+	done
+	@printf "\n   \e[30;42m %s \033[0m\n\n" 'Sample images located in `./temp` directory';
+
 clean: ## Make clean
 	docker-compose down -v -t 1
 	-docker rmi $(APP_NAME):local -f
+	-rm -R ./temp

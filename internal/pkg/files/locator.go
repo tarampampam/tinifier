@@ -88,10 +88,11 @@ func (l *Locator) Find(recursive bool) ([]string, error) { //nolint:gocognit
 	}
 
 	// convert map into slice
-	result, i := make([]string, len(fileList), len(fileList)), 0
+	result, i := make([]string, len(fileList)), 0
 	for k := range fileList {
-		result[i], i = k, i + 1
+		result[i], i = k, i+1
 	}
+
 	fileList = nil // GC is our bro?
 
 	return result, nil

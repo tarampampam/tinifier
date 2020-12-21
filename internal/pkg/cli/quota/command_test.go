@@ -1,7 +1,6 @@
 package quota
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -20,12 +19,12 @@ import (
 func Test_CommandSuccessfulRunning(t *testing.T) {
 	var (
 		where *tinypng.Client
-		what  = "GetCompressionCount"
+		what  = "CompressionCount"
 		guard *monkey.PatchGuard
 	)
 
 	guard = monkey.PatchInstanceMethod(
-		reflect.TypeOf(where), what, func(_ *tinypng.Client, ctx context.Context) (uint64, error) {
+		reflect.TypeOf(where), what, func(_ *tinypng.Client, timeout ...time.Duration) (uint64, error) {
 			defer guard.Restore()
 
 			return 1234321, nil
@@ -46,12 +45,12 @@ func Test_CommandSuccessfulRunning(t *testing.T) {
 func Test_CommandErroredRunning(t *testing.T) {
 	var (
 		where *tinypng.Client
-		what  = "GetCompressionCount"
+		what  = "CompressionCount"
 		guard *monkey.PatchGuard
 	)
 
 	guard = monkey.PatchInstanceMethod(
-		reflect.TypeOf(where), what, func(_ *tinypng.Client, ctx context.Context) (uint64, error) {
+		reflect.TypeOf(where), what, func(_ *tinypng.Client, timeout ...time.Duration) (uint64, error) {
 			defer guard.Restore()
 
 			time.Sleep(time.Microsecond * 100)
