@@ -17,7 +17,7 @@ import (
 
 type keysKeeper interface {
 	Get() (string, error)
-	ReportKey(key string, delta int) error
+	Remove(keys ...string)
 }
 
 type Compressor struct {
@@ -79,7 +79,7 @@ func (c Compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.Ta
 			)
 
 			if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
-				_ = c.keeper.ReportKey(apiKey, 1) // TODO do not report about the key - delete it
+				c.keeper.Remove(apiKey)
 			}
 
 			if _, seekErr := srcFile.Seek(0, io.SeekStart); seekErr != nil {

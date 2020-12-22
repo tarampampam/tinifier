@@ -23,6 +23,7 @@ jobs:
           only-new-issues: false # show only new issues if it's a pull request
 
   gitleaks:
+    name: Gitleaks
     runs-on: ubuntu-20.04
     steps:
       - name: Check out code
@@ -40,7 +41,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.14
+          go-version: 1.15
 
       - name: Check out code
         uses: actions/checkout@v2
@@ -79,7 +80,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.14
+          go-version: 1.15
 
       - name: Check out code
         uses: actions/checkout@v2

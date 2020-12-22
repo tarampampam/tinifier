@@ -2,6 +2,7 @@ package quota
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"github.com/tarampampam/tinifier/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
