@@ -196,8 +196,8 @@ func execute( //nolint:funlen
 	var (
 		tasksCounter, errorsCounter uint32 // counters (atomic usage only)
 
-		comp   = NewCompressor(log, &keysKeeper, 5, time.Second)
-		reader = newResultsReader(os.Stdout) // results reader (pretty results writer)
+		comp   = newCompressor(log, &keysKeeper, 5, time.Second)
+		reader = NewResultsReader(os.Stdout) // results reader (pretty results writer)
 	)
 
 	onError := func(err pipeline.TaskError) { // task errors handler

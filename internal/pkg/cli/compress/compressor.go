@@ -20,7 +20,7 @@ type keysKeeper interface {
 	Remove(keys ...string)
 }
 
-type Compressor struct {
+type compressor struct {
 	log    *zap.Logger
 	keeper keysKeeper
 
@@ -28,9 +28,9 @@ type Compressor struct {
 	retryInterval time.Duration
 }
 
-// NewCompressor creates new images compressor, that uses tinypng.com.
-func NewCompressor(log *zap.Logger, keeper keysKeeper, maxRetries uint, retryInterval time.Duration) Compressor {
-	return Compressor{
+// newCompressor creates new images compressor, that uses tinypng.com.
+func newCompressor(log *zap.Logger, keeper keysKeeper, maxRetries uint, retryInterval time.Duration) compressor {
+	return compressor{
 		log:           log,
 		keeper:        keeper,
 		maxRetries:    maxRetries,
@@ -40,7 +40,7 @@ func NewCompressor(log *zap.Logger, keeper keysKeeper, maxRetries uint, retryInt
 
 // Compress reads file from passed task, compress them using tinypng client, and overwrite original file with
 // compressed image content.
-func (c Compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.TaskResult, error) { //nolint:funlen
+func (c compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.TaskResult, error) { //nolint:funlen
 	const (
 		tinyDefaultTimeout  = time.Minute * 5
 		tinyUploadTimeout   = time.Minute * 3 // TODO do not hardcode timeout, calculate it
@@ -137,7 +137,7 @@ func (c Compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.Ta
 	}, nil
 }
 
-func (c Compressor) openSourceFile(path string) (*os.File, os.FileInfo, error) {
+func (c compressor) openSourceFile(path string) (*os.File, os.FileInfo, error) {
 	file, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, nil, err
@@ -173,7 +173,7 @@ func (c Compressor) openSourceFile(path string) (*os.File, os.FileInfo, error) {
 	return file, stat, nil
 }
 
-func (c Compressor) createTemporaryFile(path string, mode os.FileMode) (io.WriteCloser, error) {
+func (c compressor) createTemporaryFile(path string, mode os.FileMode) (io.WriteCloser, error) {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, mode)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (c Compressor) createTemporaryFile(path string, mode os.FileMode) (io.Write
 	return file, nil
 }
 
-func (c Compressor) copyFileContent(fromFilePath, toFilePath string) error {
+func (c compressor) copyFileContent(fromFilePath, toFilePath string) error {
 	fromFile, err := os.OpenFile(fromFilePath, os.O_RDONLY, 0)
 	if err != nil {
 		return err
