@@ -106,6 +106,8 @@ func (c compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.Ta
 		}
 		defer func() { _ = tempFile.Close() }()
 
+		// TODO call `c.keeper.Get()` - invalid key does not allows to download the image
+
 		if _, err = tiny.DownloadImage(info.Output.URL, tempFile, tinyDownloadTimeout); err != nil {
 			c.log.Warn("Compressed file downloading failed",
 				zap.Error(err),
