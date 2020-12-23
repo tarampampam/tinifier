@@ -272,7 +272,7 @@ func (c *Client) extractCompressionCount(headers http.Header) (uint64, error) {
 			return count, nil
 		}
 
-		return 0, fmt.Errorf("%s wrong HTTP header '%s' value: %s", errorsPrefix, headerName, err.Error())
+		return 0, fmt.Errorf("%s wrong HTTP header '%s' value: %w", errorsPrefix, headerName, err)
 	}
 
 	return 0, fmt.Errorf("%s HTTP header '%s' was not found", errorsPrefix, headerName)
@@ -287,7 +287,7 @@ func (c *Client) parseServerError(content io.Reader) error {
 	}
 
 	if err := json.NewDecoder(content).Decode(&e); err != nil {
-		return fmt.Errorf("error decoding failed: %s", err.Error())
+		return fmt.Errorf("error decoding failed: %w", err)
 	}
 
 	return fmt.Errorf("%s (%s)", e.Error, strings.Trim(e.Message, ". "))

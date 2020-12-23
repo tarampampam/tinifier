@@ -526,13 +526,13 @@ func TestClient_CompressSuccessful(t *testing.T) {
 			assert.Equal(t, "https://api.tinify.com/output/foobar", req.URL.String())
 			assert.Equal(t, authHeaderValue(t, "blah-key"), req.Header.Get("Authorization"))
 
-			compressedFile, err := os.OpenFile("./testdata/image_compressed.png", os.O_RDONLY, 0)
-			assert.NoError(t, err)
+			compressedFile, err2 := os.OpenFile("./testdata/image_compressed.png", os.O_RDONLY, 0)
+			assert.NoError(t, err2)
 
-			compressedFileBody, err = ioutil.ReadAll(compressedFile) // read file for future asserting
-			assert.NoError(t, err)
-			_, err = compressedFile.Seek(0, 0) // reset file "cursor"
-			assert.NoError(t, err)
+			compressedFileBody, err2 = ioutil.ReadAll(compressedFile) // read file for future asserting
+			assert.NoError(t, err2)
+			_, err2 = compressedFile.Seek(0, 0) // reset file "cursor"
+			assert.NoError(t, err2)
 
 			return &http.Response{
 				StatusCode: http.StatusOK,

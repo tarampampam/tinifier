@@ -78,7 +78,7 @@ func (c compressor) Compress(ctx context.Context, t pipeline.Task) (*pipeline.Ta
 				zap.String("key", apiKey),
 			)
 
-			if err == tinypng.ErrTooManyRequests || err == tinypng.ErrUnauthorized {
+			if errors.Is(err, tinypng.ErrTooManyRequests) || errors.Is(err, tinypng.ErrUnauthorized) {
 				c.keeper.Remove(apiKey)
 			}
 

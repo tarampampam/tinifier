@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +12,7 @@ import (
 func IsImage(src io.Reader) (bool, error) {
 	buf := make([]byte, 32) // 32 bytes are enough for "first bytes" checking
 
-	if _, err := io.ReadFull(src, buf); err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+	if _, err := io.ReadFull(src, buf); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return false, err
 	}
 
