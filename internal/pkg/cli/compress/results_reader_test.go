@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
+	"github.com/tarampampam/tinifier/internal/pkg/pool"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -12,13 +12,13 @@ import (
 func TestResultsReader_Draw(t *testing.T) {
 	cases := []struct {
 		name           string
-		giveResults    []pipeline.TaskResult
+		giveResults    []pool.Result
 		wantSubstrings []string
 	}{
 		{
 			name: "basic",
-			giveResults: []pipeline.TaskResult{
-				{FileType: "foo/foo", FilePath: "/tmp/foo.png", OriginalSize: 10000, CompressedSize: 600, UsedQuota: 5},
+			giveResults: []pool.Result{
+				{FileType: "foo/foo", FilePath: "/tmp/foo.png", OriginalSize: 10000, CompressedSize: 600},
 			},
 			wantSubstrings: []string{
 				"File Name", "Type", "Size Difference", "Saved", // header
@@ -29,9 +29,9 @@ func TestResultsReader_Draw(t *testing.T) {
 		},
 		{
 			name: "two results",
-			giveResults: []pipeline.TaskResult{
-				{FileType: "foo/foo", FilePath: "/tmp/foo.png", OriginalSize: 10000, CompressedSize: 600, UsedQuota: 5},
-				{FileType: "bar/bar", FilePath: "/tmp/bar.jpg", OriginalSize: 600, CompressedSize: 10000, UsedQuota: 6},
+			giveResults: []pool.Result{
+				{FileType: "foo/foo", FilePath: "/tmp/foo.png", OriginalSize: 10000, CompressedSize: 600},
+				{FileType: "bar/bar", FilePath: "/tmp/bar.jpg", OriginalSize: 600, CompressedSize: 10000},
 			},
 			wantSubstrings: []string{
 				"File Name", "Type", "Size Difference", "Saved", // header

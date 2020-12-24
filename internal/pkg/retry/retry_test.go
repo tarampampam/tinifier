@@ -2,13 +2,13 @@ package retry
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -163,5 +163,57 @@ func TestDoWithDelay(t *testing.T) {
 	endedAt := time.Now().UnixNano()
 
 	assert.InDelta(t, 123, (endedAt-startedAt)/1000000, 5)
+	assert.Equal(t, uint(1), execCounter)
+}
+
+func TestDoWithRetryStoppingErrors(t *testing.T) {
+	var (
+		execCounter uint
+		errToStop   = errors.New("hell yeah")
+	)
+
+	assert.EqualError(t, Do(func(uint) error {
+		execCounter++
+
+		if execCounter >= 3 {
+			return errToStop
+		}
+
+		return errors.New("don't stop the planet")
+	}, WithAttempts(20), WithRetryStoppingErrors(errToStop)), ErrRetryStopped.Error())
+
+	assert.Equal(t, uint(3), execCounter)
+}
+
+func TestDoWithRetryStoppingErrorsWithWrappedError(t *testing.T) {
+	var (
+		execCounter uint
+		errToStop   = errors.New("hell yeah")
+	)
+
+	assert.EqualError(t,
+		Do(func(uint) error {
+			execCounter++
+
+			return errors.Wrap(errToStop, "don't stop the planet")
+		}, WithAttempts(20), WithRetryStoppingErrors(errToStop), WithLastErrorReturning()),
+		"don't stop the planet: hell yeah",
+	)
+
+	assert.Equal(t, uint(1), execCounter)
+}
+
+func TestDoWithRetryStoppingErrorsWithLastError(t *testing.T) {
+	var (
+		execCounter uint
+		errToStop   = errors.New("hell yeah")
+	)
+
+	assert.EqualError(t, Do(func(uint) error {
+		execCounter++
+
+		return errToStop
+	}, WithAttempts(20), WithRetryStoppingErrors(errToStop), WithLastErrorReturning()), errToStop.Error())
+
 	assert.Equal(t, uint(1), execCounter)
 }

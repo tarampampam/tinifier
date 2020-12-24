@@ -20,11 +20,15 @@ func WithDelay(delay time.Duration) Option { return func(c *config) { c.delay = 
 // WithLastErrorReturning allows to return last execution error (instead ErrToManyAttempts or context error).
 func WithLastErrorReturning() Option { return func(c *config) { c.returnLastError = true } }
 
+// WithRetryStoppingErrors allows to thor the retry loop when defined error returned from calling function.
+func WithRetryStoppingErrors(e ...error) Option { return func(c *config) { c.loopStoppingErrors = e } }
+
 type config struct {
-	attempts        uint
-	delay           time.Duration
-	ctx             context.Context
-	returnLastError bool
+	attempts           uint
+	delay              time.Duration
+	ctx                context.Context
+	returnLastError    bool
+	loopStoppingErrors []error
 }
 
 const (
@@ -35,16 +39,16 @@ const (
 var (
 	ErrToManyAttempts = errors.New("too many attempts") // Too many retry attempts exceeded.
 	ErrNoAttempts     = errors.New("no attempts")       // No retry attempts.
+	ErrRetryStopped   = errors.New("retry attempts was stopped")
 )
 
 // Do executes passed function and repeat it until non-error returned or maximum retries attempts count in not exceeded.
 // Attempts counter starts from 1.
-func Do(fn func(attemptNum uint) error, options ...Option) error {
+func Do(fn func(attemptNum uint) error, options ...Option) error { //nolint:funlen,gocyclo
 	cfg := config{
-		ctx:             context.Background(),
-		delay:           defaultAttemptDelay,
-		attempts:        defaultAttemptsCount,
-		returnLastError: false,
+		ctx:      context.Background(),
+		delay:    defaultAttemptDelay,
+		attempts: defaultAttemptsCount,
 	}
 
 	for _, option := range options {
@@ -56,8 +60,9 @@ func Do(fn func(attemptNum uint) error, options ...Option) error {
 	}
 
 	var (
-		timer      *time.Timer
-		attemptErr error
+		timer       *time.Timer
+		attemptErr  error
+		loopStopped bool
 	)
 
 	defer func() {
@@ -66,6 +71,7 @@ func Do(fn func(attemptNum uint) error, options ...Option) error {
 		}
 	}()
 
+loop:
 	for attemptNum := uint(1); attemptNum <= cfg.attempts; attemptNum++ {
 		if err := cfg.ctx.Err(); err != nil {
 			return err
@@ -74,6 +80,14 @@ func Do(fn func(attemptNum uint) error, options ...Option) error {
 		attemptErr = fn(attemptNum)
 		if attemptErr == nil {
 			return nil
+		} else if cfg.loopStoppingErrors != nil {
+			for i := 0; i < len(cfg.loopStoppingErrors); i++ {
+				if errors.Is(attemptErr, cfg.loopStoppingErrors[i]) {
+					loopStopped = true
+
+					break loop
+				}
+			}
 		}
 
 		if timer == nil {
@@ -92,6 +106,8 @@ func Do(fn func(attemptNum uint) error, options ...Option) error {
 
 	if cfg.returnLastError && attemptErr != nil {
 		return attemptErr
+	} else if loopStopped {
+		return ErrRetryStopped
 	}
 
 	return ErrToManyAttempts

@@ -10,7 +10,8 @@ type Error uint8
 
 // Error returns error in a string representation.
 func (err Error) Error() string {
-	buf := new(strings.Builder)
+	var buf strings.Builder
+	defer buf.Reset() // GC is our bro
 
 	buf.WriteString(errorsPrefix + " ")
 

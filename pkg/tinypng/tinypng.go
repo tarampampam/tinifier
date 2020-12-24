@@ -96,6 +96,8 @@ func (c *Client) SetAPIKey(key string) {
 	c.mu.Unlock()
 }
 
+// TODO prevent source closing
+
 // Compress reads image from passed source and compress them on tinypng side. Compressed result will be wrote to the
 // passed destination (additional information about compressed image will be returned too).
 // You can use two timeouts - first for image uploading and response waiting, and second - for image downloading.
@@ -183,7 +185,7 @@ func (c *Client) compressImage(src io.Reader, timeout time.Duration) (*Compressi
 		return nil, err
 	}
 
-	c.setupRequestAuth(req, c.apiKey)
+	c.setupRequestAuth(req)
 	req.Header.Set("Accept", "application/json") // is not necessary, but looks correct
 
 	resp, err := c.httpClient.Do(req)
@@ -239,7 +241,7 @@ func (c *Client) compressionCount(timeout time.Duration) (uint64, error) {
 		return 0, err
 	}
 
-	c.setupRequestAuth(req, c.apiKey)
+	c.setupRequestAuth(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -258,8 +260,12 @@ func (c *Client) compressionCount(timeout time.Duration) (uint64, error) {
 }
 
 // setupRequestAuth sets all required properties for HTTP request (eg.: API key).
-func (c *Client) setupRequestAuth(request *http.Request, apiKey string) {
-	request.SetBasicAuth("api", apiKey)
+func (c *Client) setupRequestAuth(request *http.Request) {
+	c.mu.Lock()
+	k := c.apiKey
+	c.mu.Unlock()
+
+	request.SetBasicAuth("api", k)
 }
 
 // extractCompressionCount extracts `compression-count` header value from HTTP response headers.
@@ -303,7 +309,7 @@ func (c *Client) downloadImage(url string, dest io.Writer, timeout time.Duration
 		return 0, err
 	}
 
-	c.setupRequestAuth(req, c.apiKey)
+	c.setupRequestAuth(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

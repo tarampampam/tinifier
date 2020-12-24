@@ -5,24 +5,18 @@ import (
 	"sync"
 )
 
-// Keeper allows you to store some API keys in a one place with very useful feature - "bad" keys reporting and only
-// "good" keys usage. Maximal key errors means maximal key reports before key removal.
+// Keeper allows you to store some API keys in a one place.
 type Keeper struct {
-	mu           sync.RWMutex
-	state        map[string]int
-	maxKeyErrors int
+	mu    sync.RWMutex
+	state map[string]struct{}
 }
 
-var (
-	ErrKeyNotExists = errors.New("key not exists")
-	ErrNoUsableKey  = errors.New("all kept keys has too many errors")
-)
+var ErrKeyNotExists = errors.New("key not exists")
 
 // NewKeeper creates new keeper instance.
-func NewKeeper(maxKeyErrors int) Keeper {
+func NewKeeper() Keeper {
 	return Keeper{
-		state:        make(map[string]int),
-		maxKeyErrors: maxKeyErrors,
+		state: make(map[string]struct{}),
 	}
 }
 
@@ -41,7 +35,7 @@ func (k *Keeper) Add(keys ...string) error {
 				return errors.New("key \"" + keys[i] + "\" already exists")
 			}
 
-			k.state[keys[i]] = 0
+			k.state[keys[i]] = struct{}{}
 		}
 	}
 
@@ -65,25 +59,6 @@ func (k *Keeper) remove(keys ...string) {
 	}
 }
 
-// ReportKey allows to change key errors count (positive delta will increase key errors, and negative delta vice
-// versa - reduces). If key errors count exceeds the maximum allowable value - key will be removed.
-func (k *Keeper) ReportKey(key string, delta int) error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	if _, ok := k.state[key]; ok {
-		k.state[key] += delta
-
-		if k.state[key] >= k.maxKeyErrors {
-			k.remove(key) // remove invalid key right now
-		}
-
-		return nil
-	}
-
-	return ErrKeyNotExists
-}
-
 // Get the key which does not exceed the maximum count of errors. If none exists, ErrNoUsableKey will be returned.
 func (k *Keeper) Get() (string, error) {
 	k.mu.RLock()
@@ -93,5 +68,5 @@ func (k *Keeper) Get() (string, error) {
 		return key, nil
 	}
 
-	return "", ErrNoUsableKey
+	return "", ErrKeyNotExists
 }

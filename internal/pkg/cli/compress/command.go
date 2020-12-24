@@ -11,10 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tarampampam/tinifier/internal/pkg/pool"
+	"github.com/tarampampam/tinifier/pkg/tinypng"
+
 	"github.com/tarampampam/tinifier/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/internal/pkg/files"
 	"github.com/tarampampam/tinifier/internal/pkg/keys"
-	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
 	"github.com/tarampampam/tinifier/internal/pkg/threadsafe"
 
 	"github.com/spf13/cobra"
@@ -33,7 +35,6 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 		fileExtensions  []string
 		threadsCount    uint8
 		maxErrorsToStop uint32
-		maxAPIKeyErrors uint32
 		recursive       bool
 	)
 
@@ -49,10 +50,6 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 
 			if threadsCount < 1 {
 				return errors.New("wrong threads value")
-			}
-
-			if maxAPIKeyErrors < 1 {
-				return errors.New("wrong maximum API key errors value")
 			}
 
 			if len(apiKeys) == 0 {
@@ -93,7 +90,7 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 
 			sort.Strings(targets)
 
-			return execute(log, targets, apiKeys, threadsCount, maxAPIKeyErrors, maxErrorsToStop)
+			return execute(log, targets, apiKeys, threadsCount, maxErrorsToStop)
 		},
 	}
 
@@ -132,14 +129,6 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 		"maximum errors count to stop the process, set 0 to disable",
 	)
 
-	cmd.Flags().Uint32VarP(
-		&maxAPIKeyErrors, // var
-		"max-key-errors", // name
-		"",               // short
-		3,                // default
-		"maximum API key errors (compression retries) to disable the key",
-	)
-
 	cmd.Flags().BoolVarP(
 		&recursive,  // var
 		"recursive", // name
@@ -157,22 +146,8 @@ func execute( //nolint:funlen
 	targets []string,
 	apiKeys []string,
 	threadsCount uint8,
-	maxAPIKeyErrors uint32,
 	maxErrorsToStop uint32,
 ) error {
-	log.Debug("Running",
-		zap.Strings("api keys", apiKeys),
-		zap.Uint8("threads count", threadsCount),
-		zap.Uint32("max api key errors", maxAPIKeyErrors),
-		zap.Uint32("max errors", maxErrorsToStop),
-		zap.Int("targets count", len(targets)),
-	)
-
-	keysKeeper := keys.NewKeeper(2) //nolint:gomnd
-	if err := keysKeeper.Add(apiKeys...); err != nil {
-		return err
-	}
-
 	var (
 		execError threadsafe.Error // for thread-safe "last error" returning TODO(jetexe) use channel len(1) instead this
 
@@ -193,70 +168,58 @@ func execute( //nolint:funlen
 		oss.Stop() // stop system signals listening
 	}()
 
-	var (
-		tasksCounter, errorsCounter uint32 // counters (atomic usage only)
+	keeper := keys.NewKeeper()
+	if err := keeper.Add(apiKeys...); err != nil {
+		return err
+	}
 
-		comp   = newCompressor(log, &keysKeeper, 5, time.Second)
-		reader = NewResultsReader(os.Stdout) // results reader (pretty results writer)
+	tiny := tinypng.NewClient("", tinypng.WithContext(ctx), tinypng.WithDefaultTimeout(time.Minute*5)) //nolint:gomnd
+
+	p := pool.NewPool(ctx, targets, &Worker{
+		log:           log,
+		keeper:        &keeper,
+		tiny:          tiny,
+		retryAttempts: 5,                      //nolint:gomnd
+		retryInterval: time.Millisecond * 700, //nolint:gomnd
+	})
+
+	var (
+		errorsCounter uint32 // counter (atomic usage only)
+		results       = p.Run(threadsCount)
+		reader        = NewResultsReader(os.Stdout) // results reader (pretty results writer)
 	)
 
-	onError := func(err pipeline.TaskError) { // task errors handler
-		count := atomic.AddUint32(&errorsCounter, 1)
+	for {
+		result, isOpened := <-results
+		if !isOpened {
+			break
+		}
 
-		log.Error("Compression failed",
-			zap.String("error", err.Error.Error()),
-			zap.String("file", err.Task.FilePath),
-		)
+		if err := result.Err; err != nil {
+			log.Error("Compression failed",
+				zap.String("error", err.Error()),
+				zap.String("file", result.Task.FilePath),
+			)
 
-		if maxErrorsToStop > 0 && count >= maxErrorsToStop {
-			log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", count))
-			execError.Set(errors.New("too many errors occurred"))
+			if count := atomic.AddUint32(&errorsCounter, 1); maxErrorsToStop > 0 && count >= maxErrorsToStop {
+				log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", count))
+				execError.Set(errors.New("too many errors occurred"))
 
-			cancel() // too many errors occurred, we must to stop the process
+				cancel() // too many errors occurred, we must to stop the process
+			}
+		} else {
+			log.Debug(fmt.Sprintf("File \"%s\" compressed successful", result.FilePath),
+				zap.Uint64("old size", result.OriginalSize),
+				zap.Uint64("new size", result.CompressedSize),
+			)
+
+			reader.Append(result)
 		}
 	}
 
-	onResult := func(res pipeline.TaskResult) { // task results handler
-		log.Debug(fmt.Sprintf("File \"%s\" compressed successful", res.FilePath),
-			zap.Uint64("old size", res.OriginalSize),
-			zap.Uint64("new size", res.CompressedSize),
-			zap.Uint64("used quota", res.UsedQuota),
-		)
-
-		reader.Append(res)
-	}
-
-	var preWorkerRun pipeline.TaskHandler = func(task pipeline.Task) { // attach custom pre-worker-run handler
-		log.Info(fmt.Sprintf(
-			"[%d of %d] Compressing file \"%s\"",
-			atomic.AddUint32(&tasksCounter, 1), len(targets), task.FilePath,
-		))
-	}
-
-	pipe := pipeline.NewCompressingPipeline(
-		ctx,
-		filePathsToTasks(targets),
-		comp,
-		onResult,
-		onError,
-		pipeline.WithPreWorkerRun(preWorkerRun),
-	)
-
-	<-pipe.Run(threadsCount) // wait until all jobs is done
-	reader.Draw()            // draw results table
+	reader.Draw()
 
 	log.Info(fmt.Sprintf("Completed in %s", time.Since(startedAt)))
 
 	return execError.Get()
-}
-
-// filePathsToTasks converts slice with file paths into pipeline.Task's slice.
-func filePathsToTasks(in []string) []pipeline.Task {
-	result := make([]pipeline.Task, 0, len(in))
-
-	for i := 0; i < len(in); i++ {
-		result = append(result, pipeline.Task{FilePath: in[i]})
-	}
-
-	return result
 }

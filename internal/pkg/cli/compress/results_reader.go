@@ -6,7 +6,7 @@ import (
 	"math"
 	"path/filepath"
 
-	"github.com/tarampampam/tinifier/internal/pkg/pipeline"
+	"github.com/tarampampam/tinifier/internal/pkg/pool"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
@@ -35,7 +35,7 @@ func NewResultsReader(writer io.Writer) ResultsReader {
 	}
 }
 
-func (rr *ResultsReader) Append(result pipeline.TaskResult) {
+func (rr *ResultsReader) Append(result pool.Result) {
 	rr.stats.originalSize += result.OriginalSize
 	rr.stats.compressedSize += result.CompressedSize
 	rr.stats.savedBytes += int64(result.OriginalSize) - int64(result.CompressedSize)
