@@ -48,7 +48,7 @@ shell: ## Start shell into container with golang
 
 playground: ## Make application playground (init "stub" images for a work)
 	test -d ./temp || mkdir ./temp
-	test -d ./temp/playground && rm -R ./temp/playground || true
+	test ! -d ./temp/playground || rm -R ./temp/playground
 	test -f ./temp/playground.tar.gz || curl -SsL -o ./temp/playground.tar.gz 'https://github.com/tarampampam/tinifier/archive/playground.tar.gz'
 	tar -xf ./temp/playground.tar.gz -C ./temp
 	mv ./temp/tinifier-playground ./temp/playground

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/tarampampam/tinifier/internal/pkg/breaker"
@@ -31,7 +30,7 @@ func NewCommand(log *zap.Logger) *cobra.Command {
 		Short:   "Get currently used quota",
 		PreRunE: func(*cobra.Command, []string) error {
 			if APIKey == "" {
-				if envAPIKey := strings.Trim(os.Getenv(apiKeyEnvName), " "); envAPIKey != "" { // TODO(jetexe) os.LookupEnv
+				if envAPIKey, exists := os.LookupEnv(apiKeyEnvName); exists {
 					APIKey = envAPIKey
 				} else {
 					return errors.New("API key was not provided")

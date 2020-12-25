@@ -7,37 +7,34 @@ import (
 	"os"
 	"time"
 
+	"github.com/tarampampam/tinifier/internal/pkg/keys"
 	"github.com/tarampampam/tinifier/internal/pkg/pool"
 	"github.com/tarampampam/tinifier/internal/pkg/retry"
-	"github.com/tarampampam/tinifier/internal/pkg/validator"
+	"github.com/tarampampam/tinifier/internal/pkg/validate"
 	"github.com/tarampampam/tinifier/pkg/tinypng"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
-type keysKeeper interface {
-	Get() (string, error)
-	Remove(keys ...string)
-}
-
-type fInfo struct {
-	size uint64
-	t    string
-}
-
-func (i *fInfo) Size() uint64 { return i.size }
-func (i *fInfo) Type() string { return i.t }
-
 var errNoAvailableAPIKey = errors.New("no one API key can be used")
 
 type Worker struct {
 	log    *zap.Logger
-	keeper keysKeeper
-	tiny   *tinypng.Client
+	keeper *keys.Keeper
 
 	retryAttempts uint
 	retryInterval time.Duration
+}
+
+func newWorker(log *zap.Logger, keeper *keys.Keeper, retryAttempts uint, retryInterval time.Duration) *Worker {
+	return &Worker{
+		log:    log,
+		keeper: keeper,
+
+		retryAttempts: retryAttempts,
+		retryInterval: retryInterval,
+	}
 }
 
 func (w *Worker) PreTaskRun(task pool.Task) {
@@ -45,27 +42,34 @@ func (w *Worker) PreTaskRun(task pool.Task) {
 }
 
 func (w *Worker) Upload(ctx context.Context, filePath string) (string, pool.FileInfo, error) {
-	const uploadTimeout = time.Minute * 3 // TODO do not hardcode timeout, calculate it
+	const uploadTimeout = time.Minute * 4
+
+	fInfo, err := newFileInfo(filePath)
+	if err != nil {
+		return "", nil, err
+	}
 
 	var (
-		stat os.FileInfo
+		tiny = tinypng.NewClient("", tinypng.WithContext(ctx))
 		info *tinypng.CompressionResult
 	)
 
 	if err := retry.Do(
 		func(attemptNum uint) error {
-			key, keyErr := w.refreshTinyKey()
-			if keyErr != nil {
+			key, err := w.keeper.Get()
+			if err != nil {
 				return errNoAvailableAPIKey
 			}
 
-			file, fileInfo, openErr := w.openSourceFile(filePath)
+			tiny.SetAPIKey(key)
+
+			file, openErr := w.openSourceFile(filePath)
 			if openErr != nil {
 				return openErr
 			}
 			defer func() { _ = file.Close() }()
 
-			compResponse, uplErr := w.tiny.CompressImage(file, uploadTimeout)
+			compResponse, uplErr := tiny.CompressImage(file, uploadTimeout)
 			if uplErr != nil {
 				w.log.Warn("Image uploading failed",
 					zap.Error(uplErr),
@@ -81,7 +85,6 @@ func (w *Worker) Upload(ctx context.Context, filePath string) (string, pool.File
 				return uplErr
 			}
 
-			stat = fileInfo
 			info = compResponse
 
 			return nil
@@ -90,21 +93,18 @@ func (w *Worker) Upload(ctx context.Context, filePath string) (string, pool.File
 		retry.WithAttempts(w.retryAttempts),
 		retry.WithDelay(w.retryInterval),
 		retry.WithLastErrorReturning(),
-		retry.WithRetryStoppingErrors(errNoAvailableAPIKey, tinypng.ErrTooManyRequests, tinypng.ErrUnauthorized),
+		retry.WithRetryStoppingErrors(errNoAvailableAPIKey),
 	); err != nil {
 		return "", nil, err
 	}
 
-	return info.Output.URL, &fInfo{
-		size: uint64(stat.Size()),
-		t:    "", // TODO detect source file type
-	}, nil
+	return info.Output.URL, fInfo, nil
 }
 
-func (w *Worker) openSourceFile(path string) (*os.File, os.FileInfo, error) {
+func (w *Worker) openSourceFile(path string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var keepFileOpened bool
@@ -117,35 +117,39 @@ func (w *Worker) openSourceFile(path string) (*os.File, os.FileInfo, error) {
 
 	stat, err := file.Stat()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if !stat.Mode().IsRegular() {
-		return nil, nil, errors.New("is not regular file")
+		return nil, errors.New("is not regular file")
 	}
 
-	if ok, valErr := validator.IsImage(file); !ok || valErr != nil {
-		return nil, nil, errors.New("wrong image file")
+	if ok, valErr := validate.IsImage(file); !ok || valErr != nil {
+		return nil, errors.New("wrong image file")
 	}
 
 	if _, seekErr := file.Seek(0, io.SeekStart); seekErr != nil {
-		return nil, nil, seekErr
+		return nil, seekErr
 	}
 
 	keepFileOpened = true
 
-	return file, stat, nil
+	return file, nil
 }
 
 func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (pool.FileInfo, error) {
-	const downloadTimeout = time.Minute * 2 // TODO do not hardcode timeout, calculate it
+	const downloadTimeout = time.Minute * 2
+
+	var tiny = tinypng.NewClient("", tinypng.WithContext(ctx))
 
 	if err := retry.Do(
 		func(attemptNum uint) error {
-			key, keyErr := w.refreshTinyKey()
-			if keyErr != nil {
+			key, err := w.keeper.Get()
+			if err != nil {
 				return errNoAvailableAPIKey
 			}
+
+			tiny.SetAPIKey(key)
 
 			file, err := os.OpenFile(toFilePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 			if err != nil {
@@ -153,7 +157,7 @@ func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (p
 			}
 			defer func() { _ = file.Close() }()
 
-			if _, err = w.tiny.DownloadImage(url, file, downloadTimeout); err != nil {
+			if _, err = tiny.DownloadImage(url, file, downloadTimeout); err != nil {
 				w.log.Warn("Compressed image downloading failed",
 					zap.Error(err),
 					zap.String("file", toFilePath),
@@ -170,20 +174,17 @@ func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (p
 		retry.WithAttempts(w.retryAttempts),
 		retry.WithDelay(w.retryInterval),
 		retry.WithLastErrorReturning(),
-		retry.WithRetryStoppingErrors(errNoAvailableAPIKey, tinypng.ErrTooManyRequests, tinypng.ErrUnauthorized),
+		retry.WithRetryStoppingErrors(errNoAvailableAPIKey),
 	); err != nil {
 		return nil, err
 	}
 
-	stat, err := os.Stat(toFilePath)
+	fInfo, err := newFileInfo(toFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &fInfo{
-		size: uint64(stat.Size()),
-		t:    "", // TODO detect temp file type
-	}, nil
+	return fInfo, nil
 }
 
 func (w *Worker) CopyContent(fromFilePath, toFilePath string) error {
@@ -206,15 +207,4 @@ func (w *Worker) CopyContent(fromFilePath, toFilePath string) error {
 
 func (w *Worker) RemoveFile(filePath string) error {
 	return os.Remove(filePath)
-}
-
-func (w *Worker) refreshTinyKey() (string, error) {
-	key, err := w.keeper.Get()
-	if err != nil {
-		return "", err
-	}
-
-	w.tiny.SetAPIKey(key)
-
-	return key, nil
 }

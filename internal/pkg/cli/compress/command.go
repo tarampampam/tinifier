@@ -7,19 +7,15 @@ import (
 	"os"
 	"runtime"
 	"sort"
-	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/tarampampam/tinifier/internal/pkg/pool"
-	"github.com/tarampampam/tinifier/pkg/tinypng"
-
+	"github.com/spf13/cobra"
 	"github.com/tarampampam/tinifier/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/internal/pkg/files"
 	"github.com/tarampampam/tinifier/internal/pkg/keys"
-	"github.com/tarampampam/tinifier/internal/pkg/threadsafe"
-
-	"github.com/spf13/cobra"
+	"github.com/tarampampam/tinifier/internal/pkg/pool"
 	"go.uber.org/zap"
 )
 
@@ -53,7 +49,7 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 			}
 
 			if len(apiKeys) == 0 {
-				if envAPIKey := strings.Trim(os.Getenv(apiKeyEnvName), " "); envAPIKey != "" {
+				if envAPIKey, exists := os.LookupEnv(apiKeyEnvName); exists {
 					apiKeys = append(apiKeys, envAPIKey)
 				} else {
 					return errors.New("API key was not provided")
@@ -149,7 +145,8 @@ func execute( //nolint:funlen
 	maxErrorsToStop uint32,
 ) error {
 	var (
-		execError threadsafe.Error // for thread-safe "last error" returning TODO(jetexe) use channel len(1) instead this
+		execErr     error
+		execErrOnce sync.Once
 
 		ctx, cancel = context.WithCancel(context.Background()) // main context creation
 		startedAt   = time.Now()                               // save "started at" timestamp
@@ -158,7 +155,10 @@ func execute( //nolint:funlen
 
 	oss.Subscribe(func(sig os.Signal) {
 		log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
-		execError.Wrap(errors.New("stopped by OS signal"))
+
+		execErrOnce.Do(func() {
+			execErr = errors.New("stopped by OS signal")
+		})
 
 		cancel() // we must to stop by OS signal
 	})
@@ -173,15 +173,12 @@ func execute( //nolint:funlen
 		return err
 	}
 
-	tiny := tinypng.NewClient("", tinypng.WithContext(ctx), tinypng.WithDefaultTimeout(time.Minute*5)) //nolint:gomnd
-
-	p := pool.NewPool(ctx, targets, &Worker{
-		log:           log,
-		keeper:        &keeper,
-		tiny:          tiny,
-		retryAttempts: 5,                      //nolint:gomnd
-		retryInterval: time.Millisecond * 700, //nolint:gomnd
-	})
+	p := pool.NewPool(ctx, targets, newWorker(
+		log,
+		&keeper,
+		5,                    //nolint:gomnd
+		time.Millisecond*700, //nolint:gomnd
+	))
 
 	var (
 		errorsCounter uint32 // counter (atomic usage only)
@@ -196,6 +193,10 @@ func execute( //nolint:funlen
 		}
 
 		if err := result.Err; err != nil {
+			if errors.Is(err, errNoAvailableAPIKey) {
+				cancel()
+			}
+
 			log.Error("Compression failed",
 				zap.String("error", err.Error()),
 				zap.String("file", result.Task.FilePath),
@@ -203,7 +204,10 @@ func execute( //nolint:funlen
 
 			if count := atomic.AddUint32(&errorsCounter, 1); maxErrorsToStop > 0 && count >= maxErrorsToStop {
 				log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", count))
-				execError.Set(errors.New("too many errors occurred"))
+
+				execErrOnce.Do(func() {
+					execErr = errors.New("too many errors occurred")
+				})
 
 				cancel() // too many errors occurred, we must to stop the process
 			}
@@ -221,5 +225,5 @@ func execute( //nolint:funlen
 
 	log.Info(fmt.Sprintf("Completed in %s", time.Since(startedAt)))
 
-	return execError.Get()
+	return execErr
 }

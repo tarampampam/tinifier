@@ -96,12 +96,11 @@ func (c *Client) SetAPIKey(key string) {
 	c.mu.Unlock()
 }
 
-// TODO prevent source closing
-
 // Compress reads image from passed source and compress them on tinypng side. Compressed result will be wrote to the
 // passed destination (additional information about compressed image will be returned too).
 // You can use two timeouts - first for image uploading and response waiting, and second - for image downloading.
-// If the provided src is also an io.Closer - it will be closed automatically by HTTP client.
+// If the provided src is also an io.Closer - it will be closed automatically by HTTP client (if default HTTP client is
+// used).
 func (c *Client) Compress(src io.Reader, dest io.Writer, timeouts ...time.Duration) (*CompressionResult, error) {
 	var compressTimeout, downloadTimeout = c.defaultTimeout, c.defaultTimeout // setup defaults
 
@@ -140,7 +139,8 @@ func (c *Client) CompressionCount(timeout ...time.Duration) (uint64, error) {
 
 // CompressImage uploads image content from passed source to the tinypng server for compression. When process is done -
 // compression result (just information, not compressed image content) will be returned.
-// If the provided src is also an io.Closer - it will be closed automatically by HTTP client.
+// If the provided src is also an io.Closer - it will be closed automatically by HTTP client (if default HTTP client is
+// used).
 func (c *Client) CompressImage(src io.Reader, timeout ...time.Duration) (*CompressionResult, error) {
 	var t = c.defaultTimeout
 
@@ -175,7 +175,8 @@ func (c *Client) requestCtx(timeout time.Duration) (context.Context, context.Can
 }
 
 // compressImage reads image content from src and sends them to the tinypng server with request timeout limitation.
-// If the provided src is also an io.Closer - it will be closed automatically by HTTP client.
+// If the provided src is also an io.Closer - it will be closed automatically by HTTP client (if default HTTP client is
+// used).
 func (c *Client) compressImage(src io.Reader, timeout time.Duration) (*CompressionResult, error) {
 	var ctx, cancel = c.requestCtx(timeout)
 	defer cancel()
