@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/tarampampam/tinifier/internal/pkg/keys"
-	"github.com/tarampampam/tinifier/internal/pkg/pool"
-	"github.com/tarampampam/tinifier/internal/pkg/retry"
-	"github.com/tarampampam/tinifier/internal/pkg/validate"
-	"github.com/tarampampam/tinifier/pkg/tinypng"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/keys"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/retry"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/validate"
+	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"

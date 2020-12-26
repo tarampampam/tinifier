@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/tarampampam/tinifier/internal/pkg/breaker"
-	"github.com/tarampampam/tinifier/pkg/tinypng"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
+	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"

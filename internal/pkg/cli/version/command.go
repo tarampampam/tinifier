@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/tarampampam/tinifier/internal/pkg/version"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/version"
 
 	"github.com/spf13/cobra"
 )

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarampampam/tinifier/internal/pkg/cli"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/cli"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
