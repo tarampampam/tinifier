@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 - Flag `--max-key-errors` _(maximum API key errors (compression retries) to disable the key)_ for `compress` command
 - Flag `--recursive` (`-r`) _(search for files in listed directories recursively)_ for `compress` command
 - Compression retries
+- Automated 3rd party (like [goreportcard.com](https://goreportcard.com/) and [pkg.go.dev](https://pkg.go.dev/)) service updates
 
 ### Changed
 

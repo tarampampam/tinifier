@@ -11,11 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/files"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/keys"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
+
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
