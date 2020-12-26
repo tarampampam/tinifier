@@ -37,7 +37,7 @@ jobs:
   goreportcard:
     name: Update state on goreportcard.com
     runs-on: ubuntu-20.04
-    if: github.ref == 'refs/pull/26/merge' # TODO change branch name to `master`
+    if: github.ref == 'refs/heads/master'
     steps:
       - name: Send update request
         run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks
