@@ -1,11 +1,17 @@
 name: 3rd-party
 
 on:
+#  push:
+#    branches:
+#      - master
+#    tags:
+#      - '**'
   push:
     branches:
       - master
-    tags:
+    tags-ignore:
       - '**'
+  pull_request:
 
 jobs:
   goreportcard:

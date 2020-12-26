@@ -18,7 +18,8 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 
 - Source code totally re-wrote
 - Dependency `github.com/jessevdk/go-flags` replaced with `github.com/spf13/cobra`
-- Package `github.com/tarampampam/tinifier/pkg/tinypng` can be installed into another go-applications
+- Package `github.com/tarampampam/tinifier/v3/pkg/tinypng` can be installed into another go-applications
+- Go version updated from `1.14.x` up to `1.15.6`
 
 ### Removed
 
