@@ -156,9 +156,7 @@ func execute( //nolint:funlen
 	oss.Subscribe(func(sig os.Signal) {
 		log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
 
-		execErrOnce.Do(func() {
-			execErr = errors.New("stopped by OS signal")
-		})
+		execErrOnce.Do(func() { execErr = errors.New("stopped by OS signal") })
 
 		cancel() // we must to stop by OS signal
 	})
@@ -173,7 +171,7 @@ func execute( //nolint:funlen
 		return err
 	}
 
-	p := pool.NewPool(ctx, targets, newWorker(
+	p := pool.NewPool(ctx, newWorker(
 		log,
 		&keeper,
 		5,                    //nolint:gomnd
@@ -182,7 +180,7 @@ func execute( //nolint:funlen
 
 	var (
 		errorsCounter uint32 // counter (atomic usage only)
-		results       = p.Run(threadsCount)
+		results       = p.Run(targets, threadsCount)
 		reader        = NewResultsReader(os.Stdout) // results reader (pretty results writer)
 	)
 
@@ -194,6 +192,8 @@ func execute( //nolint:funlen
 
 		if err := result.Err; err != nil {
 			if errors.Is(err, errNoAvailableAPIKey) {
+				execErrOnce.Do(func() { execErr = errors.New("no one valid API key, working canceled") })
+
 				cancel()
 			}
 
@@ -205,9 +205,7 @@ func execute( //nolint:funlen
 			if count := atomic.AddUint32(&errorsCounter, 1); maxErrorsToStop > 0 && count >= maxErrorsToStop {
 				log.Error(fmt.Sprintf("Too many (%d) errors occurred, stopping the process", count))
 
-				execErrOnce.Do(func() {
-					execErr = errors.New("too many errors occurred")
-				})
+				execErrOnce.Do(func() { execErr = errors.New("too many errors occurred") })
 
 				cancel() // too many errors occurred, we must to stop the process
 			}

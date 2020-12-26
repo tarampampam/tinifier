@@ -51,38 +51,47 @@ func Do(fn func(attemptNum uint) error, options ...Option) error { //nolint:funl
 		attempts: defaultAttemptsCount,
 	}
 
+	// apply passed options to the configuration
 	for _, option := range options {
 		option(&cfg)
 	}
 
+	// check for zero-attempts case
 	if cfg.attempts <= 0 {
 		return ErrNoAttempts
 	}
 
 	var (
-		timer       *time.Timer
-		attemptErr  error
-		loopStopped bool
+		timer       *time.Timer // timer is used for delay between attempts without thread blocking
+		attemptErr  error       // function calling result (nil or an error)
+		loopStopped bool        // flag "attempts loop was stopped"
 	)
 
 	defer func() {
 		if timer != nil {
-			timer.Stop()
+			timer.Stop() // stop the timer on exit (in efficiency reasons)
 		}
 	}()
 
-loop:
+loop: // main attempts loop
 	for attemptNum := uint(1); attemptNum <= cfg.attempts; attemptNum++ {
+		// check for context cancellation
 		if err := cfg.ctx.Err(); err != nil {
 			return err
 		}
 
+		// execute passed function
 		attemptErr = fn(attemptNum)
+
+		// if function executed without any error - stop the loop
 		if attemptErr == nil {
 			return nil
-		} else if cfg.loopStoppingErrors != nil {
+		}
+
+		// otherwise, if "errors to stop" is defined and one of them is occurred - stop the loop
+		if cfg.loopStoppingErrors != nil {
 			for i := 0; i < len(cfg.loopStoppingErrors); i++ {
-				if errors.Is(attemptErr, cfg.loopStoppingErrors[i]) {
+				if errors.Is(attemptErr, cfg.loopStoppingErrors[i]) { // checking using errors.Is(...) is important
 					loopStopped = true
 
 					break loop
@@ -90,12 +99,14 @@ loop:
 			}
 		}
 
+		// create (and start immediately) or reset the timer
 		if timer == nil {
 			timer = time.NewTimer(cfg.delay)
 		} else {
 			timer.Reset(cfg.delay)
 		}
 
+		// and blocks until context is done or timer is expired
 		select {
 		case <-cfg.ctx.Done():
 			return cfg.ctx.Err()
@@ -104,11 +115,15 @@ loop:
 		}
 	}
 
+	// we must to return last attempt error if corresponding option was used
 	if cfg.returnLastError && attemptErr != nil {
 		return attemptErr
-	} else if loopStopped {
+	}
+
+	// otherwise, if loop was stopped - special error must be returned
+	if loopStopped {
 		return ErrRetryStopped
 	}
 
-	return ErrToManyAttempts
+	return ErrToManyAttempts // fallback error
 }

@@ -13,7 +13,7 @@ type (
 
 	Worker interface {
 		Upload(ctx context.Context, filePath string) (url string, info FileInfo, err error)
-		Download(ctx context.Context, url string, toFilePath string) (info FileInfo, err error)
+		Download(ctx context.Context, url, toFilePath string) (info FileInfo, err error)
 		CopyContent(fromFilePath, toFilePath string) error
 		RemoveFile(filePath string) error
 	}
@@ -42,21 +42,19 @@ type (
 	}
 
 	Pool struct {
-		ctx       context.Context
-		filePaths []string
-		worker    Worker
+		ctx    context.Context
+		worker Worker
 	}
 )
 
-func NewPool(ctx context.Context, filePaths []string, worker Worker) Pool {
+func NewPool(ctx context.Context, worker Worker) Pool {
 	return Pool{
-		ctx:       ctx,
-		filePaths: filePaths,
-		worker:    worker,
+		ctx:    ctx,
+		worker: worker,
 	}
 }
 
-func (p *Pool) Run(workersCount uint8) <-chan Result {
+func (p *Pool) Run(filePaths []string, workersCount uint8) <-chan Result {
 	var (
 		queue   = make(chan Task, workersCount)
 		results = make(chan Result)
@@ -66,7 +64,7 @@ func (p *Pool) Run(workersCount uint8) <-chan Result {
 
 	// run scheduler
 	go func() {
-		p.runScheduler(queue)
+		p.runScheduler(queue, filePaths)
 		close(queue)
 	}()
 
@@ -87,8 +85,8 @@ func (p *Pool) Run(workersCount uint8) <-chan Result {
 	return results
 }
 
-func (p *Pool) runScheduler(queue chan<- Task) {
-	for i, l := uint(0), uint(len(p.filePaths)); i < l; i++ {
+func (p *Pool) runScheduler(queue chan<- Task, filePaths []string) {
+	for i, l := uint(0), uint(len(filePaths)); i < l; i++ {
 		if p.ctx.Err() != nil {
 			return
 		}
@@ -97,7 +95,7 @@ func (p *Pool) runScheduler(queue chan<- Task) {
 		case <-p.ctx.Done():
 			return
 
-		case queue <- Task{FilePath: p.filePaths[i], TaskNumber: i + 1, TasksCount: l}:
+		case queue <- Task{FilePath: filePaths[i], TaskNumber: i + 1, TasksCount: l}:
 		}
 	}
 }
@@ -112,7 +110,7 @@ func (p *Pool) runWorker(queue <-chan Task, results chan<- Result) { //nolint:fu
 		case <-p.ctx.Done():
 			return
 
-		case task, isOpened := <-queue:
+		case task, isOpened := <-queue: // TODO move logic into separate function (defer remove tmp file)
 			if !isOpened {
 				return
 			}

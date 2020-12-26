@@ -34,8 +34,5 @@ func newFileInfo(path string) (*fileInfo, error) {
 		return nil, err
 	}
 
-	return &fileInfo{
-		size: uint64(stat.Size()),
-		t:    http.DetectContentType(buf),
-	}, nil
+	return &fileInfo{size: uint64(stat.Size()), t: http.DetectContentType(buf)}, nil
 }
