@@ -2,15 +2,14 @@ package quota
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/tarampampam/tinifier/internal/pkg/breaker"
-	"github.com/tarampampam/tinifier/pkg/tinypng"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
+	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -31,7 +30,7 @@ func NewCommand(log *zap.Logger) *cobra.Command {
 		Short:   "Get currently used quota",
 		PreRunE: func(*cobra.Command, []string) error {
 			if APIKey == "" {
-				if envAPIKey := strings.Trim(os.Getenv(apiKeyEnvName), " "); envAPIKey != "" {
+				if envAPIKey, exists := os.LookupEnv(apiKeyEnvName); exists {
 					APIKey = envAPIKey
 				} else {
 					return errors.New("API key was not provided")
@@ -89,12 +88,9 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 			close(errCh)
 		}()
 
-		client := tinypng.NewClient(tinypng.ClientConfig{
-			APIKey:         apiKey,
-			RequestTimeout: httpRequestTimeout,
-		})
+		client := tinypng.NewClient(apiKey, tinypng.WithContext(ctx))
 
-		count, err := client.GetCompressionCount(ctx)
+		count, err := client.CompressionCount(httpRequestTimeout)
 		if err != nil {
 			errCh <- err
 
@@ -107,7 +103,7 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 	// and wait for results (or context canceling)
 	select {
 	case count := <-countCh:
-		fmt.Fprintf(os.Stdout, "Used quota is: %d\n", count)
+		_, _ = fmt.Fprintf(os.Stdout, "Used quota is: %d\n", count)
 
 	case err := <-errCh:
 		return err

@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"github.com/tarampampam/tinifier/internal/pkg/cli/compress"
-	"github.com/tarampampam/tinifier/internal/pkg/cli/quota"
-	"github.com/tarampampam/tinifier/internal/pkg/cli/version"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/compress"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/quota"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/version"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"

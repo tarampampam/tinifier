@@ -5,29 +5,22 @@ import (
 	"sync"
 )
 
+// Keeper allows you to store some API keys in a one place.
 type Keeper struct {
-	mu           sync.RWMutex
-	storage      map[string]*keyInfo
-	maxKeyErrors int
+	mu    sync.RWMutex
+	state map[string]struct{}
 }
 
-type keyInfo struct {
-	errorsCount int
-}
+var ErrKeyNotExists = errors.New("key not exists")
 
-var (
-	ErrKeyNotExists     = errors.New("key not exists")
-	ErrEmptyKeysStorage = errors.New("empty keys storage")
-	ErrNoUsableKey      = errors.New("all kept keys has too many errors")
-)
-
-func NewKeeper(maxKeyErrors int) Keeper {
+// NewKeeper creates new keeper instance.
+func NewKeeper() Keeper {
 	return Keeper{
-		storage:      make(map[string]*keyInfo),
-		maxKeyErrors: maxKeyErrors,
+		state: make(map[string]struct{}),
 	}
 }
 
+// Add new key in a keeper. Empty or/and key duplicates are not allowed.
 func (k *Keeper) Add(keys ...string) error {
 	if len(keys) > 0 {
 		k.mu.Lock()
@@ -38,53 +31,42 @@ func (k *Keeper) Add(keys ...string) error {
 				return errors.New("empty keys are not allowed")
 			}
 
-			if _, ok := k.storage[keys[i]]; ok {
+			if _, ok := k.state[keys[i]]; ok {
 				return errors.New("key \"" + keys[i] + "\" already exists")
 			}
 
-			k.storage[keys[i]] = &keyInfo{}
+			k.state[keys[i]] = struct{}{}
 		}
 	}
 
 	return nil
 }
 
+// Remove rey from storage.
 func (k *Keeper) Remove(keys ...string) {
-	if len(keys) > 0 {
-		k.mu.Lock()
-		for i := 0; i < len(keys); i++ {
-			delete(k.storage, keys[i])
-		}
-		k.mu.Unlock()
+	if len(keys) == 0 {
+		return
 	}
-}
 
-func (k *Keeper) ReportKeyError(key string, delta int) error {
 	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	if v, ok := k.storage[key]; ok {
-		v.errorsCount += delta
-
-		return nil
-	}
-
-	return ErrKeyNotExists
+	k.remove(keys...)
+	k.mu.Unlock()
 }
 
+func (k *Keeper) remove(keys ...string) {
+	for i := 0; i < len(keys); i++ {
+		delete(k.state, keys[i])
+	}
+}
+
+// Get the key which does not exceed the maximum count of errors. If none exists, ErrNoUsableKey will be returned.
 func (k *Keeper) Get() (string, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	if len(k.storage) == 0 {
-		return "", ErrEmptyKeysStorage
+	for key := range k.state {
+		return key, nil
 	}
 
-	for key, value := range k.storage {
-		if value.errorsCount < k.maxKeyErrors {
-			return key, nil
-		}
-	}
-
-	return "", ErrNoUsableKey
+	return "", ErrKeyNotExists
 }

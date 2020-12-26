@@ -2,8 +2,6 @@
 # Makefile readme (ru): <http://linux.yaroslavl.ru/docs/prog/gnu_make_3-79_russian_manual.html>
 # Makefile readme (en): <https://www.gnu.org/software/make/manual/html_node/index.html#SEC_Contents>
 
-cwd = $(shell pwd)
-
 SHELL = /bin/sh
 LDFLAGS = "-s -w -X tinifier/internal/pkg/version.version=$(shell git rev-parse HEAD)"
 
@@ -47,6 +45,14 @@ cover: ## Run app tests with coverage report
 
 shell: ## Start shell into container with golang
 	docker-compose run $(DC_RUN_ARGS) app bash
+
+playground: ## Make application playground (init "stub" images for a work)
+	test -d ./temp || mkdir ./temp
+	test ! -d ./temp/playground || rm -R ./temp/playground
+	test -f ./temp/playground.tar.gz || curl -SsL -o ./temp/playground.tar.gz 'https://github.com/tarampampam/tinifier/archive/playground.tar.gz'
+	tar -xf ./temp/playground.tar.gz -C ./temp
+	mv ./temp/tinifier-playground ./temp/playground
+	@printf "\n   \e[30;42m %s \033[0m\n\n" 'Sample images located in `./temp/playground` directory';
 
 clean: ## Make clean
 	docker-compose down -v -t 1

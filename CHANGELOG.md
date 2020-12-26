@@ -13,16 +13,19 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 - Flag `--max-key-errors` _(maximum API key errors (compression retries) to disable the key)_ for `compress` command
 - Flag `--recursive` (`-r`) _(search for files in listed directories recursively)_ for `compress` command
 - Compression retries
+- Automated 3rd party (like [goreportcard.com](https://goreportcard.com/) and [pkg.go.dev](https://pkg.go.dev/)) service updates
 
 ### Changed
 
 - Source code totally re-wrote
 - Dependency `github.com/jessevdk/go-flags` replaced with `github.com/spf13/cobra`
-- Package `github.com/tarampampam/tinifier/pkg/tinypng` can be installed into another go-applications
+- Package `github.com/tarampampam/tinifier/v3/pkg/tinypng` can be installed into another go-applications
+- Go version updated from `1.14.x` up to `1.15.6`
 
 ### Removed
 
 - Progress bar (package `github.com/schollz/progressbar/v3`)
+- Binary file packing (using `upx`)
 
 ### Fixed
 

@@ -7,32 +7,22 @@ import (
 )
 
 func TestKeeper_Add_Get_Report(t *testing.T) {
-	k := NewKeeper(5)
+	k := NewKeeper()
 
-	// get on empty storage must returns an error
+	// get on empty state must returns an error
 	_, err := k.Get()
-	assert.EqualError(t, err, ErrEmptyKeysStorage.Error())
+	assert.EqualError(t, err, ErrKeyNotExists.Error())
 
 	// appending without error
 	assert.NoError(t, k.Add("foo", "bar"))
 
-	// even two keys in a storage - first by default will be returned
+	// even two keys in a state - first by default will be returned
 	got, err := k.Get()
 	assert.NoError(t, err)
 	assert.Contains(t, []string{"foo", "bar"}, got)
 
-	// report first key
-	assert.NoError(t, k.ReportKeyError("foo", 4))
-
-	assert.Error(t, k.ReportKeyError("non-exists", 0)) // non-exists key trigger an error
-
-	// logic without changes
-	got, err = k.Get()
-	assert.NoError(t, err)
-	assert.Contains(t, []string{"foo", "bar"}, got)
-
-	// one more report - and first key is no longer used
-	assert.NoError(t, k.ReportKeyError("foo", 1))
+	// remove first key
+	k.Remove("foo")
 
 	for i := 0; i < 100; i++ {
 		got, err = k.Get()
@@ -40,14 +30,14 @@ func TestKeeper_Add_Get_Report(t *testing.T) {
 		assert.Equal(t, "bar", got)
 	}
 
-	// report second key
-	assert.NoError(t, k.ReportKeyError("bar", 999))
+	// remove second key
+	k.Remove("bar")
 	_, err = k.Get()
-	assert.EqualError(t, err, ErrNoUsableKey.Error())
+	assert.EqualError(t, err, ErrKeyNotExists.Error())
 }
 
 func TestKeeper_Add(t *testing.T) {
-	k := NewKeeper(5)
+	k := NewKeeper()
 
 	assert.Error(t, k.Add(""))               // empty key
 	assert.Error(t, k.Add("foo", "", "bar")) // empty key
@@ -58,11 +48,12 @@ func TestKeeper_Add(t *testing.T) {
 }
 
 func TestKeeper_Remove(t *testing.T) {
-	k := NewKeeper(5)
+	k := NewKeeper()
 
 	assert.NoError(t, k.Add("foo", "bar"))
 
 	k.Remove("foo")
+	k.Remove() // for coverage only
 
 	got, err := k.Get()
 	assert.NoError(t, err)
@@ -71,5 +62,5 @@ func TestKeeper_Remove(t *testing.T) {
 	k.Remove("bar", "some", "another", "keys")
 
 	_, err = k.Get()
-	assert.EqualError(t, err, ErrEmptyKeysStorage.Error())
+	assert.EqualError(t, err, ErrKeyNotExists.Error())
 }
