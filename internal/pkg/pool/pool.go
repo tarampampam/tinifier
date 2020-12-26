@@ -110,7 +110,7 @@ func (p *Pool) runWorker(queue <-chan Task, results chan<- Result) { //nolint:fu
 		case <-p.ctx.Done():
 			return
 
-		case task, isOpened := <-queue: // TODO move logic into separate function (defer remove tmp file)
+		case task, isOpened := <-queue:
 			if !isOpened {
 				return
 			}

@@ -61,6 +61,8 @@ func (w *fakeWorker) PreTaskRun(task Task) {
 	w.preRun(task)
 }
 
+const fakeURL = "https://example.com/foo"
+
 func newFakeWorker(
 	upload func(ctx context.Context, filePath string) (string, FileInfo, error),
 	download func(ctx context.Context, url, toFilePath string) (FileInfo, error),
@@ -85,11 +87,11 @@ func TestPool_Run(t *testing.T) {
 			assert.NotNil(t, ctx)
 			assert.False(t, strings.HasSuffix(filePath, ".tiny"))
 
-			return "https://example.com/foo", &fakeFileInfo{s: 22, t: "type1"}, nil
+			return fakeURL, &fakeFileInfo{s: 22, t: "type1"}, nil
 		},
 		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
 			assert.NotNil(t, ctx)
-			assert.Equal(t, "https://example.com/foo", url)
+			assert.Equal(t, fakeURL, url)
 			assert.True(t, strings.HasSuffix(toFilePath, ".tiny"))
 
 			return &fakeFileInfo{s: 11, t: "type2"}, nil
@@ -150,7 +152,7 @@ func TestPool_RunWithCancelledContext(t *testing.T) {
 		func(ctx context.Context, filePath string) (string, FileInfo, error) { // upload
 			t.Error("should not be executed")
 
-			return "https://example.com/foo", &fakeFileInfo{s: 22, t: "type1"}, nil
+			return fakeURL, &fakeFileInfo{s: 22, t: "type1"}, nil
 		},
 		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
 			t.Error("should not be executed")
@@ -175,7 +177,7 @@ func TestPool_RunWithCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := NewPool(ctx, worker)
 
-	cancel() // important
+	cancel() // <-- important
 
 	results, resCounter := p.Run(targets, 2), 0
 
@@ -191,12 +193,54 @@ func TestPool_RunWithCancelledContext(t *testing.T) {
 	assert.Equal(t, 0, resCounter)
 }
 
+func TestPool_RunWithCancelledContextWhileResultsReading(t *testing.T) {
+	targets := []string{"a", "b", "c", "d", "e", "f"}
+
+	worker := newFakeWorker(
+		func(ctx context.Context, filePath string) (string, FileInfo, error) { // upload
+			return fakeURL, &fakeFileInfo{s: 22, t: "type1"}, nil
+		},
+		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
+			return &fakeFileInfo{s: 11, t: "type2"}, nil
+		},
+		func(fromFilePath, toFilePath string) error { // copyContent
+			return nil
+		},
+		func(filePath string) error { // removeFile
+			return nil
+		},
+		func(task Task) { // preRun
+			// do nothing
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewPool(ctx, worker)
+
+	results, resCounter := p.Run(targets, 2), 0
+
+	for {
+		_, isOpened := <-results
+		if !isOpened {
+			break
+		}
+
+		resCounter++
+
+		cancel() // <-- important
+	}
+
+	assert.InDelta(t, 2, resCounter, 1)
+}
+
 func TestPool_RunWithUploadingError(t *testing.T) {
 	targets := []string{"a", "b", "c", "d", "e"}
 
 	worker := newFakeWorker(
 		func(ctx context.Context, filePath string) (string, FileInfo, error) { // upload
-			return "", nil, errors.New("fake error")
+			return "", nil, errors.New("fake error") // <-- error is important
 		},
 		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
 			t.Error("should not be executed")
@@ -230,7 +274,7 @@ func TestPool_RunWithUploadingError(t *testing.T) {
 
 		resCounter++
 
-		assert.Error(t, res.Err)
+		assert.EqualError(t, res.Err, "fake error")
 	}
 
 	assert.Equal(t, 5, resCounter)
@@ -238,5 +282,139 @@ func TestPool_RunWithUploadingError(t *testing.T) {
 	assert.Equal(t, uint32(0), worker.downloadExecCounter)
 	assert.Equal(t, uint32(0), worker.copyContentExecCounter)
 	assert.Equal(t, uint32(0), worker.removeFileExecCounter)
+	assert.Equal(t, uint32(5), worker.preRunExecCounter)
+}
+
+func TestPool_RunWithDownloadingError(t *testing.T) {
+	targets := []string{"a", "b", "c", "d", "e"}
+
+	worker := newFakeWorker(
+		func(ctx context.Context, filePath string) (string, FileInfo, error) { // upload
+			return fakeURL, &fakeFileInfo{s: 22, t: "type1"}, nil
+		},
+		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
+			return nil, errors.New("fake error") // <-- error is important
+		},
+		func(fromFilePath, toFilePath string) error { // copyContent
+			t.Error("should not be executed")
+
+			return nil
+		},
+		func(filePath string) error { // removeFile
+			return nil
+		},
+		func(task Task) { // preRun
+			// no nothing
+		},
+	)
+
+	p := NewPool(context.Background(), worker)
+
+	results, resCounter := p.Run(targets, 2), 0
+
+	for {
+		res, isOpened := <-results
+		if !isOpened {
+			break
+		}
+
+		resCounter++
+
+		assert.EqualError(t, res.Err, "fake error")
+	}
+
+	assert.Equal(t, 5, resCounter)
+	assert.Equal(t, uint32(5), worker.uploadExecCounter)
+	assert.Equal(t, uint32(5), worker.downloadExecCounter)
+	assert.Equal(t, uint32(0), worker.copyContentExecCounter)
+	assert.Equal(t, uint32(5), worker.removeFileExecCounter)
+	assert.Equal(t, uint32(5), worker.preRunExecCounter)
+}
+
+func TestPool_RunWithCopyContentError(t *testing.T) {
+	targets := []string{"a", "b", "c", "d", "e"}
+
+	worker := newFakeWorker(
+		func(ctx context.Context, filePath string) (string, FileInfo, error) { // upload
+			return fakeURL, &fakeFileInfo{s: 22, t: "type1"}, nil
+		},
+		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
+			return &fakeFileInfo{s: 11, t: "type2"}, nil
+		},
+		func(fromFilePath, toFilePath string) error { // copyContent
+			return errors.New("fake error") // <-- error is important
+		},
+		func(filePath string) error { // removeFile
+			return nil
+		},
+		func(task Task) { // preRun
+			// no nothing
+		},
+	)
+
+	p := NewPool(context.Background(), worker)
+
+	results, resCounter := p.Run(targets, 2), 0
+
+	for {
+		res, isOpened := <-results
+		if !isOpened {
+			break
+		}
+
+		resCounter++
+
+		assert.EqualError(t, res.Err, "fake error")
+	}
+
+	assert.Equal(t, 5, resCounter)
+	assert.Equal(t, uint32(5), worker.uploadExecCounter)
+	assert.Equal(t, uint32(5), worker.downloadExecCounter)
+	assert.Equal(t, uint32(5), worker.copyContentExecCounter)
+	assert.Equal(t, uint32(5), worker.removeFileExecCounter)
+	assert.Equal(t, uint32(5), worker.preRunExecCounter)
+}
+
+func TestPool_RunWithRemoveFileError(t *testing.T) {
+	targets := []string{"a", "b", "c", "d", "e"}
+
+	worker := newFakeWorker(
+		func(ctx context.Context, filePath string) (string, FileInfo, error) { // upload
+			return fakeURL, &fakeFileInfo{s: 22, t: "type1"}, nil
+		},
+		func(ctx context.Context, url, toFilePath string) (FileInfo, error) { // download
+			return &fakeFileInfo{s: 11, t: "type2"}, nil
+		},
+		func(fromFilePath, toFilePath string) error { // copyContent
+			return nil
+		},
+		func(filePath string) error { // removeFile
+			return errors.New("fake error") // <-- error is important
+		},
+		func(task Task) { // preRun
+			// no nothing
+		},
+	)
+
+	p := NewPool(context.Background(), worker)
+
+	results, resCounter := p.Run(targets, 2), 0
+
+	for {
+		res, isOpened := <-results
+		if !isOpened {
+			break
+		}
+
+		resCounter++
+
+		assert.EqualError(t, res.Err, "fake error")
+	}
+
+	assert.Equal(t, 5, resCounter)
+	assert.Equal(t, uint32(5), worker.uploadExecCounter)
+	assert.Equal(t, uint32(5), worker.downloadExecCounter)
+	assert.Equal(t, uint32(5), worker.copyContentExecCounter)
+	assert.Equal(t, uint32(5), worker.removeFileExecCounter)
 	assert.Equal(t, uint32(5), worker.preRunExecCounter)
 }
