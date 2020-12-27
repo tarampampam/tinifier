@@ -22,7 +22,7 @@ RUN set -x \
 COPY . .
 
 # arguments to pass on each go tool link invocation
-ENV LDFLAGS="-s -w -X tinifier/internal/pkg/version.version=$APP_VERSION"
+ENV LDFLAGS="-s -w -X tinifier/v3/internal/pkg/version.version=$APP_VERSION"
 
 RUN set -x \
     && go version \
