@@ -47,19 +47,19 @@ Client sources and usage examples can be found in [`pkg/tinypng`](pkg/tinypng) d
 Compress single image:
 
 ```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./image.png
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./img.png
 ```
 
 Compress all `png` images in some directory and 2 another images:
 
 ```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./image-1.png ./image-2.png
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./img-1.png ./img-2.png
 ```
 
 Compress jpg/png images in some directory (recursively) using 20 threads:
 
 ```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 20 -r ./images-directory
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 20 -r ./some-dir
 ```
 
 ### Using docker
