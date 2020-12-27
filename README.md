@@ -5,10 +5,8 @@
 # CLI tool for images compressing
 
 [![Release version][badge_release_version]][link_gopkg]
-[![Project language][badge_language]][link_golang]
 [![Build Status][badge_build]][link_actions]
 [![Coverage][badge_coverage]][link_coverage]
-[![Go Report][badge_goreport]][link_goreport]
 [![Image size][badge_size_latest]][link_docker_hub]
 [![License][badge_license]][link_license]
 
@@ -20,11 +18,25 @@ This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your loca
 
 > API key can be set using environment variable named `TINYPNG_API_KEY`
 
-## :computer: Installing
+## Installing
 
 Download latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
 
-## :fire: Usage example
+### Go package
+
+[![Project language][badge_language]][link_golang]
+[![Go Reference][badge_go_reference]][link_gopkg]
+[![Go Report][badge_goreport]][link_goreport]
+
+Install the API client with go get:
+
+```bash
+$ go get -u github.com/tarampampam/tinifier/v3
+```
+
+Client sources and usage examples can be found in [`pkg/tinypng`](pkg/tinypng) directory.
+
+## Usage example
 
 > [tinypng.com][tinypng.com] API key is required. For API key getting you should:
 > - Open [tinypng.com/developers](https://tinypng.com/developers)
@@ -50,7 +62,7 @@ Compress jpg/png images in some directory (recursively) using 20 threads:
 $ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 20 -r ./images-directory
 ```
 
-### :whale: Using docker
+### Using docker
 
 [![image stats](https://dockeri.co/image/tarampampam/tinifier)][link_docker_hub]
 
@@ -121,7 +133,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_build]:https://img.shields.io/github/workflow/status/tarampampam/tinifier/tests/master
 [badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
-[badge_size_latest]:https://img.shields.io/docker/image-size/tarampampam/tinifier/latest?label=docker&maxAge=30
+[badge_size_latest]:https://img.shields.io/docker/image-size/tarampampam/tinifier/latest?maxAge=30
 [badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
 [badge_language]:https://img.shields.io/github/go-mod/go-version/tarampampam/tinifier?longCache=true
 [badge_license]:https://img.shields.io/github/license/tarampampam/tinifier.svg?longCache=true
@@ -130,6 +142,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_issues]:https://img.shields.io/github/issues/tarampampam/tinifier.svg?maxAge=45
 [badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
 [badge_discord]:https://img.shields.io/discord/788484223563595837
+[badge_go_reference]:https://img.shields.io/static/v1?label=go&message=reference&color=007d9c
 
 [link_golang]:https://golang.org/
 [link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
