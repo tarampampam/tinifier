@@ -122,7 +122,6 @@ Changes log can be [found here][link_changes_log].
 
 [![Issues][badge_issues]][link_issues]
 [![Issues][badge_pulls]][link_pulls]
-[![Chat][badge_discord]][link_discord]
 
 If you will find any package errors, please, [make an issue][link_create_issue] in current repository.
 
@@ -141,7 +140,6 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45
 [badge_issues]:https://img.shields.io/github/issues/tarampampam/tinifier.svg?maxAge=45
 [badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
-[badge_discord]:https://img.shields.io/discord/788484223563595837
 [badge_go_reference]:https://img.shields.io/static/v1?label=go&message=reference&color=007d9c
 
 [link_golang]:https://golang.org/
@@ -158,6 +156,5 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_issues]:https://github.com/tarampampam/tinifier/issues
 [link_create_issue]:https://github.com/tarampampam/tinifier/issues/new/choose
 [link_pulls]:https://github.com/tarampampam/tinifier/pulls
-[link_discord]:https://discord.gg/pTAtuWzJbz
 
 [tinypng.com]:https://tinypng.com/
