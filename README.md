@@ -4,54 +4,69 @@
 
 # CLI tool for images compressing
 
-![Release version][badge_release_version]
-![Project language][badge_language]
-[![Build Status][badge_build]][link_build]
+[![Release version][badge_release_version]][link_gopkg]
+[![Build Status][badge_build]][link_actions]
 [![Coverage][badge_coverage]][link_coverage]
-[![Go Report][badge_goreport]][link_goreport]
-[![Image size][badge_size_latest]][link_docker_build]
+[![Image size][badge_size_latest]][link_docker_hub]
 [![License][badge_license]][link_license]
-[![Chat][badge_discord]][link_discord]
 
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-    <a href="https://asciinema.org/a/340968?autoplay=1" target="_blank"><img src="https://asciinema.org/a/340968.svg" width="900"></a>
+    <a href="https://asciinema.org/a/381354?autoplay=1" target="_blank"><img src="https://asciinema.org/a/381354.svg" width="900"></a>
 </p>
 
-> API key can be passed in environment variable named `TINYPNG_API_KEY`
+> API key can be set using environment variable named `TINYPNG_API_KEY`
 
-> **Recursive (deep) directories walking is not supported**
+## Installing
 
-## :computer: Installing
+Download latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
 
-_WIP_
+### Go package
 
-Download latest binary file from [releases page][link_releases] or use [docker image][link_docker_build].
+[![Project language][badge_language]][link_golang]
+[![Go Reference][badge_go_reference]][link_gopkg]
+[![Go Report][badge_goreport]][link_goreport]
 
-## :fire: Usage example
+Install the API client with `go get`:
 
-> [tinypng.com][tinypng.com] API key is required. You can get own API key by pressing link "login" on service main page.
+```bash
+$ go get -u github.com/tarampampam/tinifier/v3
+```
+
+Client sources and usage examples can be found in [`pkg/tinypng`](pkg/tinypng) directory.
+
+## Usage example
+
+> [tinypng.com][tinypng.com] API key is required. For API key getting you should:
+> - Open [tinypng.com/developers](https://tinypng.com/developers)
+> - Fill-up the form (enter your name and email address) and press "Get your API key" button
+> - Check for email in the mailbox from previous step (click on "verification link")
+> - In opened dashboard page - activate API key and save it somewhere
 
 Compress single image:
 
 ```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./image.png
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./img.png
 ```
 
 Compress all `png` images in some directory and 2 another images:
 
 ```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./image-1.png ./image-2.png
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./img-1.png ./img-2.png
 ```
 
-Compress all images in some directory using 20 threads:
+Compress jpg/png images in some directory (recursively) using 20 threads:
 
 ```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG,JPG -t 20 ./images-directory
+$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 20 -r ./some-dir
 ```
 
-## :whale: Using docker
+### Using docker
+
+[![image stats](https://dockeri.co/image/tarampampam/tinifier)][link_docker_hub]
+
+> All supported image tags [can be found here][link_docker_hub] and [here][link_ghcr].
 
 Compress all images in **current** directory:
 
@@ -60,7 +75,7 @@ $ docker run --rm -ti \
     -u "$(id -u):$(id -g)" \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
-    tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' .
+    tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -r .
 ```
 
 or
@@ -71,7 +86,7 @@ $ docker run --rm -ti \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
     -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
-    tarampampam/tinifier compress .
+    tarampampam/tinifier compress -r .
 ```
 
 ## Testing
@@ -82,7 +97,7 @@ For application testing and building we use built-in golang testing feature and 
 $ make test
 ```
 
-Or build binary file:
+Or build the binary file:
 
 ```shell
 $ make build
@@ -90,7 +105,11 @@ $ make build
 
 ## Releasing
 
-_WIP_
+New versions publishing is very simple - just make required changes in this repository, update [changelog file](CHANGELOG.md) and "publish" new release using repo releases page.
+
+Binary files and docker images will be build and published automatically.
+
+> New release will overwrite the `latest` docker image tag in both registers.
 
 ## Changelog
 
@@ -121,12 +140,15 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45
 [badge_issues]:https://img.shields.io/github/issues/tarampampam/tinifier.svg?maxAge=45
 [badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
-[badge_discord]:https://img.shields.io/discord/788484223563595837
+[badge_go_reference]:https://img.shields.io/static/v1?label=go&message=reference&color=007d9c
 
+[link_golang]:https://golang.org/
 [link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
 [link_coverage]:https://codecov.io/gh/tarampampam/tinifier
-[link_build]:https://github.com/tarampampam/tinifier/actions
-[link_docker_build]:https://hub.docker.com/r/tarampampam/tinifier/
+[link_gopkg]:https://pkg.go.dev/github.com/tarampampam/tinifier/v3
+[link_actions]:https://github.com/tarampampam/tinifier/actions
+[link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
+[link_ghcr]:https://github.com/users/tarampampam/packages/container/package/tinifier
 [link_license]:https://github.com/tarampampam/tinifier/blob/master/LICENSE
 [link_releases]:https://github.com/tarampampam/tinifier/releases
 [link_commits]:https://github.com/tarampampam/tinifier/commits
@@ -134,6 +156,5 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_issues]:https://github.com/tarampampam/tinifier/issues
 [link_create_issue]:https://github.com/tarampampam/tinifier/issues/new/choose
 [link_pulls]:https://github.com/tarampampam/tinifier/pulls
-[link_discord]:https://discord.gg/pTAtuWzJbz
 
 [tinypng.com]:https://tinypng.com/

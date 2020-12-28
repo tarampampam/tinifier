@@ -1,3 +1,4 @@
+// Main CLI application entrypoint.
 package main
 
 import (
