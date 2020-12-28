@@ -1,3 +1,4 @@
+// Package cli contains CLI command handlers.
 package cli
 
 import (

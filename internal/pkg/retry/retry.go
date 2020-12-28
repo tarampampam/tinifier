@@ -1,3 +1,5 @@
+// Package retry allows to use retry mechanism (call some function until it does not return non-error result or attempts
+// count is not exceeded).
 package retry
 
 import (

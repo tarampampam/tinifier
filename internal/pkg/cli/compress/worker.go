@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -25,6 +26,10 @@ type Worker struct {
 
 	retryAttempts uint
 	retryInterval time.Duration
+
+	tinyHTTPClient interface { // make worker testable
+		Do(*http.Request) (*http.Response, error)
+	}
 }
 
 func newWorker(log *zap.Logger, keeper *keys.Keeper, retryAttempts uint, retryInterval time.Duration) *Worker {
@@ -34,6 +39,8 @@ func newWorker(log *zap.Logger, keeper *keys.Keeper, retryAttempts uint, retryIn
 
 		retryAttempts: retryAttempts,
 		retryInterval: retryInterval,
+
+		tinyHTTPClient: new(http.Client),
 	}
 }
 
@@ -50,7 +57,7 @@ func (w *Worker) Upload(ctx context.Context, filePath string) (string, pool.File
 	}
 
 	var (
-		tiny = tinypng.NewClient("", tinypng.WithContext(ctx))
+		tiny = tinypng.NewClient("", tinypng.WithContext(ctx), tinypng.WithHTTPClient(w.tinyHTTPClient))
 		info *tinypng.CompressionResult
 	)
 
@@ -140,7 +147,7 @@ func (w *Worker) openSourceFile(path string) (*os.File, error) {
 func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (pool.FileInfo, error) {
 	const downloadTimeout = time.Minute * 2
 
-	var tiny = tinypng.NewClient("", tinypng.WithContext(ctx))
+	var tiny = tinypng.NewClient("", tinypng.WithContext(ctx), tinypng.WithHTTPClient(w.tinyHTTPClient))
 
 	if err := retry.Do(
 		func(attemptNum uint) error {
@@ -157,7 +164,7 @@ func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (p
 			}
 			defer func() { _ = file.Close() }()
 
-			if _, err = tiny.DownloadImage(url, file, downloadTimeout); err != nil {
+			if _, dlErr := tiny.DownloadImage(url, file, downloadTimeout); dlErr != nil {
 				w.log.Warn("Compressed image downloading failed",
 					zap.Error(err),
 					zap.String("file", toFilePath),
@@ -165,7 +172,11 @@ func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (p
 					zap.String("key", key),
 				)
 
-				return err
+				if errors.Is(dlErr, tinypng.ErrTooManyRequests) || errors.Is(dlErr, tinypng.ErrUnauthorized) {
+					w.keeper.Remove(key)
+				}
+
+				return dlErr
 			}
 
 			return nil

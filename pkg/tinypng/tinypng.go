@@ -14,11 +14,10 @@ import (
 	"time"
 )
 
-const (
-	WithoutTimeout = time.Duration(0) // Special value for timeouts disabling.
+// WithoutTimeout is special value for timeouts disabling.
+const WithoutTimeout = time.Duration(0)
 
-	shrinkEndpoint = "https://api.tinify.com/shrink" // API endpoint for images shrinking.
-)
+const shrinkEndpoint = "https://api.tinify.com/shrink" // API endpoint for images shrinking.
 
 // var DefaultClient *Client = NewClient("")
 
@@ -334,6 +333,9 @@ func (c *Client) downloadImage(url string, dest io.Writer, timeout time.Duration
 		switch code {
 		case http.StatusUnauthorized:
 			return 0, ErrUnauthorized
+
+		case http.StatusTooManyRequests:
+			return 0, ErrTooManyRequests
 
 		default:
 			return 0, errors.New(errorsPrefix + " " + c.parseServerError(resp.Body).Error())

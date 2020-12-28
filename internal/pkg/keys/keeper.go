@@ -1,3 +1,4 @@
+// Package keys provides Keeper struct for concurrent API keys management.
 package keys
 
 import (
@@ -11,6 +12,7 @@ type Keeper struct {
 	state map[string]struct{}
 }
 
+// ErrKeyNotExists occurred when keeper does not contains keys.
 var ErrKeyNotExists = errors.New("key not exists")
 
 // NewKeeper creates new keeper instance.
@@ -59,7 +61,7 @@ func (k *Keeper) remove(keys ...string) {
 	}
 }
 
-// Get the key which does not exceed the maximum count of errors. If none exists, ErrNoUsableKey will be returned.
+// Get the key which does not exceed the maximum count of errors. If none exists, ErrKeyNotExists will be returned.
 func (k *Keeper) Get() (string, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()

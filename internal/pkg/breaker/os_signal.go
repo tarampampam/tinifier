@@ -1,3 +1,4 @@
+// Package breaker provides OSSignals struct for OS signals handling (with context).
 package breaker
 
 import (

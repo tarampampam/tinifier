@@ -1,3 +1,4 @@
+// Package version is used as a place, where application version defined.
 package version
 
 import "strings"

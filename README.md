@@ -28,7 +28,7 @@ Download latest binary file for your os/arch from [releases page][link_releases]
 [![Go Reference][badge_go_reference]][link_gopkg]
 [![Go Report][badge_goreport]][link_goreport]
 
-Install the API client with go get:
+Install the API client with `go get`:
 
 ```bash
 $ go get -u github.com/tarampampam/tinifier/v3

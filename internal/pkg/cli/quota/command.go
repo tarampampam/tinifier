@@ -1,3 +1,4 @@
+// Package quota contains CLI `quota` command implementation.
 package quota
 
 import (

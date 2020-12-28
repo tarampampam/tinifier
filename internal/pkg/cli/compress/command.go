@@ -1,3 +1,4 @@
+// Package compress contains CLI `compress` command implementation.
 package compress
 
 import (

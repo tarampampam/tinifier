@@ -1,3 +1,4 @@
+// Package version contains CLI `version` command implementation.
 package version
 
 import (

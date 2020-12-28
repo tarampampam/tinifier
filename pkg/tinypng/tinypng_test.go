@@ -407,6 +407,24 @@ func TestClient_DownloadImageUnauthorized(t *testing.T) {
 	assert.Equal(t, ErrUnauthorized, err)
 }
 
+func TestClient_DownloadImageTooManyRequests(t *testing.T) {
+	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
+		assert.Equal(t, "https://example.com/foo", req.URL.String())
+
+		return &http.Response{
+			Header:     http.Header{},
+			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			StatusCode: http.StatusTooManyRequests, // <-- important
+		}, nil
+	}
+
+	written, err := NewClient("", WithHTTPClient(httpMock)).
+		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+
+	assert.Zero(t, written)
+	assert.Equal(t, ErrTooManyRequests, err)
+}
+
 func TestClient_DownloadImage4xxError(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{

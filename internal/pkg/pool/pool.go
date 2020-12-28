@@ -1,3 +1,4 @@
+// Package pool provides compressing pipeline implementation.
 package pool
 
 import (
