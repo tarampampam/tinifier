@@ -19,7 +19,6 @@ func NewCommand() *cobra.Command {
 		Short:   "Display application version",
 		Run: func(*cobra.Command, []string) {
 			_, _ = fmt.Fprintf(os.Stdout, "app version:\t%s (%s)\n", version.Version(), runtime.Version())
-			runtime.Version()
 		},
 	}
 }
