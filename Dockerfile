@@ -31,12 +31,18 @@ RUN set -x \
     && /tmp/tinifier -h
 
 # prepare rootfs for runtime
+RUN mkdir -p /tmp/rootfs
+
+WORKDIR /tmp/rootfs
+
 RUN set -x \
-    && mkdir -p /tmp/rootfs/etc/ssl \
-    && mkdir -p /tmp/rootfs/bin \
-    && cp -R /etc/ssl/certs /tmp/rootfs/etc/ssl/certs \
-    && echo 'appuser:x:10001:10001::/nonexistent:/sbin/nologin' > /tmp/rootfs/etc/passwd \
-    && mv /tmp/tinifier /tmp/rootfs/bin/tinifier
+    && mkdir -p \
+        ./etc/ssl \
+        ./bin \
+    && cp -R /etc/ssl/certs ./etc/ssl/certs \
+    && echo 'appuser:x:10001:10001::/nonexistent:/sbin/nologin' > ./etc/passwd \
+    && echo 'appuser:x:10001:' > ./etc/group \
+    && mv /tmp/tinifier ./bin/tinifier
 
 # use empty filesystem
 FROM scratch
@@ -56,6 +62,6 @@ LABEL \
 COPY --from=builder /tmp/rootfs /
 
 # Use an unprivileged user
-USER appuser
+USER appuser:appuser
 
 ENTRYPOINT ["/bin/tinifier"]
