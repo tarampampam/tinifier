@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v3.1.0
+
+- Go version updated from `1.15.7` up to `1.16.0`
+
 ## v3.0.1
 
 ### Fixed
