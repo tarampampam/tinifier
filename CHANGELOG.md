@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 
 ## v3.1.0
 
+### Changed
+
 - Go version updated from `1.15.7` up to `1.16.0`
 
 ## v3.0.1
