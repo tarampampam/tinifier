@@ -136,12 +136,23 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1 # Action page: <https://github.com/docker/setup-buildx-action>
+        id: buildx
+
       - name: Generate version value
         id: version # for PR this value will be `merge@__hash__`, SO: <https://stackoverflow.com/a/59780579/2252921>
         run: echo "::set-output name=value::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`@`echo ${GITHUB_SHA} | cut -c1-8`"
 
       - name: Build image
-        run: docker build -t tinifier:local --build-arg "APP_VERSION=${{ steps.version.outputs.value }}" -f ./Dockerfile .
+        run: |
+          docker buildx build \
+            --platform ${{ steps.buildx.outputs.platforms }} \
+            --tag "tinifier:local" \
+            --build-arg "APP_VERSION=${{ steps.version.outputs.value }}" \
+            --file ./Dockerfile \
+            --push \
+            .
 
       - name: Try to execute
         run: docker run --rm tinifier:local version

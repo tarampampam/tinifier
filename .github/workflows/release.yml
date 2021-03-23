@@ -67,6 +67,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1 # Action page: <https://github.com/docker/setup-buildx-action>
+        id: buildx
+
       - name: Docker login in default registry
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_LOGIN }}" --password-stdin
 
@@ -79,12 +83,15 @@ jobs:
 
       - name: Build image
         run: |
-          docker build \
+          docker buildx build \
+            --platform ${{ steps.buildx.outputs.platforms }} \
             --tag "tarampampam/tinifier:${{ steps.values.outputs.version }}" \
             --tag "tarampampam/tinifier:latest" \
             --tag "ghcr.io/tarampampam/tinifier:${{ steps.values.outputs.version }}" \
             --tag "ghcr.io/tarampampam/tinifier:latest" \
             --build-arg "APP_VERSION=${{ steps.values.outputs.version }}" \
+            --file ./Dockerfile \
+            --push \
             .
 
       - name: Push image into default registry
