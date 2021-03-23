@@ -151,7 +151,6 @@ jobs:
             --tag "tinifier:local" \
             --build-arg "APP_VERSION=${{ steps.version.outputs.value }}" \
             --file ./Dockerfile \
-            --push \
             .
 
       - name: Try to execute
