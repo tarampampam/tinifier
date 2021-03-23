@@ -7,12 +7,6 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.16.0-alpine as builder
 # e.g.: `docker build --build-arg "APP_VERSION=v1.2.3@GITHASH" .`
 ARG APP_VERSION="undefined@docker"
 
-RUN printf "I'm building for TARGETPLATFORM=${TARGETPLATFORM}" \
-    && printf ", TARGETARCH=${TARGETARCH}" \
-    && printf ", TARGETVARIANT=${TARGETVARIANT} \n" \
-    && printf "With uname -s : " && uname -s \
-    && printf "and  uname -m : " && uname -m
-
 RUN set -x \
     && mkdir /src \
     && apk add --no-cache ca-certificates \
