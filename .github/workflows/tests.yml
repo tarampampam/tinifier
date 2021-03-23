@@ -136,24 +136,12 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1 # Action page: <https://github.com/docker/setup-qemu-action>
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1 # Action page: <https://github.com/docker/setup-buildx-action>
-
       - name: Generate version value
         id: version # for PR this value will be `merge@__hash__`, SO: <https://stackoverflow.com/a/59780579/2252921>
         run: echo "::set-output name=value::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`@`echo ${GITHUB_SHA} | cut -c1-8`"
 
       - name: Build image
-        run: |
-          docker buildx build \
-            --platform "linux/amd64,linux/386,linux/arm64,linux/arm/v6,linux/arm/v7" \
-            --tag "tinifier:local" \
-            --build-arg "APP_VERSION=${{ steps.version.outputs.value }}" \
-            --file ./Dockerfile \
-            .
+        run: docker build -t tinifier:local --build-arg "APP_VERSION=${{ steps.version.outputs.value }}" -f ./Dockerfile .
 
       - name: Try to execute
         run: docker run --rm tinifier:local version
