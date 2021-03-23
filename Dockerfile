@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.2
 
 # Image page: <https://hub.docker.com/_/golang>
-FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.16.0-alpine as builder
+FROM --platform=${TARGETPLATFORM:-linux/amd64} golang:1.16.2-alpine as builder
 
 # can be passed with any prefix (like `v1.2.3@GITHASH`)
 # e.g.: `docker build --build-arg "APP_VERSION=v1.2.3@GITHASH" .`
@@ -14,13 +14,6 @@ RUN set -x \
 
 WORKDIR /src
 
-COPY ./go.mod ./go.sum ./
-
-# Burn modules cache
-RUN set -x \
-    && go mod download \
-    && go mod verify
-
 COPY . .
 
 # arguments to pass on each go tool link invocation
@@ -28,7 +21,7 @@ ENV LDFLAGS="-s -w -X github.com/tarampampam/tinifier/v3/internal/pkg/version.ve
 
 RUN set -x \
     && go version \
-    && CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/main.go \
+    && CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/ \
     && /tmp/tinifier version \
     && /tmp/tinifier -h
 

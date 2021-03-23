@@ -4,7 +4,8 @@ package cli
 import (
 	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/compress"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/quota"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/version"
+	versionCmd "github.com/tarampampam/tinifier/v3/internal/pkg/cli/version"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/version"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -32,7 +33,7 @@ func NewCommand(log *zap.Logger, atomicLogLevel *zap.AtomicLevel, appName string
 	cmd.AddCommand(
 		compress.NewCommand(log),
 		quota.NewCommand(log),
-		version.NewCommand(),
+		versionCmd.NewCommand(version.Version()),
 	)
 
 	return cmd
