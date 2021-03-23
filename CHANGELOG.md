@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v3.2.0
+
+### Added
+
+- Support for `linux/386`, `linux/arm64`, `linux/arm/v6` and `linux/arm/v7` platforms for docker image
+
 ## v3.1.0
 
 ### Changed
