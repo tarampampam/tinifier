@@ -3,15 +3,12 @@ package cli
 import (
 	"testing"
 
-	"go.uber.org/zap"
-
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSubcommands(t *testing.T) {
-	atom := zap.NewAtomicLevel()
-	cmd := NewCommand(zap.NewNop(), &atom, "unit test")
+	cmd := NewCommand("unit test")
 
 	cases := []struct {
 		giveName string
@@ -37,8 +34,7 @@ func TestSubcommands(t *testing.T) {
 }
 
 func TestFlags(t *testing.T) {
-	atom := zap.NewAtomicLevel()
-	cmd := NewCommand(zap.NewNop(), &atom, "unit test")
+	cmd := NewCommand("unit test")
 
 	cases := []struct {
 		giveName      string

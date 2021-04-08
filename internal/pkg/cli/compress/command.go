@@ -12,18 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/env"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/files"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/keys"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
-
-	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-)
-
-const (
-	apiKeyEnvName         = "TINYPNG_API_KEY"
-	apiKeyMinLength uint8 = 8
 )
 
 // NewCommand creates `compress` command.
@@ -51,12 +46,14 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 			}
 
 			if len(apiKeys) == 0 {
-				if envAPIKey, exists := os.LookupEnv(apiKeyEnvName); exists {
+				if envAPIKey, exists := env.TinyPngAPIKey.Lookup(); exists {
 					apiKeys = append(apiKeys, envAPIKey)
 				} else {
 					return errors.New("API key was not provided")
 				}
 			}
+
+			const apiKeyMinLength uint8 = 8
 
 			for i := 0; i < len(apiKeys); i++ {
 				if uint8(len(apiKeys[i])) <= apiKeyMinLength {
@@ -99,7 +96,7 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 		[]string{}, // default
 		fmt.Sprintf(
 			"TinyPNG API key <https://tinypng.com/dashboard/api> (multiple keys are allowed) [$%s]",
-			apiKeyEnvName,
+			env.TinyPngAPIKey.String(),
 		),
 	)
 
@@ -176,7 +173,7 @@ func execute( //nolint:funlen
 	p := pool.NewPool(ctx, newWorker(
 		log,
 		&keeper,
-		5,                    //nolint:gomnd
+		5,
 		time.Millisecond*700, //nolint:gomnd
 	))
 

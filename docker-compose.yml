@@ -17,7 +17,7 @@ services:
       - tmp-data:/tmp:cached
 
   golint:
-    image: golangci/golangci-lint:v1.33-alpine # Image page: <https://hub.docker.com/r/golangci/golangci-lint>
+    image: golangci/golangci-lint:v1.39-alpine # Image page: <https://hub.docker.com/r/golangci/golangci-lint>
     volumes:
       - .:/src:ro
     working_dir: /src

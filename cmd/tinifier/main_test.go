@@ -4,53 +4,38 @@ import (
 	"os"
 	"testing"
 
-	"bou.ke/monkey"
 	"github.com/kami-zh/go-capturer"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_Main(t *testing.T) {
-	origFlags := make([]string, 0)
-	origFlags = append(origFlags, os.Args...)
-
-	defer func() { os.Args = origFlags }()
-
 	os.Args = []string{"", "--help"}
+	exitFn = func(code int) { assert.Equal(t, 0, code) }
 
-	output := capturer.CaptureStdout(func() {
-		main()
-	})
+	output := capturer.CaptureStdout(main)
 
 	assert.Contains(t, output, "Usage:")
 	assert.Contains(t, output, "Available Commands:")
 	assert.Contains(t, output, "Flags:")
 }
 
-func Test_MainWrongCommand(t *testing.T) {
-	origFlags := make([]string, 0)
-	origFlags = append(origFlags, os.Args...)
+func Test_MainWithoutCommands(t *testing.T) {
+	os.Args = []string{""}
+	exitFn = func(code int) { assert.Equal(t, 0, code) }
 
-	defer func() { os.Args = origFlags }()
+	output := capturer.CaptureStdout(main)
 
-	var (
-		osExitGuard *monkey.PatchGuard
-		exitCode    int = 666
-	)
+	assert.Contains(t, output, "Usage:")
+	assert.Contains(t, output, "Available Commands:")
+	assert.Contains(t, output, "Flags:")
+}
 
-	osExitGuard = monkey.Patch(os.Exit, func(code int) {
-		osExitGuard.Unpatch()
-		defer osExitGuard.Restore()
+func Test_MainUnknownSubcommand(t *testing.T) {
+	os.Args = []string{"", "foobar"}
+	exitFn = func(code int) { assert.Equal(t, 1, code) }
 
-		exitCode = code
-	})
-
-	os.Args = []string{"", "foo bar"}
-
-	output := capturer.CaptureStdout(func() {
-		main()
-	})
+	output := capturer.CaptureStderr(main)
 
 	assert.Contains(t, output, "unknown command")
-	assert.Contains(t, output, "foo bar")
-	assert.Equal(t, 1, exitCode)
+	assert.Contains(t, output, "foobar")
 }

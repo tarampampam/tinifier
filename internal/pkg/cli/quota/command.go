@@ -8,17 +8,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
-	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
-
 	"github.com/spf13/cobra"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
+	"github.com/tarampampam/tinifier/v3/internal/pkg/env"
+	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
 	"go.uber.org/zap"
-)
-
-const (
-	apiKeyEnvName      string = "TINYPNG_API_KEY"
-	apiKeyMinLength    uint8  = 8
-	httpRequestTimeout        = time.Second * 5
 )
 
 // NewCommand creates `quota` command.
@@ -31,14 +25,16 @@ func NewCommand(log *zap.Logger) *cobra.Command {
 		Short:   "Get currently used quota",
 		PreRunE: func(*cobra.Command, []string) error {
 			if APIKey == "" {
-				if envAPIKey, exists := os.LookupEnv(apiKeyEnvName); exists {
+				if envAPIKey, exists := env.TinyPngAPIKey.Lookup(); exists {
 					APIKey = envAPIKey
 				} else {
 					return errors.New("API key was not provided")
 				}
 			}
 
-			if uint8(len(APIKey)) <= apiKeyMinLength {
+			const apiKeyMinLength = 8
+
+			if len(APIKey) <= apiKeyMinLength {
 				return fmt.Errorf("API key (%s) is too short", APIKey)
 			}
 
@@ -54,14 +50,14 @@ func NewCommand(log *zap.Logger) *cobra.Command {
 		"api-key", // name
 		"k",       // short
 		"",        // default
-		fmt.Sprintf("TinyPNG API key <https://tinypng.com/dashboard/api> [$%s]", apiKeyEnvName),
+		fmt.Sprintf("TinyPNG API key <https://tinypng.com/dashboard/api> [$%s]", env.TinyPngAPIKey.String()),
 	)
 
 	return cmd
 }
 
 // execute current command.
-func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
+func execute(log *zap.Logger, apiKey string) error {
 	log.Debug("Running", zap.String("api key", apiKey))
 
 	var (
@@ -82,12 +78,11 @@ func execute(log *zap.Logger, apiKey string) error { //nolint:funlen
 
 	countCh, errCh := make(chan uint64), make(chan error)
 
+	const httpRequestTimeout = time.Second * 5
+
 	// execute client call in separate goroutine
 	go func(countCh chan<- uint64, errCh chan<- error, apiKey string) {
-		defer func() {
-			close(countCh)
-			close(errCh)
-		}()
+		defer func() { close(countCh); close(errCh) }()
 
 		client := tinypng.NewClient(apiKey, tinypng.WithContext(ctx))
 
