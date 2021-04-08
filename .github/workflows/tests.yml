@@ -6,7 +6,11 @@ on:
       - master
     tags-ignore:
       - '**'
+    paths-ignore:
+      - '**.md'
   pull_request:
+    paths-ignore:
+      - '**.md'
 
 jobs:
   golangci-lint:
@@ -19,7 +23,7 @@ jobs:
       - name: Run linter
         uses: golangci/golangci-lint-action@v2 # Action page: <https://github.com/golangci/golangci-lint-action>
         with:
-          version: v1.33 # without patch version
+          version: v1.38 # without patch version
           only-new-issues: false # show only new issues if it's a pull request
 
   gitleaks:
@@ -54,6 +58,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 2 # Fixes codecov error 'Issue detecting commit SHA'
 
       - name: Go modules Cache # Docs: <https://git.io/JfAKn#go---modules>
         uses: actions/cache@v2
@@ -84,6 +90,9 @@ jobs:
       matrix:
         os: [linux, windows, darwin] # linux, freebsd, darwin, windows
         arch: [amd64]                # amd64, 386
+        include:
+          - os: linux
+            arch: 386
     needs: [golangci-lint, go-test]
     steps:
       - name: Set up Go

@@ -5,31 +5,26 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fatih/color"
 	"github.com/tarampampam/tinifier/v3/internal/pkg/cli"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-func main() {
-	var atomicLogLevel, logEncoderConfig = zap.NewAtomicLevel(), zap.NewDevelopmentEncoderConfig()
+// exitFn is a function for application exiting.
+var exitFn = os.Exit //nolint:gochecknoglobals
 
-	logEncoderConfig.EncodeLevel = zapcore.LowercaseColorLevelEncoder
-	logEncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
+// main CLI application entrypoint.
+func main() { exitFn(run()) }
 
-	logger := zap.New(zapcore.NewCore(
-		zapcore.NewConsoleEncoder(logEncoderConfig),
-		zapcore.Lock(os.Stdout),
-		atomicLogLevel,
-	))
-
-	defer func() {
-		_ = logger.Sync()
-	}()
-
-	var cmd = cli.NewCommand(logger, &atomicLogLevel, filepath.Base(os.Args[0]))
+// run this CLI application.
+// Exit codes documentation: <https://tldp.org/LDP/abs/html/exitcodes.html>
+func run() int {
+	cmd := cli.NewCommand(filepath.Base(os.Args[0]))
 
 	if err := cmd.Execute(); err != nil {
-		logger.Fatal(err.Error()) // `os.Exit(1)` here
+		_, _ = color.New(color.FgHiRed, color.Bold).Fprintln(os.Stderr, err.Error())
+
+		return 1
 	}
+
+	return 0
 }
