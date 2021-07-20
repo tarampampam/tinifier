@@ -135,7 +135,7 @@ jobs:
           name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
           path: /tmp/tinifier
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   image:
     name: Build docker image
