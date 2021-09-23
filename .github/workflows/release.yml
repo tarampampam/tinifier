@@ -21,17 +21,17 @@ jobs:
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
-        with:
-          go-version: 1.17
+        with: {go-version: 1.17}
 
       - name: Check out code
         uses: actions/checkout@v2
 
+      - uses: gacts/github-slug@v1
+        id: slug
+
       - name: Generate builder values
         id: values
-        run: |
-          echo "::set-output name=version::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`"
-          echo "::set-output name=binary-name::tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`"
+        run: echo "::set-output name=binary-name::tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`"
 
       - name: Install Go dependencies
         run: go mod download
@@ -41,7 +41,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
-          LDFLAGS: -s -w -X github.com/tarampampam/tinifier/v3/internal/pkg/version.version=${{ steps.values.outputs.version }}
+          LDFLAGS: -s -w -X github.com/tarampampam/tinifier/v3/internal/pkg/version.version=${{ steps.slug.outputs.version }}
         run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.binary-name }}" ./cmd/tinifier/main.go
 
       - name: Upload binaries to release
@@ -58,6 +58,9 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
+
+      - uses: gacts/github-slug@v1
+        id: slug
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1 # Action page: <https://github.com/docker/setup-qemu-action>
@@ -78,22 +81,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PASSWORD }}
 
-      - name: Generate builder values
-        id: values
-        run: echo "::set-output name=version::`echo ${GITHUB_REF##*/} | sed -e 's/^[vV ]*//'`"
-
-      - name: Build image
-        run: |
-          docker buildx build \
-            --platform "linux/amd64,linux/386,linux/arm64,linux/arm/v6,linux/arm/v7" \
-            --tag "tarampampam/tinifier:${{ steps.values.outputs.version }}" \
-            --tag "tarampampam/tinifier:latest" \
-            --tag "ghcr.io/${{ github.actor }}/tinifier:${{ steps.values.outputs.version }}" \
-            --tag "ghcr.io/${{ github.actor }}/tinifier:latest" \
-            --build-arg "APP_VERSION=${{ steps.values.outputs.version }}" \
-            --file ./Dockerfile \
-            --push \
-            .
+      - uses: docker/build-push-action@v2 # Action page: <https://github.com/docker/build-push-action>
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v6,linux/arm/v7
+          build-args: "APP_VERSION=${{ steps.slug.outputs.version }}"
+          tags: |
+            tarampampam/tinifier:${{ steps.slug.outputs.version }}
+            tarampampam/tinifier:latest
+            ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ steps.slug.outputs.version }}
+            ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:latest
 
   godocs:
     name: Renew docs and cache (${{ matrix.proxy }})
@@ -109,11 +108,13 @@ jobs:
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
-        with:
-          go-version: 1.17
+        with: {go-version: 1.17}
+
+      - uses: gacts/github-slug@v1
+        id: slug
 
       - name: Get the module using proxy
         env:
           GO111MODULE: on
           GOPROXY: ${{ matrix.proxy }}
-        run: go get -v -x -u "github.com/tarampampam/tinifier/v3@`echo ${GITHUB_REF##*/}`"
+        run: go get -v -x -u "github.com/tarampampam/tinifier/v3@${{ steps.slug.outputs.tag-name }}"
