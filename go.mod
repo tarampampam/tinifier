@@ -5,7 +5,7 @@ go 1.16
 require (
 	bou.ke/monkey v1.0.2
 	github.com/dustin/go-humanize v1.0.0
-	github.com/fatih/color v1.12.0
+	github.com/fatih/color v1.13.0
 	github.com/kami-zh/go-capturer v0.0.0-20171211120116-e492ea43421d
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/errors v0.9.1
