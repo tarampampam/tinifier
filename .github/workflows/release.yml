@@ -102,7 +102,7 @@ jobs:
       matrix:
         proxy:
           - https://proxy.golang.org
-          - https://gocenter.io
+          #- https://gocenter.io
           - https://goproxy.cn
           - https://goproxy.dev
     steps:
