@@ -52,7 +52,7 @@ jobs:
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
-        with: {go-version: 1.17}
+        with: {go-version: 1.18}
 
       - name: Check out code
         uses: actions/checkout@v2
@@ -95,7 +95,7 @@ jobs:
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
-        with: {go-version: 1.17}
+        with: {go-version: 1.18}
 
       - name: Check out code
         uses: actions/checkout@v2
