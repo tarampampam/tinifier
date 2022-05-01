@@ -126,7 +126,7 @@ jobs:
         run: /tmp/tinifier version && /tmp/tinifier -h
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
           path: /tmp/tinifier
