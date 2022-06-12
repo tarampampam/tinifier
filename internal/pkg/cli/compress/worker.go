@@ -158,7 +158,7 @@ func (w *Worker) Download(ctx context.Context, url string, toFilePath string) (p
 
 			tiny.SetAPIKey(key)
 
-			file, err := os.OpenFile(toFilePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+			file, err := os.OpenFile(toFilePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644) //nolint:gomnd
 			if err != nil {
 				return err
 			}
