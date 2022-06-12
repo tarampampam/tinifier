@@ -6,7 +6,7 @@ import "os"
 type envVariable string
 
 const (
-	TinyPngAPIKey envVariable = "TINYPNG_API_KEY" // TinyPNG API key
+	TinyPngAPIKey envVariable = "TINYPNG_API_KEY" //nolint:gosec // TinyPNG API key
 )
 
 // String returns environment variable name in the string representation.

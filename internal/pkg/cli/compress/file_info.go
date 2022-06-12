@@ -28,7 +28,7 @@ func newFileInfo(path string) (*fileInfo, error) {
 		return nil, err
 	}
 
-	buf := make([]byte, 32) // 32 bytes are enough for images
+	buf := make([]byte, 32) //nolint:gomnd // 32 bytes are enough for images
 
 	if _, err = io.ReadFull(file, buf); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return nil, err

@@ -120,7 +120,7 @@ func NewCommand(log *zap.Logger) *cobra.Command { //nolint:funlen
 		&maxErrorsToStop, // var
 		"max-errors",     // name
 		"",               // short
-		10,               // default
+		10,               //nolint:gomnd // default
 		"maximum errors count to stop the process, set 0 to disable",
 	)
 
@@ -173,7 +173,7 @@ func execute( //nolint:funlen
 	p := pool.NewPool(ctx, newWorker(
 		log,
 		&keeper,
-		5,
+		5,                    //nolint:gomnd
 		time.Millisecond*700, //nolint:gomnd
 	))
 
