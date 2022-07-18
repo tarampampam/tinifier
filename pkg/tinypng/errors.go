@@ -5,7 +5,7 @@ import "strings"
 // Package-specific errors prefix.
 const errorsPrefix = "tinypng.com:"
 
-// Special type for package-specific errors.
+// Error is a special type for package-specific errors.
 type Error uint8
 
 // Error returns error in a string representation.

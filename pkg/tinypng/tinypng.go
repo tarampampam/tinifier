@@ -11,15 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
-// WithoutTimeout is special value for timeouts disabling.
-const WithoutTimeout = time.Duration(0)
-
 const shrinkEndpoint = "https://api.tinify.com/shrink" // API endpoint for images shrinking.
-
-// var DefaultClient *Client = NewClient("")
 
 type httpClient interface {
 	// Do sends an HTTP request and returns an HTTP response.
@@ -27,62 +21,36 @@ type httpClient interface {
 }
 
 type Client struct {
-	// Client context is used for requests making. It allows to cancel any "long" requests or limit them with timeout.
-	ctx context.Context
+	httpClient httpClient // HTTP client for requests making
 
-	// Mutex is used for apiKey concurrent access protection.
-	mu sync.Mutex
-
-	// API key for requests making (get own on <https://tinypng.com/developers>).
-	apiKey string
-
-	// This timeout will be used for requests execution time limiting by default. Set WithoutTimeout (or simply `0`)
-	// for timeouts disabling (is used by default).
-	defaultTimeout time.Duration
-
-	// HTTP client for requests making.
-	httpClient httpClient
+	apiKeyMu sync.RWMutex
+	apiKey   string // API key for requests making (get own on <https://tinypng.com/developers>)
 }
 
 type (
-	compressionInput struct {
-		Size uint64 `json:"size"` // eg.: 37745
-		Type string `json:"type"` // eg.: image/png
-	}
-
-	compressionOutput struct {
-		Size   uint64  `json:"size"`   // eg.: 35380
-		Type   string  `json:"type"`   // eg.: image/png
-		Width  uint64  `json:"width"`  // eg.: 512
-		Height uint64  `json:"height"` // eg.: 512
-		Ratio  float32 `json:"ratio"`  // eg.: 0.9373
-		URL    string  `json:"url"`    // eg.: https://api.tinify.com/output/foobar
-	}
-
 	CompressionResult struct {
-		Input            compressionInput  `json:"input"`
-		Output           compressionOutput `json:"output"`
-		CompressionCount uint64            // used quota value
+		Input struct {
+			Size uint64 `json:"size"` // eg.: 37745
+			Type string `json:"type"` // eg.: image/png
+		} `json:"input"`
+		Output struct {
+			Size   uint64  `json:"size"`   // eg.: 35380
+			Type   string  `json:"type"`   // eg.: image/png
+			Width  uint64  `json:"width"`  // eg.: 512
+			Height uint64  `json:"height"` // eg.: 512
+			Ratio  float32 `json:"ratio"`  // eg.: 0.9373
+			URL    string  `json:"url"`    // eg.: https://api.tinify.com/output/foobar
+		} `json:"output"`
+		CompressionCount uint64 // used quota value
 	}
 )
 
 // NewClient creates new tinypng client instance. Options can be used to fine client tuning.
 func NewClient(apiKey string, options ...ClientOption) *Client {
-	c := &Client{
-		apiKey:         apiKey,
-		defaultTimeout: WithoutTimeout,
-	}
+	c := &Client{apiKey: apiKey, httpClient: new(http.Client)}
 
-	for i := 0; i < len(options); i++ {
-		options[i](c)
-	}
-
-	if c.ctx == nil {
-		c.ctx = context.Background()
-	}
-
-	if c.httpClient == nil {
-		c.httpClient = new(http.Client)
+	for _, opt := range options {
+		opt(c)
 	}
 
 	return c
@@ -90,33 +58,22 @@ func NewClient(apiKey string, options ...ClientOption) *Client {
 
 // SetAPIKey sets API key for requests making.
 func (c *Client) SetAPIKey(key string) {
-	c.mu.Lock()
+	c.apiKeyMu.Lock()
 	c.apiKey = key
-	c.mu.Unlock()
+	c.apiKeyMu.Unlock()
 }
 
-// Compress reads image from passed source and compress them on tinypng side. Compressed result will be wrote to the
+// Compress reads image from passed source and compress them on tinypng side. Compressed result will be written to the
 // passed destination (additional information about compressed image will be returned too).
-// You can use two timeouts - first for image uploading and response waiting, and second - for image downloading.
 // If the provided src is also an io.Closer - it will be closed automatically by HTTP client (if default HTTP client is
 // used).
-func (c *Client) Compress(src io.Reader, dest io.Writer, timeouts ...time.Duration) (*CompressionResult, error) {
-	var compressTimeout, downloadTimeout = c.defaultTimeout, c.defaultTimeout // setup defaults
-
-	if len(timeouts) > 0 {
-		compressTimeout = timeouts[0]
-	}
-
-	result, err := c.compressImage(src, compressTimeout)
+func (c *Client) Compress(ctx context.Context, src io.Reader, dest io.Writer) (*CompressionResult, error) {
+	result, err := c.CompressImage(ctx, src)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(timeouts) > 1 {
-		downloadTimeout = timeouts[1]
-	}
-
-	_, err = c.downloadImage(result.Output.URL, dest, downloadTimeout)
+	_, err = c.DownloadImage(ctx, result.Output.URL, dest)
 	if err != nil {
 		return nil, err
 	}
@@ -126,71 +83,63 @@ func (c *Client) Compress(src io.Reader, dest io.Writer, timeouts ...time.Durati
 
 // CompressionCount returns compressions count for current API key (used quota value). By default, for free API keys
 // quota is equals to 500.
-func (c *Client) CompressionCount(timeout ...time.Duration) (uint64, error) {
-	var t = c.defaultTimeout
-
-	if len(timeout) > 0 {
-		t = timeout[0]
+func (c *Client) CompressionCount(ctx context.Context) (uint64, error) {
+	// make a "fake" image uploading attempt for "Compression-Count" response header value reading.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, shrinkEndpoint, http.NoBody)
+	if err != nil {
+		return 0, err
 	}
 
-	return c.compressionCount(t)
+	c.setupRequestAuth(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+
+	_ = resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		return 0, ErrUnauthorized
+
+	default:
+		return c.extractCompressionCount(resp.Header)
+	}
+}
+
+// extractCompressionCount extracts `compression-count` header value from HTTP response headers.
+func (c *Client) extractCompressionCount(headers http.Header) (uint64, error) {
+	const headerName = "Compression-Count"
+
+	if val, ok := headers[headerName]; ok {
+		count, err := strconv.ParseUint(val[0], 10, 64) //nolint:gomnd
+		if err == nil {
+			return count, nil
+		}
+
+		return 0, fmt.Errorf("%s wrong HTTP header '%s' value: %w", errorsPrefix, headerName, err)
+	}
+
+	return 0, fmt.Errorf("%s HTTP header '%s' was not found", errorsPrefix, headerName)
 }
 
 // CompressImage uploads image content from passed source to the tinypng server for compression. When process is done -
 // compression result (just information, not compressed image content) will be returned.
 // If the provided src is also an io.Closer - it will be closed automatically by HTTP client (if default HTTP client is
 // used).
-func (c *Client) CompressImage(src io.Reader, timeout ...time.Duration) (*CompressionResult, error) {
-	var t = c.defaultTimeout
-
-	if len(timeout) > 0 {
-		t = timeout[0]
-	}
-
-	return c.compressImage(src, t)
-}
-
-// DownloadImage from remote server and write to the passed destination. It returns the number of written bytes.
-func (c *Client) DownloadImage(url string, dest io.Writer, timeout ...time.Duration) (int64, error) {
-	var t = c.defaultTimeout
-
-	if len(timeout) > 0 {
-		t = timeout[0]
-	}
-
-	return c.downloadImage(url, dest, t)
-}
-
-// requestCtx creates context (with cancellation function) for request making. Do not forget to call cancellation
-// function in your code anyway.
-func (c *Client) requestCtx(timeout time.Duration) (context.Context, context.CancelFunc) {
-	if timeout == WithoutTimeout {
-		return c.ctx, func() {
-			// do nothing
-		}
-	}
-
-	return context.WithTimeout(c.ctx, timeout)
-}
-
-// compressImage reads image content from src and sends them to the tinypng server with request timeout limitation.
-// If the provided src is also an io.Closer - it will be closed automatically by HTTP client (if default HTTP client is
-// used).
-func (c *Client) compressImage(src io.Reader, timeout time.Duration) (*CompressionResult, error) {
-	var ctx, cancel = c.requestCtx(timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, shrinkEndpoint, src)
-	if err != nil {
-		return nil, err
+func (c *Client) CompressImage(ctx context.Context, src io.Reader) (*CompressionResult, error) {
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, shrinkEndpoint, src)
+	if reqErr != nil {
+		return nil, reqErr
 	}
 
 	c.setupRequestAuth(req)
 	req.Header.Set("Accept", "application/json") // is not necessary, but looks correct
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
+	resp, respErr := c.httpClient.Do(req)
+	if respErr != nil {
+		return nil, respErr
 	}
 
 	defer func() {
@@ -231,100 +180,27 @@ func (c *Client) compressImage(src io.Reader, timeout time.Duration) (*Compressi
 	}
 }
 
-// compressionCount makes "fake" image uploading attempt for "Compression-Count" response header value reading.
-func (c *Client) compressionCount(timeout time.Duration) (uint64, error) {
-	var ctx, cancel = c.requestCtx(timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, shrinkEndpoint, nil)
-	if err != nil {
-		return 0, err
+// DownloadImage from remote server and write to the passed destination. It returns the number of written bytes.
+func (c *Client) DownloadImage(ctx context.Context, url string, dest io.Writer) (int64, error) {
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if reqErr != nil {
+		return 0, reqErr
 	}
 
 	c.setupRequestAuth(req)
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, err
+	resp, respErr := c.httpClient.Do(req)
+	if respErr != nil {
+		return 0, respErr
 	}
 
-	_ = resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusUnauthorized:
-		return 0, ErrUnauthorized
-
-	default:
-		return c.extractCompressionCount(resp.Header)
-	}
-}
-
-// setupRequestAuth sets all required properties for HTTP request (eg.: API key).
-func (c *Client) setupRequestAuth(request *http.Request) {
-	c.mu.Lock()
-	k := c.apiKey
-	c.mu.Unlock()
-
-	request.SetBasicAuth("api", k)
-}
-
-// extractCompressionCount extracts `compression-count` header value from HTTP response headers.
-func (c *Client) extractCompressionCount(headers http.Header) (uint64, error) {
-	const headerName = "Compression-Count"
-
-	if val, ok := headers[headerName]; ok {
-		count, err := strconv.ParseUint(val[0], 10, 64) //nolint:gomnd
-		if err == nil {
-			return count, nil
-		}
-
-		return 0, fmt.Errorf("%s wrong HTTP header '%s' value: %w", errorsPrefix, headerName, err)
-	}
-
-	return 0, fmt.Errorf("%s HTTP header '%s' was not found", errorsPrefix, headerName)
-}
-
-// parseServerError reads HTTP response content as a JSON-string, parse them and converts into go-error. This function
-// should never returns nil!
-func (c *Client) parseServerError(content io.Reader) error {
-	var e struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-	}
-
-	if err := json.NewDecoder(content).Decode(&e); err != nil {
-		return fmt.Errorf("error decoding failed: %w", err)
-	}
-
-	return fmt.Errorf("%s (%s)", e.Error, strings.Trim(e.Message, ". "))
-}
-
-// downloadImage downloads image by passed URL (usually from tinypng remote server) with request timeout limitation.
-func (c *Client) downloadImage(url string, dest io.Writer, timeout time.Duration) (int64, error) {
-	var ctx, cancel = c.requestCtx(timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return 0, err
-	}
-
-	c.setupRequestAuth(req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch code := resp.StatusCode; {
 	case code == http.StatusOK:
-		written, err := io.Copy(dest, resp.Body)
-		if err != nil {
-			return 0, err
+		written, writingErr := io.Copy(dest, resp.Body)
+		if writingErr != nil {
+			return written, writingErr
 		}
 
 		return written, nil
@@ -344,4 +220,26 @@ func (c *Client) downloadImage(url string, dest io.Writer, timeout time.Duration
 	default:
 		return 0, fmt.Errorf("%s unexpected HTTP response code (%d)", errorsPrefix, code)
 	}
+}
+
+// setupRequestAuth sets all required properties for HTTP request (eg.: API key).
+func (c *Client) setupRequestAuth(request *http.Request) {
+	c.apiKeyMu.RLock()
+	request.SetBasicAuth("api", c.apiKey)
+	c.apiKeyMu.RUnlock()
+}
+
+// parseServerError reads HTTP response content as a JSON-string, parse them and converts into go-error. This function
+// should never returns nil!
+func (c *Client) parseServerError(content io.Reader) error {
+	var e struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+
+	if err := json.NewDecoder(content).Decode(&e); err != nil {
+		return fmt.Errorf("error decoding failed: %w", err)
+	}
+
+	return fmt.Errorf("%s (%s)", e.Error, strings.Trim(e.Message, ". "))
 }

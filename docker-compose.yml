@@ -2,6 +2,7 @@ version: '3.2'
 
 volumes:
   tmp-data: {}
+  golint-go: {}
   golint-cache: {}
 
 services:
@@ -23,5 +24,6 @@ services:
       GOLANGCI_LINT_CACHE: /tmp/golint # <https://github.com/golangci/golangci-lint/blob/v1.42.0/internal/cache/default.go#L68>
     volumes:
       - .:/src:ro
+      - golint-go:/go:rw # go dependencies will be downloaded on each run without this
       - golint-cache:/tmp/golint:rw
     working_dir: /src

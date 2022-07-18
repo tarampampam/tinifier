@@ -1,4 +1,4 @@
-package tinypng
+package tinypng_test
 
 import (
 	"bytes"
@@ -10,25 +10,14 @@ import (
 	"net/http"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
 
-func ExampleNewClient() {
-	myContext := context.TODO()
-
-	NewClient("YOUR-API-KEY", WithContext(myContext), WithDefaultTimeout(time.Second*60))
-}
-
-func ExampleClient_SetAPIKey() {
-	c := NewClient("WRONG-KEY")
-
-	c.SetAPIKey("CORRECT-KEY")
-}
-
 func ExampleClient_Compress() {
-	c := NewClient("YOUR-API-KEY")
+	c := tinypng.NewClient("YOUR-API-KEY")
 
 	srcFile, err := os.OpenFile("/tmp/image.png", os.O_RDONLY, 0)
 	if err != nil {
@@ -42,7 +31,7 @@ func ExampleClient_Compress() {
 	}
 	defer destFile.Close()
 
-	info, err := c.Compress(srcFile, destFile, time.Second*60, time.Second*30)
+	info, err := c.Compress(context.TODO(), srcFile, destFile)
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +40,7 @@ func ExampleClient_Compress() {
 }
 
 func ExampleClient_CompressImage() {
-	c := NewClient("YOUR-API-KEY")
+	c := tinypng.NewClient("YOUR-API-KEY")
 
 	srcFile, err := os.OpenFile("/tmp/image.png", os.O_RDONLY, 0)
 	if err != nil {
@@ -59,7 +48,7 @@ func ExampleClient_CompressImage() {
 	}
 	defer srcFile.Close()
 
-	info, err := c.CompressImage(srcFile, time.Second*60)
+	info, err := c.CompressImage(context.TODO(), srcFile)
 	if err != nil {
 		panic(err)
 	}
@@ -75,14 +64,6 @@ func authHeaderValue(t *testing.T, apiKey string) string {
 	t.Helper()
 
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte("api:"+apiKey))
-}
-
-func TestClient_SetAPIKey(t *testing.T) {
-	c := NewClient("")
-
-	c.SetAPIKey("YOUR-API-KEY")
-
-	assert.Equal(t, "YOUR-API-KEY", c.apiKey)
 }
 
 func TestClient_CompressionCountSuccess(t *testing.T) {
@@ -102,7 +83,10 @@ func TestClient_CompressionCountSuccess(t *testing.T) {
 		}, nil
 	}
 
-	count, err := NewClient("foo-key", WithHTTPClient(httpMock), WithContext(ctx)).CompressionCount(time.Second)
+	c := tinypng.NewClient("wrong key", tinypng.WithHTTPClient(httpMock))
+	c.SetAPIKey("foo-key")
+
+	count, err := c.CompressionCount(context.TODO())
 
 	assert.Equal(t, uint64(123454321), count)
 	assert.NoError(t, err)
@@ -119,7 +103,7 @@ func TestClient_CompressionCountWrongHeaderValue(t *testing.T) {
 		}, nil
 	}
 
-	count, err := NewClient("", WithHTTPClient(httpMock)).CompressionCount()
+	count, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).CompressionCount(context.TODO())
 
 	assert.Equal(t, uint64(0), count)
 	assert.Error(t, err)
@@ -136,7 +120,7 @@ func TestClient_CompressionCountMissingHeader(t *testing.T) {
 		}, nil
 	}
 
-	count, err := NewClient("", WithHTTPClient(httpMock)).CompressionCount()
+	count, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).CompressionCount(context.TODO())
 
 	assert.Equal(t, uint64(0), count)
 	assert.Error(t, err)
@@ -148,7 +132,7 @@ func TestClient_CompressionCountHttpClientError(t *testing.T) {
 		return nil, errors.New("foo bar")
 	}
 
-	count, err := NewClient("", WithHTTPClient(httpMock)).CompressionCount()
+	count, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).CompressionCount(context.TODO())
 
 	assert.Equal(t, uint64(0), count)
 	assert.Error(t, err)
@@ -164,10 +148,10 @@ func TestClient_CompressionCountUnauthorized(t *testing.T) {
 		}, nil
 	}
 
-	count, err := NewClient("", WithHTTPClient(httpMock)).CompressionCount()
+	count, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).CompressionCount(context.TODO())
 
 	assert.Equal(t, uint64(0), count)
-	assert.Equal(t, ErrUnauthorized, err)
+	assert.Equal(t, tinypng.ErrUnauthorized, err)
 }
 
 func TestClient_CompressImageSuccessful(t *testing.T) {
@@ -212,7 +196,7 @@ func TestClient_CompressImageSuccessful(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("bar-key", WithHTTPClient(httpMock), WithContext(ctx)).CompressImage(file, time.Second)
+	info, err := tinypng.NewClient("bar-key", tinypng.WithHTTPClient(httpMock)).CompressImage(ctx, file)
 
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(4633), info.Input.Size)
@@ -241,7 +225,7 @@ func TestClient_CompressImageWrongJsonResponse(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(file)
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).CompressImage(context.TODO(), file)
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
@@ -257,10 +241,11 @@ func TestClient_CompressImageUnauthorized(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
-	assert.Equal(t, ErrUnauthorized, err)
+	assert.Equal(t, tinypng.ErrUnauthorized, err)
 }
 
 func TestClient_CompressImageTooManyRequests(t *testing.T) {
@@ -272,10 +257,11 @@ func TestClient_CompressImageTooManyRequests(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
-	assert.Equal(t, ErrTooManyRequests, err)
+	assert.Equal(t, tinypng.ErrTooManyRequests, err)
 }
 
 func TestClient_CompressImageBadRequests(t *testing.T) {
@@ -287,10 +273,11 @@ func TestClient_CompressImageBadRequests(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
-	assert.Equal(t, ErrBadRequest, err)
+	assert.Equal(t, tinypng.ErrBadRequest, err)
 }
 
 func TestClient_CompressImageHTTPErrorAbove599(t *testing.T) {
@@ -302,7 +289,8 @@ func TestClient_CompressImageHTTPErrorAbove599(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
@@ -318,7 +306,8 @@ func TestClient_CompressImage4xxError(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
@@ -334,7 +323,8 @@ func TestClient_CompressImage4xxErrorWithWrongJson(t *testing.T) {
 		}, nil
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
@@ -346,7 +336,8 @@ func TestClient_CompressImageHttpClientError(t *testing.T) {
 		return nil, errors.New("foo bar")
 	}
 
-	info, err := NewClient("", WithHTTPClient(httpMock)).CompressImage(bytes.NewReader([]byte{}))
+	info, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		CompressImage(context.TODO(), bytes.NewReader([]byte{}))
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
@@ -381,8 +372,8 @@ func TestClient_DownloadImageSuccessful(t *testing.T) {
 
 	dest := bytes.NewBuffer([]byte{})
 
-	written, err := NewClient("baz-key", WithHTTPClient(httpMock), WithContext(ctx)).
-		DownloadImage("https://api.tinify.com/output/someRandomResultImageHash", dest, time.Second)
+	written, err := tinypng.NewClient("baz-key", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(ctx, "https://api.tinify.com/output/someRandomResultImageHash", dest)
 
 	assert.NoError(t, err)
 	assert.Equal(t, fileBody, dest.Bytes())
@@ -400,11 +391,11 @@ func TestClient_DownloadImageUnauthorized(t *testing.T) {
 		}, nil
 	}
 
-	written, err := NewClient("", WithHTTPClient(httpMock)).
-		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+	written, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(context.TODO(), "https://example.com/foo", bytes.NewBuffer([]byte{}))
 
 	assert.Zero(t, written)
-	assert.Equal(t, ErrUnauthorized, err)
+	assert.Equal(t, tinypng.ErrUnauthorized, err)
 }
 
 func TestClient_DownloadImageTooManyRequests(t *testing.T) {
@@ -418,11 +409,11 @@ func TestClient_DownloadImageTooManyRequests(t *testing.T) {
 		}, nil
 	}
 
-	written, err := NewClient("", WithHTTPClient(httpMock)).
-		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+	written, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(context.TODO(), "https://example.com/foo", bytes.NewBuffer([]byte{}))
 
 	assert.Zero(t, written)
-	assert.Equal(t, ErrTooManyRequests, err)
+	assert.Equal(t, tinypng.ErrTooManyRequests, err)
 }
 
 func TestClient_DownloadImage4xxError(t *testing.T) {
@@ -434,8 +425,8 @@ func TestClient_DownloadImage4xxError(t *testing.T) {
 		}, nil
 	}
 
-	written, err := NewClient("", WithHTTPClient(httpMock)).
-		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+	written, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(context.TODO(), "https://example.com/foo", bytes.NewBuffer([]byte{}))
 
 	assert.Zero(t, written)
 	assert.Error(t, err)
@@ -451,8 +442,8 @@ func TestClient_DownloadImage4xxErrorWithWrongJson(t *testing.T) {
 		}, nil
 	}
 
-	written, err := NewClient("", WithHTTPClient(httpMock)).
-		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+	written, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(context.TODO(), "https://example.com/foo", bytes.NewBuffer([]byte{}))
 
 	assert.Zero(t, written)
 	assert.Error(t, err)
@@ -468,8 +459,8 @@ func TestClient_DownloadImageHTTPErrorAbove599(t *testing.T) {
 		}, nil
 	}
 
-	written, err := NewClient("", WithHTTPClient(httpMock)).
-		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+	written, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(context.TODO(), "https://example.com/foo", bytes.NewBuffer([]byte{}))
 
 	assert.Zero(t, written)
 	assert.Error(t, err)
@@ -481,8 +472,8 @@ func TestClient_DownloadImageHttpClientError(t *testing.T) {
 		return nil, errors.New("foo bar")
 	}
 
-	written, err := NewClient("", WithHTTPClient(httpMock)).
-		DownloadImage("https://example.com/foo", bytes.NewBuffer([]byte{}))
+	written, err := tinypng.NewClient("", tinypng.WithHTTPClient(httpMock)).
+		DownloadImage(context.TODO(), "https://example.com/foo", bytes.NewBuffer([]byte{}))
 
 	assert.Zero(t, written)
 	assert.Error(t, err)
@@ -567,8 +558,7 @@ func TestClient_CompressSuccessful(t *testing.T) {
 
 	dest := bytes.NewBuffer([]byte{})
 
-	info, err := NewClient("blah-key", WithHTTPClient(httpMock), WithContext(ctx)).
-		Compress(origFile, dest, time.Second, time.Second)
+	info, err := tinypng.NewClient("blah-key", tinypng.WithHTTPClient(httpMock)).Compress(ctx, origFile, dest)
 
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(4633), info.Input.Size)
@@ -598,8 +588,8 @@ func TestClient_CompressImageCompressingFailed(t *testing.T) {
 		return nil, errors.New("foo bar")
 	}
 
-	info, err := NewClient("blah-key", WithHTTPClient(httpMock)).
-		Compress(origFile, bytes.NewBuffer([]byte{}), time.Second, time.Second)
+	info, err := tinypng.NewClient("a", tinypng.WithHTTPClient(httpMock)).
+		Compress(context.TODO(), origFile, bytes.NewBuffer([]byte{}))
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
@@ -654,8 +644,8 @@ func TestClient_CompressImageDownloadingFailed(t *testing.T) {
 		}
 	}
 
-	info, err := NewClient("blah-key", WithHTTPClient(httpMock)).
-		Compress(origFile, bytes.NewBuffer([]byte{}), time.Second, time.Second)
+	info, err := tinypng.NewClient("blah-key", tinypng.WithHTTPClient(httpMock)).
+		Compress(context.TODO(), origFile, bytes.NewBuffer([]byte{}))
 
 	assert.Nil(t, info)
 	assert.Error(t, err)
