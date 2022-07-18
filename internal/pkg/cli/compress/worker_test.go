@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarampampam/tinifier/v3/internal/pkg/keys"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
-	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/keys"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/pool"
+	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"

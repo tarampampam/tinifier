@@ -3,11 +3,11 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/compress"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/quota"
-	versionCmd "github.com/tarampampam/tinifier/v3/internal/pkg/cli/version"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/logger"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/version"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/cli/compress"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/cli/quota"
+	versionCmd "github.com/tarampampam/tinifier/v4/internal/pkg/cli/version"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/logger"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/version"
 )
 
 // NewCommand creates root command.

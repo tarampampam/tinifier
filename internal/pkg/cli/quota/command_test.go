@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
+	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 
 	"bou.ke/monkey"
 	"github.com/kami-zh/go-capturer"

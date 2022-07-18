@@ -17,13 +17,12 @@ WORKDIR /src
 COPY . .
 
 # arguments to pass on each go tool link invocation
-ENV LDFLAGS="-s -w -X github.com/tarampampam/tinifier/v3/internal/pkg/version.version=$APP_VERSION"
+ENV LDFLAGS="-s -w -X github.com/tarampampam/tinifier/v4/internal/pkg/version.version=$APP_VERSION"
 
 RUN set -x \
     && go version \
     && CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/ \
-    && /tmp/tinifier version \
-    && /tmp/tinifier -h
+    && /tmp/tinifier version
 
 # prepare rootfs for runtime
 RUN mkdir -p /tmp/rootfs
@@ -40,7 +39,7 @@ RUN set -x \
     && mv /tmp/tinifier ./bin/tinifier
 
 # use empty filesystem
-FROM scratch
+FROM scratch as runtime
 
 ARG APP_VERSION="undefined@docker"
 
@@ -57,6 +56,6 @@ LABEL \
 COPY --from=builder /tmp/rootfs /
 
 # Use an unprivileged user
-USER appuser:appuser
+USER 10001:10001
 
 ENTRYPOINT ["/bin/tinifier"]

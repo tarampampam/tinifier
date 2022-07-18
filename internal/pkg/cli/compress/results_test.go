@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/pool"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -6,7 +6,7 @@ import (
 
 	"github.com/kami-zh/go-capturer"
 	"github.com/stretchr/testify/assert"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/logger"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/logger"
 )
 
 func TestNewNotVerboseDebug(t *testing.T) {

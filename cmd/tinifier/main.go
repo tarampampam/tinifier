@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/fatih/color"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/cli"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/cli"
 )
 
 // exitFn is a function for application exiting.

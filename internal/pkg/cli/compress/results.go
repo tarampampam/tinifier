@@ -6,7 +6,7 @@ import (
 	"math"
 	"path/filepath"
 
-	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/pool"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"

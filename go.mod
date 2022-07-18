@@ -1,4 +1,4 @@
-module github.com/tarampampam/tinifier/v3
+module github.com/tarampampam/tinifier/v4
 
 go 1.18
 

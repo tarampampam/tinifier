@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/env"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/files"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/keys"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/pool"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/breaker"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/env"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/files"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/keys"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/pool"
 	"go.uber.org/zap"
 )
 

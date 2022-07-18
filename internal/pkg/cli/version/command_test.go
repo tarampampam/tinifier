@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/tarampampam/tinifier/v3/internal/pkg/cli/version"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/cli/version"
 
 	"github.com/kami-zh/go-capturer"
 	"github.com/stretchr/testify/assert"

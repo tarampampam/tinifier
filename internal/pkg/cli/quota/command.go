@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/breaker"
-	"github.com/tarampampam/tinifier/v3/internal/pkg/env"
-	"github.com/tarampampam/tinifier/v3/pkg/tinypng"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/breaker"
+	"github.com/tarampampam/tinifier/v4/internal/pkg/env"
+	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 	"go.uber.org/zap"
 )
 
