@@ -1,6 +1,7 @@
 package compress
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"io/ioutil"
@@ -8,10 +9,15 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"time"
 
+	"github.com/briandowns/spinner"
+	"github.com/fatih/color"
+	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
+	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
 )
 
@@ -60,18 +66,7 @@ func NewCommand(log *zap.Logger) *cli.Command {
 				return errors.New("no files or directories specified")
 			}
 
-			files, findErr := cmd.FindFiles(paths, fileExtensions, recursive)
-			if findErr != nil {
-				return findErr
-			}
-
-			if len(files) == 0 {
-				return errors.New("nothing to compress (files not found)")
-			}
-
-			log.Debug("Found files", zap.Int("count", len(files)), zap.Strings("files", files))
-
-			return cmd.Run()
+			return cmd.Run(c.Context, paths, fileExtensions, recursive)
 		},
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
@@ -112,10 +107,57 @@ func NewCommand(log *zap.Logger) *cli.Command {
 	return cmd.c
 }
 
-func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, error) {
+// Run current command.
+func (cmd *command) Run(pCtx context.Context, paths, fileExt []string, recursive bool) error {
+	var (
+		ctx, cancel = context.WithCancel(pCtx)  // main context creation
+		oss         = breaker.NewOSSignals(ctx) // OS signals listener
+	)
+
+	oss.Subscribe(func(sig os.Signal) {
+		cmd.log.Debug("Stopping by OS signal..", zap.String("signal", sig.String()))
+
+		cancel()
+	})
+
+	defer func() {
+		cancel()   // call cancellation function after all for "service" goroutines stopping
+		oss.Stop() // stop system signals listening
+	}()
+
+	files, findErr := cmd.FindFiles(ctx, paths, fileExt, recursive)
+	if findErr != nil {
+		if errors.Is(findErr, context.Canceled) {
+			return errors.New("images searching was canceled")
+		}
+
+		return findErr
+	}
+
+	if len(files) == 0 {
+		return errors.New("nothing to compress (files not found)")
+	}
+
+	return nil
+}
+
+func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursive bool) ([]string, error) {
 	if len(where) == 0 || len(filesExt) == 0 { // fast terminator
 		return []string{}, nil
 	}
+
+	for i := 0; i < len(where); i++ { // convert relative paths to absolute
+		if !filepath.IsAbs(where[i]) {
+			if abs, err := filepath.Abs(where[i]); err != nil {
+				return nil, err
+			} else {
+				where[i] = abs
+			}
+		}
+	}
+
+	where = lo.Uniq[string](where) // remove duplicates
+	sort.Strings(where)            // and sort
 
 	var extMap = make(map[string]struct{}, len(filesExt))
 
@@ -123,9 +165,23 @@ func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, e
 		extMap[ext] = struct{}{}
 	}
 
+	spin := spinner.New([]string{" ⣾ ", " ⣽ ", " ⣻ ", " ⢿ ", " ⡿ ", " ⣟ ", " ⣯ ", " ⣷ "}, time.Millisecond*70)
+	spin.Prefix = "Images searching"
+	if !color.NoColor {
+		_ = spin.Color("green")
+		spin.Prefix = color.New(color.Bold).Sprint(spin.Prefix)
+	}
+
+	spin.Start()
+	defer spin.Stop()
+
 	var unique = make(map[string]struct{}, len(where))
 
 	for _, location := range where {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		locationStat, statErr := os.Stat(location)
 		if statErr != nil {
 			return nil, statErr
@@ -133,23 +189,22 @@ func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, e
 
 		switch mode := locationStat.Mode(); {
 		case mode.IsRegular():
-			if absPath, absErr := filepath.Abs(location); absErr != nil {
-				return nil, absErr
-			} else if fileExt := filepath.Ext(locationStat.Name()); len(fileExt) > 0 {
-				if _, ok := extMap[fileExt[1:]]; ok {
-					unique[absPath] = struct{}{}
-				}
-			}
+			spin.Suffix = location
+			unique[location] = struct{}{} // ignore file extension checking for the single files
 
 		case mode.IsDir():
 			if recursive {
 				if walkingErr := filepath.Walk(location, func(path string, info fs.FileInfo, err error) error {
-					if info.Mode().IsRegular() {
-						if absPath, absErr := filepath.Abs(path); absErr != nil {
-							return absErr
-						} else if fileExt := filepath.Ext(info.Name()); len(fileExt) > 0 {
+					if ctxErr := ctx.Err(); ctxErr != nil {
+						return ctxErr
+					}
+
+					if err == nil && info.Mode().IsRegular() {
+						spin.Suffix = path
+
+						if fileExt := filepath.Ext(info.Name()); len(fileExt) > 0 {
 							if _, ok := extMap[fileExt[1:]]; ok {
-								unique[absPath] = struct{}{}
+								unique[path] = struct{}{}
 							}
 						}
 					}
@@ -163,12 +218,18 @@ func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, e
 					return nil, err
 				} else {
 					for _, file := range files {
+						if ctxErr := ctx.Err(); ctxErr != nil {
+							return nil, ctxErr
+						}
+
 						if file.Mode().IsRegular() {
-							if absPath, absErr := filepath.Abs(filepath.Join(location, file.Name())); absErr != nil {
-								return nil, absErr
-							} else if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 {
+							var path = filepath.Join(location, file.Name())
+
+							spin.Suffix = path
+
+							if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 {
 								if _, ok := extMap[fileExt[1:]]; ok {
-									unique[absPath] = struct{}{}
+									unique[path] = struct{}{}
 								}
 							}
 						}
@@ -187,9 +248,4 @@ func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, e
 	sort.Strings(result)
 
 	return result, nil
-}
-
-// Run current command.
-func (cmd *command) Run() error {
-	return nil
 }

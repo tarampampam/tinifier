@@ -32,10 +32,6 @@ func main() {
 // run this CLI application.
 // Exit codes documentation: <https://tldp.org/LDP/abs/html/exitcodes.html>
 func run() (int, error) {
-	if _, ok := os.LookupEnv("NO_COLOR"); ok { // disable ANSI colors <https://no-color.org/>
-		color.NoColor = true
-	}
-
 	const dotenvFileName = ".env" // dotenv (.env) file name
 
 	// load .env file (if file exists; useful for the local app development)

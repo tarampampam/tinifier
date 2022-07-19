@@ -35,8 +35,8 @@ func NewCommand(log *zap.Logger) *cli.Command {
 			log.Debug("Running", zap.String("api key", apiKey))
 
 			var (
-				ctx, cancel = context.WithCancel(context.Background()) // main context creation
-				oss         = breaker.NewOSSignals(ctx)                // OS signals listener
+				ctx, cancel = context.WithCancel(c.Context) // main context creation
+				oss         = breaker.NewOSSignals(ctx)     // OS signals listener
 			)
 
 			oss.Subscribe(func(sig os.Signal) {
