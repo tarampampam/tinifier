@@ -1,6 +1,7 @@
 package compress
 
 import (
+	"errors"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -43,6 +44,7 @@ func NewCommand(log *zap.Logger) *cli.Command {
 				threadsCount    = c.Uint(threadsCountFlagName)
 				maxErrorsToStop = c.Uint(maxErrorsToStopFlagName)
 				recursive       = c.Bool(recursiveFlagName)
+				paths           = c.Args().Slice()
 			)
 
 			log.Debug("Run args",
@@ -51,14 +53,23 @@ func NewCommand(log *zap.Logger) *cli.Command {
 				zap.Uint("threadsCount", threadsCount),
 				zap.Uint("maxErrorsToStop", maxErrorsToStop),
 				zap.Bool("recursive", recursive),
+				zap.Strings("args", paths),
 			)
 
-			files, err := cmd.FindFiles(c.Args().Slice(), fileExtensions, recursive)
-			if err != nil {
-				return err
+			if len(paths) == 0 {
+				return errors.New("no files or directories specified")
 			}
 
-			cmd.log.Debug("Found files", zap.Int("count", len(files)), zap.Strings("files", files))
+			files, findErr := cmd.FindFiles(paths, fileExtensions, recursive)
+			if findErr != nil {
+				return findErr
+			}
+
+			if len(files) == 0 {
+				return errors.New("nothing to compress (files not found)")
+			}
+
+			log.Debug("Found files", zap.Int("count", len(files)), zap.Strings("files", files))
 
 			return cmd.Run()
 		},
@@ -122,24 +133,24 @@ func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, e
 
 		switch mode := locationStat.Mode(); {
 		case mode.IsRegular():
-			if fileExt := filepath.Ext(locationStat.Name()); len(fileExt) > 0 {
+			if absPath, absErr := filepath.Abs(location); absErr != nil {
+				return nil, absErr
+			} else if fileExt := filepath.Ext(locationStat.Name()); len(fileExt) > 0 {
 				if _, ok := extMap[fileExt[1:]]; ok {
-					if absPath, err := filepath.Abs(location); err != nil {
-						return nil, err
-					} else {
-						unique[absPath] = struct{}{}
-					}
+					unique[absPath] = struct{}{}
 				}
 			}
 
 		case mode.IsDir():
 			if recursive {
 				if walkingErr := filepath.Walk(location, func(path string, info fs.FileInfo, err error) error {
-					if fileExt := filepath.Ext(info.Name()); len(fileExt) > 0 && info.Mode().IsRegular() {
+					if info.Mode().IsRegular() {
 						if absPath, absErr := filepath.Abs(path); absErr != nil {
 							return absErr
-						} else {
-							unique[absPath] = struct{}{}
+						} else if fileExt := filepath.Ext(info.Name()); len(fileExt) > 0 {
+							if _, ok := extMap[fileExt[1:]]; ok {
+								unique[absPath] = struct{}{}
+							}
 						}
 					}
 
@@ -152,11 +163,11 @@ func (*command) FindFiles(where, filesExt []string, recursive bool) ([]string, e
 					return nil, err
 				} else {
 					for _, file := range files {
-						if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 && file.Mode().IsRegular() {
-							if _, ok := extMap[fileExt[1:]]; ok {
-								if absPath, absErr := filepath.Abs(filepath.Join(location, file.Name())); absErr != nil {
-									return nil, absErr
-								} else {
+						if file.Mode().IsRegular() {
+							if absPath, absErr := filepath.Abs(filepath.Join(location, file.Name())); absErr != nil {
+								return nil, absErr
+							} else if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 {
+								if _, ok := extMap[fileExt[1:]]; ok {
 									unique[absPath] = struct{}{}
 								}
 							}
