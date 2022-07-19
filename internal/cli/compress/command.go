@@ -86,13 +86,13 @@ func NewCommand(log *zap.Logger) *cli.Command {
 				Name:    threadsCountFlagName,
 				Aliases: []string{"t"},
 				Usage:   "threads count",
-				Value:   uint(runtime.NumCPU() * 8),
+				Value:   uint(runtime.NumCPU() * 8), //nolint:gomnd
 				EnvVars: []string{env.ThreadsCount.String()},
 			},
 			&cli.UintFlag{
 				Name:    maxErrorsToStopFlagName,
 				Usage:   "maximum errors count to stop the process (set 0 to disable)",
-				Value:   10,
+				Value:   10,         //nolint:gomnd
 				EnvVars: []string{}, // TODO implement
 			},
 			&cli.BoolFlag{
@@ -165,8 +165,9 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 		extMap[ext] = struct{}{}
 	}
 
-	spin := spinner.New([]string{" ⣾ ", " ⣽ ", " ⣻ ", " ⢿ ", " ⡿ ", " ⣟ ", " ⣯ ", " ⣷ "}, time.Millisecond*70)
+	spin := spinner.New([]string{" ⣾ ", " ⣽ ", " ⣻ ", " ⢿ ", " ⡿ ", " ⣟ ", " ⣯ ", " ⣷ "}, time.Millisecond*70) //nolint:gomnd,lll
 	spin.Prefix = "Images searching"
+
 	if !color.NoColor {
 		_ = spin.Color("green")
 		spin.Prefix = color.New(color.Bold).Sprint(spin.Prefix)
@@ -188,12 +189,12 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 		}
 
 		switch mode := locationStat.Mode(); {
-		case mode.IsRegular():
+		case mode.IsRegular(): // regular file (eg.: `./file.png`)
 			spin.Suffix = location
 			unique[location] = struct{}{} // ignore file extension checking for the single files
 
-		case mode.IsDir():
-			if recursive {
+		case mode.IsDir(): // directory (eg.: `./path/to/images`)
+			if recursive { //nolint:nestif // deep directory search
 				if walkingErr := filepath.Walk(location, func(path string, info fs.FileInfo, err error) error {
 					if ctxErr := ctx.Err(); ctxErr != nil {
 						return ctxErr
@@ -213,24 +214,25 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 				}); walkingErr != nil {
 					return nil, walkingErr
 				}
-			} else {
-				if files, err := ioutil.ReadDir(location); err != nil {
-					return nil, err
-				} else {
-					for _, file := range files {
-						if ctxErr := ctx.Err(); ctxErr != nil {
-							return nil, ctxErr
-						}
+			} else { // flat directory search
+				files, readDirErr := ioutil.ReadDir(location)
+				if readDirErr != nil {
+					return nil, readDirErr
+				}
 
-						if file.Mode().IsRegular() {
-							var path = filepath.Join(location, file.Name())
+				for _, file := range files {
+					if ctxErr := ctx.Err(); ctxErr != nil {
+						return nil, ctxErr
+					}
 
-							spin.Suffix = path
+					if file.Mode().IsRegular() {
+						var path = filepath.Join(location, file.Name())
 
-							if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 {
-								if _, ok := extMap[fileExt[1:]]; ok {
-									unique[path] = struct{}{}
-								}
+						spin.Suffix = path
+
+						if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 {
+							if _, ok := extMap[fileExt[1:]]; ok {
+								unique[path] = struct{}{}
 							}
 						}
 					}

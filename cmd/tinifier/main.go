@@ -23,7 +23,7 @@ func main() {
 			right = color.New(color.FgHiRed, color.BgBlack)
 		)
 
-		println(left.Sprintf("  %s  ", "Error") + right.Sprintf("  %s  ", err))
+		println(left.Sprintf("  %s  ", "Error") + right.Sprintf("  %s  ", err)) //nolint:forbidigo
 	}
 
 	exitFn(code)
