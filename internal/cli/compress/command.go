@@ -3,22 +3,19 @@ package compress
 import (
 	"context"
 	"errors"
-	"io/fs"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
-	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
+	appFs "github.com/tarampampam/tinifier/v4/internal/fs"
 )
 
 type command struct {
@@ -146,25 +143,6 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 		return []string{}, nil
 	}
 
-	for i := 0; i < len(where); i++ { // convert relative paths to absolute
-		if !filepath.IsAbs(where[i]) {
-			if abs, err := filepath.Abs(where[i]); err != nil {
-				return nil, err
-			} else {
-				where[i] = abs
-			}
-		}
-	}
-
-	where = lo.Uniq[string](where) // remove duplicates
-	sort.Strings(where)            // and sort
-
-	var extMap = make(map[string]struct{}, len(filesExt))
-
-	for _, ext := range filesExt { // burn the map
-		extMap[ext] = struct{}{}
-	}
-
 	spin := spinner.New([]string{" ⣾ ", " ⣽ ", " ⣻ ", " ⢿ ", " ⡿ ", " ⣟ ", " ⣯ ", " ⣷ "}, time.Millisecond*70) //nolint:gomnd,lll
 	spin.Prefix = "Images searching"
 
@@ -176,78 +154,16 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 	spin.Start()
 	defer spin.Stop()
 
-	var unique = make(map[string]struct{}, len(where))
+	var found = make([]string, 0, len(where))
 
-	for _, location := range where {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		locationStat, statErr := os.Stat(location)
-		if statErr != nil {
-			return nil, statErr
-		}
-
-		switch mode := locationStat.Mode(); {
-		case mode.IsRegular(): // regular file (eg.: `./file.png`)
-			spin.Suffix = location
-			unique[location] = struct{}{} // ignore file extension checking for the single files
-
-		case mode.IsDir(): // directory (eg.: `./path/to/images`)
-			if recursive { //nolint:nestif // deep directory search
-				if walkingErr := filepath.Walk(location, func(path string, info fs.FileInfo, err error) error {
-					if ctxErr := ctx.Err(); ctxErr != nil {
-						return ctxErr
-					}
-
-					if err == nil && info.Mode().IsRegular() {
-						spin.Suffix = path
-
-						if fileExt := filepath.Ext(info.Name()); len(fileExt) > 0 {
-							if _, ok := extMap[fileExt[1:]]; ok {
-								unique[path] = struct{}{}
-							}
-						}
-					}
-
-					return err
-				}); walkingErr != nil {
-					return nil, walkingErr
-				}
-			} else { // flat directory search
-				files, readDirErr := ioutil.ReadDir(location)
-				if readDirErr != nil {
-					return nil, readDirErr
-				}
-
-				for _, file := range files {
-					if ctxErr := ctx.Err(); ctxErr != nil {
-						return nil, ctxErr
-					}
-
-					if file.Mode().IsRegular() {
-						var path = filepath.Join(location, file.Name())
-
-						spin.Suffix = path
-
-						if fileExt := filepath.Ext(file.Name()); len(fileExt) > 0 {
-							if _, ok := extMap[fileExt[1:]]; ok {
-								unique[path] = struct{}{}
-							}
-						}
-					}
-				}
-			}
-		}
+	if err := appFs.FindFiles(ctx, where, func(absPath string) {
+		spin.Suffix = absPath
+		found = append(found, absPath)
+	}, appFs.WithRecursive(recursive), appFs.WithFilesExt(filesExt...)); err != nil {
+		return nil, err
 	}
 
-	// convert map into slice
-	result, i := make([]string, len(unique)), 0
-	for path := range unique {
-		result[i], i = path, i+1
-	}
+	sort.Strings(found)
 
-	sort.Strings(result)
-
-	return result, nil
+	return found, nil
 }
