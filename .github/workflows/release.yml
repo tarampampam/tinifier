@@ -41,7 +41,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
-          LDFLAGS: -s -w -X github.com/tarampampam/tinifier/v4/internal/pkg/version.version=${{ steps.slug.outputs.version }}
+          LDFLAGS: -s -w -X github.com/tarampampam/tinifier/v4/internal/version.version=${{ steps.slug.outputs.version }}
         run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.binary-name }}" ./cmd/tinifier/main.go
 
       - name: Upload binaries to release
