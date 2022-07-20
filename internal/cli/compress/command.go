@@ -143,12 +143,18 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 		return []string{}, nil
 	}
 
-	spin := spinner.New([]string{" ⣾ ", " ⣽ ", " ⣻ ", " ⢿ ", " ⡿ ", " ⣟ ", " ⣯ ", " ⣷ "}, time.Millisecond*70) //nolint:gomnd,lll
-	spin.Prefix = "Images searching"
+	var (
+		spin      = spinner.New([]string{" ⣾ ", " ⣽ ", " ⣻ ", " ⢿ ", " ⡿ ", " ⣟ ", " ⣯ ", " ⣷ "}, time.Millisecond*70) //nolint:gomnd,lll
+		startedAt = time.Now()
+		prefix    = color.New(color.Bold).Sprint("Images searching")
+	)
 
 	if !color.NoColor {
 		_ = spin.Color("green")
-		spin.Prefix = color.New(color.Bold).Sprint(spin.Prefix)
+	}
+
+	spin.PreUpdate = func(s *spinner.Spinner) {
+		s.Prefix = prefix + " " + time.Since(startedAt).Round(time.Second).String()
 	}
 
 	spin.Start()
