@@ -13,11 +13,10 @@ const (
 	InfoLevel        // default level (zero-value)
 	WarnLevel
 	ErrorLevel
-	FatalLevel
 )
 
 // AllLevels returns all logging levels.
-func AllLevels() []Level { return []Level{DebugLevel, InfoLevel, WarnLevel, ErrorLevel, FatalLevel} }
+func AllLevels() []Level { return []Level{DebugLevel, InfoLevel, WarnLevel, ErrorLevel} }
 
 // AllLevelStrings returns all logging levels as a strings slice.
 func AllLevelStrings() []string {
@@ -44,8 +43,6 @@ func (l Level) String() string {
 		return "warn"
 	case ErrorLevel:
 		return "error"
-	case FatalLevel:
-		return "fatal"
 	}
 
 	return fmt.Sprintf("level(%d)", l)
@@ -65,8 +62,6 @@ func ParseLevel(text []byte) (Level, error) {
 		return WarnLevel, nil
 	case "error":
 		return ErrorLevel, nil
-	case "fatal":
-		return FatalLevel, nil
 	}
 
 	return Level(0), fmt.Errorf("unrecognized logging level: %q", text)

@@ -22,5 +22,4 @@ func TestNewApp(t *testing.T) {
 	}
 
 	assert.Contains(t, flagNames, "log-level")
-	assert.Contains(t, flagNames, "log-format")
 }

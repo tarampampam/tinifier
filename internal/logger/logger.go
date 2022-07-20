@@ -2,60 +2,100 @@
 package logger
 
 import (
-	"errors"
+	"io"
+	"log"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"time"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/fatih/color"
 )
 
-// New creates new "zap" logger with a small customization.
-func New(l Level, f Format) (*zap.Logger, error) {
-	var config zap.Config
+type Logger struct {
+	stdLog *log.Logger
+	errLog *log.Logger
+	lvl    Level
+}
 
-	switch f {
-	case ConsoleFormat:
-		config = zap.NewDevelopmentConfig()
-		config.EncoderConfig.EncodeLevel = zapcore.LowercaseColorLevelEncoder
-		config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
+var (
+	debugColor     = color.New(color.FgMagenta)
+	infoColor      = color.New(color.FgBlue)
+	warnColor      = color.New(color.FgHiYellow, color.Bold)
+	errorColor     = color.New(color.FgHiRed, color.Bold)
+	underlineColor = color.New(color.Underline)
 
-	case JSONFormat:
-		config = zap.NewProductionConfig() // json encoder is used by default
+	debugMarker = color.New(color.BgMagenta, color.FgHiMagenta).Sprint(" debug ") + " "
+	infoMarker  = color.New(color.BgBlue, color.FgHiBlue).Sprint("  info ") + " "
+	warnMarker  = color.New(color.BgHiYellow, color.FgBlack).Sprint("  warn ") + " "
+	errorMarker = color.New(color.BgHiRed, color.FgHiWhite).Sprint(" error ") + " "
+)
 
-	default:
-		return nil, errors.New("unsupported logging format")
+const timeFormat = "15:04:05.000"
+
+func New(lvl Level) *Logger {
+	const prefix, flag = "", 0
+
+	return &Logger{
+		stdLog: log.New(os.Stdout, prefix, flag),
+		errLog: log.New(os.Stderr, prefix, flag),
+		lvl:    lvl,
+	}
+}
+
+func NewNop() *Logger {
+	const prefix, flag = "", 0
+
+	return &Logger{
+		stdLog: log.New(io.Discard, prefix, flag),
+		errLog: log.New(io.Discard, prefix, flag),
+		lvl:    InfoLevel,
+	}
+}
+
+func (Logger) write(log *log.Logger, prefix, msg string, v ...any) {
+	var args []any
+
+	if prefix != "" {
+		args = make([]any, 2, len(v)+2)
+		args[0], args[1] = prefix, msg
+	} else {
+		args = make([]any, 1, len(v)+1)
+		args[0] = msg
 	}
 
-	// default configuration for all encoders
-	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	config.Development = false
-	config.DisableStacktrace = true
-	config.DisableCaller = true
+	args = append(args, v...)
 
-	// enable additional features for debugging
-	if l <= DebugLevel {
-		config.Development = true
-		config.DisableStacktrace = false
-		config.DisableCaller = false
+	log.Println(args...)
+}
+
+func (l Logger) Debug(msg string, v ...any) {
+	if DebugLevel >= l.lvl {
+		var prefix = debugMarker + debugColor.Sprint(time.Now().Format(timeFormat))
+
+		if _, file, line, ok := runtime.Caller(1); ok {
+			prefix += " " + underlineColor.Sprint(filepath.Base(file)+":"+strconv.Itoa(line))
+		}
+
+		l.write(l.stdLog, prefix, msg, v...)
 	}
+}
 
-	var zapLvl zapcore.Level
-
-	switch l { // convert level to zap.Level
-	case DebugLevel:
-		zapLvl = zap.DebugLevel
-	case InfoLevel:
-		zapLvl = zap.InfoLevel
-	case WarnLevel:
-		zapLvl = zap.WarnLevel
-	case ErrorLevel:
-		zapLvl = zap.ErrorLevel
-	case FatalLevel:
-		zapLvl = zap.FatalLevel
-	default:
-		return nil, errors.New("unsupported logging level")
+func (l Logger) Info(msg string, v ...any) {
+	if InfoLevel >= l.lvl {
+		l.write(l.stdLog, infoMarker+infoColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
 	}
+}
 
-	config.Level = zap.NewAtomicLevelAt(zapLvl)
+func (l Logger) Warn(msg string, v ...any) {
+	if WarnLevel >= l.lvl {
+		l.write(l.stdLog, warnMarker+warnColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+	}
+}
 
-	return config.Build()
+func (l Logger) Error(msg string, v ...any) {
+	if ErrorLevel >= l.lvl {
+		l.write(l.errLog, errorMarker+errorColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+	}
 }

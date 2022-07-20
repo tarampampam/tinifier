@@ -16,15 +16,16 @@ import (
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
 	appFs "github.com/tarampampam/tinifier/v4/internal/fs"
+	"github.com/tarampampam/tinifier/v4/internal/logger"
 )
 
 type command struct {
-	log *zap.Logger
+	log *logger.Logger
 	c   *cli.Command
 }
 
 // NewCommand creates `compress` command.
-func NewCommand(log *zap.Logger) *cli.Command {
+func NewCommand(log *logger.Logger) *cli.Command {
 	const (
 		apiKeyFlagName          = "api-key"
 		fileExtensionsFlagName  = "ext"
@@ -134,6 +135,8 @@ func (cmd *command) Run(pCtx context.Context, paths, fileExt []string, recursive
 	if len(files) == 0 {
 		return errors.New("nothing to compress (files not found)")
 	}
+
+	// cmd.log.Debug("Found files", zap.Strings("files", files))
 
 	return nil
 }

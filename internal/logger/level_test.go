@@ -11,16 +11,13 @@ import (
 
 func TestAllLevels(t *testing.T) {
 	require.EqualValues(t,
-		[]logger.Level{logger.DebugLevel, logger.InfoLevel, logger.WarnLevel, logger.ErrorLevel, logger.FatalLevel},
+		[]logger.Level{logger.DebugLevel, logger.InfoLevel, logger.WarnLevel, logger.ErrorLevel},
 		logger.AllLevels(),
 	)
 }
 
 func TestAllLevelStrings(t *testing.T) {
-	require.EqualValues(t,
-		[]string{"debug", "info", "warn", "error", "fatal"},
-		logger.AllLevelStrings(),
-	)
+	require.EqualValues(t, []string{"debug", "info", "warn", "error"}, logger.AllLevelStrings())
 }
 
 func TestLevel_String(t *testing.T) {
@@ -32,7 +29,6 @@ func TestLevel_String(t *testing.T) {
 		"info":      {giveLevel: logger.InfoLevel, wantString: "info"},
 		"warn":      {giveLevel: logger.WarnLevel, wantString: "warn"},
 		"error":     {giveLevel: logger.ErrorLevel, wantString: "error"},
-		"fatal":     {giveLevel: logger.FatalLevel, wantString: "fatal"},
 		"<unknown>": {giveLevel: logger.Level(127), wantString: "level(127)"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -54,7 +50,6 @@ func TestParseLevel(t *testing.T) {
 		"info":          {giveText: []byte("info"), wantLevel: logger.InfoLevel},
 		"warn":          {giveText: []byte("warn"), wantLevel: logger.WarnLevel},
 		"error":         {giveText: []byte("error"), wantLevel: logger.ErrorLevel},
-		"fatal":         {giveText: []byte("fatal"), wantLevel: logger.FatalLevel},
 		"foobar":        {giveText: []byte("foobar"), wantError: errors.New("unrecognized logging level: \"foobar\"")},
 	} {
 		t.Run(name, func(t *testing.T) {

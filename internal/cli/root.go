@@ -16,24 +16,19 @@ import (
 // NewApp creates new console application.
 func NewApp() *cli.App {
 	const (
-		logLevelFlagName  = "log-level"
-		logFormatFlagName = "log-format"
-
+		logLevelFlagName = "log-level"
 		defaultLogLevel  = logger.InfoLevel
-		defaultLogFormat = logger.ConsoleFormat
 	)
 
 	// create "default" logger (will be overwritten later with customized)
-	log, _ := logger.New(defaultLogLevel, defaultLogFormat)
+	var log = logger.New(defaultLogLevel)
 
 	return &cli.App{
 		Usage: "CLI client for images compressing using tinypng.com API",
 		Before: func(c *cli.Context) error {
-			_ = log.Sync() // sync previous logger instance
-
 			var (
-				logLevel, logFormat = defaultLogLevel, defaultLogFormat //nolint:ineffassign
-				err                 error
+				logLevel = defaultLogLevel
+				err      error
 			)
 
 			// parse logging level
@@ -41,25 +36,7 @@ func NewApp() *cli.App {
 				return err
 			}
 
-			// parse logging format
-			if logFormat, err = logger.ParseFormat([]byte(c.String(logFormatFlagName))); err != nil {
-				return err
-			}
-
-			configured, err := logger.New(logLevel, logFormat) // create new logger instance
-			if err != nil {
-				return err
-			}
-
-			*log = *configured // replace "default" logger with customized
-
-			return nil
-		},
-		After: func(c *cli.Context) error {
-			// error ignoring reasons:
-			// - <https://github.com/uber-go/zap/issues/772>
-			// - <https://github.com/uber-go/zap/issues/328>
-			_ = log.Sync()
+			*log = *logger.New(logLevel) // replace "default" logger with customized
 
 			return nil
 		},
@@ -73,12 +50,6 @@ func NewApp() *cli.App {
 				Value:   defaultLogLevel.String(),
 				Usage:   "logging level (" + strings.Join(logger.AllLevelStrings(), "|") + ")",
 				EnvVars: []string{env.LogLevel.String()},
-			},
-			&cli.StringFlag{
-				Name:    logFormatFlagName,
-				Value:   defaultLogFormat.String(),
-				Usage:   "logging format (" + strings.Join(logger.AllFormatStrings(), "|") + ")",
-				EnvVars: []string{env.LogFormat.String()},
 			},
 		},
 		Version: version.Version(),

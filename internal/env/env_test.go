@@ -10,7 +10,6 @@ import (
 
 func TestConstants(t *testing.T) {
 	require.Equal(t, "LOG_LEVEL", string(LogLevel))
-	require.Equal(t, "LOG_FORMAT", string(LogFormat))
 	require.Equal(t, "THREADS_COUNT", string(ThreadsCount))
 	require.Equal(t, "TINYPNG_API_KEY", string(TinyPngAPIKey))
 }

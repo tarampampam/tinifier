@@ -11,11 +11,12 @@ import (
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
+	"github.com/tarampampam/tinifier/v4/internal/logger"
 	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
 
 // NewCommand creates `quota` command.
-func NewCommand(log *zap.Logger) *cli.Command {
+func NewCommand(log *logger.Logger) *cli.Command {
 	const (
 		apiKeyFlagName  = "api-key"
 		apiKeyMinLength = 8

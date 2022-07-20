@@ -6,8 +6,7 @@ import "os"
 type envVariable string
 
 const (
-	LogLevel  envVariable = "LOG_LEVEL"  // logging level
-	LogFormat envVariable = "LOG_FORMAT" // logging format
+	LogLevel envVariable = "LOG_LEVEL" // logging level
 
 	ThreadsCount envVariable = "THREADS_COUNT" // Threads count
 
