@@ -15,7 +15,7 @@ const (
 	WarnLevel
 	ErrorLevel
 
-	noLevel Level = math.MaxInt8 // no level
+	noLevel Level = math.MinInt8 // no level
 )
 
 // AllLevels returns all logging levels.

@@ -3,6 +3,7 @@ package logger
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -88,9 +89,12 @@ var (
 const timeFormat = "15:04:05.000"
 
 func (*Log) write(out *output, prefix, msg string, v ...any) {
-	var buf bytes.Buffer
+	var (
+		buf          bytes.Buffer
+		extraBufSize = len(v) * 32
+	)
 
-	buf.Grow(len(prefix) + len(msg) + len(v)*32)
+	buf.Grow(len(prefix) + len(msg) + extraBufSize)
 
 	if prefix != "" {
 		buf.WriteString(prefix)
@@ -98,14 +102,24 @@ func (*Log) write(out *output, prefix, msg string, v ...any) {
 	}
 
 	buf.WriteString(msg)
-	buf.WriteRune(' ')
 
-	for i, extra := range v {
-		buf.WriteString(extraDataColor.Sprint(extra))
+	if len(v) > 0 {
+		var extraBuf bytes.Buffer
 
-		if i < len(v)-1 {
-			buf.WriteRune(' ')
+		extraBuf.Grow(extraBufSize)
+		extraBuf.WriteString(" (")
+
+		for i, extra := range v {
+			extraBuf.WriteString(fmt.Sprint(extra))
+
+			if i < len(v)-1 {
+				extraBuf.WriteRune(' ')
+			}
 		}
+
+		extraBuf.WriteRune(')')
+		buf.WriteString(extraDataColor.Sprint(extraBuf.String()))
+		extraBuf.Reset() // gc is our bro
 	}
 
 	buf.WriteRune('\n')
@@ -121,7 +135,7 @@ func (l *Log) Debug(msg string, v ...any) {
 		var prefix = debugMarker + debugColor.Sprint(time.Now().Format(timeFormat))
 
 		if _, file, line, ok := runtime.Caller(1); ok {
-			prefix += underlineColor.Sprintf(" %s:%d", filepath.Base(file), line)
+			prefix += " " + underlineColor.Sprintf("%s:%d", filepath.Base(file), line)
 		}
 
 		l.write(&l.stdOut, prefix, msg, v...)

@@ -55,7 +55,7 @@ func TestLog_Debug(t *testing.T) {
 	assert.Contains(t, stderr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+debug\s+\d{2}:\d{2}:\d{2}\.\d{3}\s\w+\.go:\d+ debug msg foo 123 {} \[bar]\n`),
+		regexp.MustCompile(`^\s+debug\s+\d{2}:\d{2}:\d{2}\.\d{3}\s\w+\.go:\d+ debug msg \(foo 123 {} \[bar]\)\n`),
 		stdout,
 	)
 }
@@ -89,7 +89,7 @@ func TestLog_Info(t *testing.T) {
 	assert.Contains(t, stderr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+info\s+\d{2}:\d{2}:\d{2}\.\d{3} info msg foo 123 {} \[bar]\n`),
+		regexp.MustCompile(`^\s+info\s+\d{2}:\d{2}:\d{2}\.\d{3} info msg \(foo 123 {} \[bar]\)\n`),
 		stdout,
 	)
 }
@@ -123,7 +123,7 @@ func TestLog_Warn(t *testing.T) {
 	assert.Contains(t, stderr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+warn\s+\d{2}:\d{2}:\d{2}\.\d{3} warn msg foo 123 {} \[bar]\n`),
+		regexp.MustCompile(`^\s+warn\s+\d{2}:\d{2}:\d{2}\.\d{3} warn msg \(foo 123 {} \[bar]\)\n`),
 		stdout,
 	)
 }
@@ -154,7 +154,7 @@ func TestLog_Error(t *testing.T) {
 	assert.Contains(t, stderr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+error\s+\d{2}:\d{2}:\d{2}\.\d{3} error msg foo 123 {} \[bar]\n`),
+		regexp.MustCompile(`^\s+error\s+\d{2}:\d{2}:\d{2}\.\d{3} error msg \(foo 123 {} \[bar]\)\n`),
 		stderr,
 	)
 }
