@@ -127,6 +127,8 @@ func (*Log) write(out *output, prefix, msg string, v ...any) {
 	out.mu.Lock()
 	_, _ = out.to.Write(buf.Bytes())
 	out.mu.Unlock()
+
+	buf.Reset() // gc is our bro
 }
 
 // Debug logs a message at DebugLevel.

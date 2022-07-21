@@ -28,157 +28,158 @@ func TestNewNop(t *testing.T) {
 
 func TestLog_Debug(t *testing.T) {
 	var (
-		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-		do    = func() {
-			var l = logger.New(logger.DebugLevel)
-
-			l.Debug("debug msg", extra...)
-			l.Info("info msg", extra...)
-			l.Warn("warn msg", extra...)
-			l.Error("error msg", extra...)
-		}
+		stdOut, errOut bytes.Buffer
+		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
 	)
+
+	var l = logger.New(logger.DebugLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
+
+	l.Debug("debug msg", extra...)
+	l.Info("info msg", extra...)
+	l.Warn("warn msg", extra...)
+	l.Error("error msg", extra...)
 
 	var (
-		stdout = capturer.CaptureStdout(do)
-		stderr = capturer.CaptureStderr(do)
+		stdOutStr = stdOut.String()
+		stdErrStr = errOut.String()
 	)
 
-	assert.Contains(t, stdout, "debug msg")
-	assert.Contains(t, stdout, "info msg")
-	assert.Contains(t, stdout, "warn msg")
-	assert.NotContains(t, stdout, "error msg")
+	assert.Contains(t, stdOutStr, "debug msg")
+	assert.Contains(t, stdOutStr, "info msg")
+	assert.Contains(t, stdOutStr, "warn msg")
+	assert.NotContains(t, stdOutStr, "error msg")
 
-	assert.NotContains(t, stderr, "debug msg")
-	assert.NotContains(t, stderr, "info msg")
-	assert.NotContains(t, stderr, "warn msg")
-	assert.Contains(t, stderr, "error msg")
+	assert.NotContains(t, stdErrStr, "debug msg")
+	assert.NotContains(t, stdErrStr, "info msg")
+	assert.NotContains(t, stdErrStr, "warn msg")
+	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
 		regexp.MustCompile(`^\s+debug\s+\d{2}:\d{2}:\d{2}\.\d{3}\s\w+\.go:\d+ debug msg \(foo 123 {} \[bar]\)\n`),
-		stdout,
+		stdOutStr,
 	)
 }
 
 func TestLog_Info(t *testing.T) {
 	var (
-		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-		do    = func() {
-			var l = logger.New(logger.InfoLevel)
-
-			l.Debug("debug msg", extra...)
-			l.Info("info msg", extra...)
-			l.Warn("warn msg", extra...)
-			l.Error("error msg", extra...)
-		}
+		stdOut, errOut bytes.Buffer
+		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
 	)
+
+	var l = logger.New(logger.InfoLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
+
+	l.Debug("debug msg", extra...)
+	l.Info("info msg", extra...)
+	l.Warn("warn msg", extra...)
+	l.Error("error msg", extra...)
 
 	var (
-		stdout = capturer.CaptureStdout(do)
-		stderr = capturer.CaptureStderr(do)
+		stdOutStr = stdOut.String()
+		stdErrStr = errOut.String()
 	)
 
-	assert.NotContains(t, stdout, "debug msg")
-	assert.Contains(t, stdout, "info msg")
-	assert.Contains(t, stdout, "warn msg")
-	assert.NotContains(t, stdout, "error msg")
+	assert.NotContains(t, stdOutStr, "debug msg")
+	assert.Contains(t, stdOutStr, "info msg")
+	assert.Contains(t, stdOutStr, "warn msg")
+	assert.NotContains(t, stdOutStr, "error msg")
 
-	assert.NotContains(t, stderr, "debug msg")
-	assert.NotContains(t, stderr, "info msg")
-	assert.NotContains(t, stderr, "warn msg")
-	assert.Contains(t, stderr, "error msg")
+	assert.NotContains(t, stdErrStr, "debug msg")
+	assert.NotContains(t, stdErrStr, "info msg")
+	assert.NotContains(t, stdErrStr, "warn msg")
+	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
 		regexp.MustCompile(`^\s+info\s+\d{2}:\d{2}:\d{2}\.\d{3} info msg \(foo 123 {} \[bar]\)\n`),
-		stdout,
+		stdOutStr,
 	)
 }
 
 func TestLog_Warn(t *testing.T) {
 	var (
-		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-		do    = func() {
-			var l = logger.New(logger.WarnLevel)
-
-			l.Debug("debug msg", extra...)
-			l.Info("info msg", extra...)
-			l.Warn("warn msg", extra...)
-			l.Error("error msg", extra...)
-		}
+		stdOut, errOut bytes.Buffer
+		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
 	)
+
+	var l = logger.New(logger.WarnLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
+
+	l.Debug("debug msg", extra...)
+	l.Info("info msg", extra...)
+	l.Warn("warn msg", extra...)
+	l.Error("error msg", extra...)
 
 	var (
-		stdout = capturer.CaptureStdout(do)
-		stderr = capturer.CaptureStderr(do)
+		stdOutStr = stdOut.String()
+		stdErrStr = errOut.String()
 	)
 
-	assert.NotContains(t, stdout, "debug msg")
-	assert.NotContains(t, stdout, "info msg")
-	assert.Contains(t, stdout, "warn msg")
-	assert.NotContains(t, stdout, "error msg")
+	assert.NotContains(t, stdOutStr, "debug msg")
+	assert.NotContains(t, stdOutStr, "info msg")
+	assert.Contains(t, stdOutStr, "warn msg")
+	assert.NotContains(t, stdOutStr, "error msg")
 
-	assert.NotContains(t, stderr, "debug msg")
-	assert.NotContains(t, stderr, "info msg")
-	assert.NotContains(t, stderr, "warn msg")
-	assert.Contains(t, stderr, "error msg")
+	assert.NotContains(t, stdErrStr, "debug msg")
+	assert.NotContains(t, stdErrStr, "info msg")
+	assert.NotContains(t, stdErrStr, "warn msg")
+	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
 		regexp.MustCompile(`^\s+warn\s+\d{2}:\d{2}:\d{2}\.\d{3} warn msg \(foo 123 {} \[bar]\)\n`),
-		stdout,
+		stdOutStr,
 	)
 }
 
 func TestLog_Error(t *testing.T) {
 	var (
-		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-		do    = func() {
-			var l = logger.New(logger.ErrorLevel)
-
-			l.Debug("debug msg", extra...)
-			l.Info("info msg", extra...)
-			l.Warn("warn msg", extra...)
-			l.Error("error msg", extra...)
-		}
+		stdOut, errOut bytes.Buffer
+		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
 	)
+
+	var l = logger.New(logger.ErrorLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
+
+	l.Debug("debug msg", extra...)
+	l.Info("info msg", extra...)
+	l.Warn("warn msg", extra...)
+	l.Error("error msg", extra...)
 
 	var (
-		stdout = capturer.CaptureStdout(do)
-		stderr = capturer.CaptureStderr(do)
+		stdOutStr = stdOut.String()
+		stdErrStr = errOut.String()
 	)
 
-	assert.Empty(t, stdout)
+	assert.Empty(t, stdOutStr)
 
-	assert.NotContains(t, stderr, "debug msg")
-	assert.NotContains(t, stderr, "info msg")
-	assert.NotContains(t, stderr, "warn msg")
-	assert.Contains(t, stderr, "error msg")
+	assert.NotContains(t, stdErrStr, "debug msg")
+	assert.NotContains(t, stdErrStr, "info msg")
+	assert.NotContains(t, stdErrStr, "warn msg")
+	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
 		regexp.MustCompile(`^\s+error\s+\d{2}:\d{2}:\d{2}\.\d{3} error msg \(foo 123 {} \[bar]\)\n`),
-		stderr,
+		stdErrStr,
 	)
 }
 
 func TestLog_Concurrent(t *testing.T) {
-	var out = capturer.CaptureOutput(func() {
-		var (
-			l  = logger.New(logger.DebugLevel)
-			wg sync.WaitGroup
-		)
+	var (
+		stdOut, errOut bytes.Buffer
 
-		for i := 0; i < 100; i++ {
-			wg.Add(4)
+		l  = logger.New(logger.DebugLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
+		wg sync.WaitGroup
+	)
 
-			go func() { defer wg.Done(); l.Debug("debug", struct{}{}) }()
-			go func() { defer wg.Done(); l.Info("info", struct{}{}) }()
-			go func() { defer wg.Done(); l.Warn("warn", struct{}{}) }()
-			go func() { defer wg.Done(); l.Error("error", struct{}{}) }()
-		}
+	for i := 0; i < 100; i++ {
+		wg.Add(4)
 
-		wg.Wait()
-	})
+		go func() { defer wg.Done(); l.Debug("debug", struct{}{}) }()
+		go func() { defer wg.Done(); l.Info("info", struct{}{}) }()
+		go func() { defer wg.Done(); l.Warn("warn", struct{}{}) }()
+		go func() { defer wg.Done(); l.Error("error", struct{}{}) }()
+	}
 
-	assert.NotEmpty(t, out)
+	wg.Wait()
+
+	assert.NotEmpty(t, stdOut.String())
+	assert.NotEmpty(t, errOut.String())
 }
 
 // BenchmarkLog_Print-8         	 1119032	      1061 ns/op	     423 B/op	      16 allocs/op
