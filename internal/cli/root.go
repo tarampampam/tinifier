@@ -21,13 +21,13 @@ func NewApp() *cli.App {
 	)
 
 	// create "default" logger (will be overwritten later with customized)
-	var log = logger.New(defaultLogLevel)
+	var log = logger.NewNop()
 
 	return &cli.App{
 		Usage: "CLI client for images compressing using tinypng.com API",
 		Before: func(c *cli.Context) error {
 			var (
-				logLevel = defaultLogLevel
+				logLevel = defaultLogLevel //nolint:ineffassign
 				err      error
 			)
 

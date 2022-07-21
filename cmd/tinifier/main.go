@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/tarampampam/tinifier/v4/internal/cli"
-	"github.com/tarampampam/tinifier/v4/internal/logger"
 )
 
 // exitFn is a function for application exiting.
@@ -24,7 +23,7 @@ func main() {
 			right = color.New(color.FgHiRed, color.BgBlack)
 		)
 
-		println(left.Sprintf("  %s  ", "Error") + right.Sprintf("  %s  ", err)) //nolint:forbidigo
+		println(left.Sprintf("  %s  ", "Fatal error") + right.Sprintf("  %s  ", err)) //nolint:forbidigo
 	}
 
 	exitFn(code)
@@ -33,12 +32,6 @@ func main() {
 // run this CLI application.
 // Exit codes documentation: <https://tldp.org/LDP/abs/html/exitcodes.html>
 func run() (int, error) {
-	log := logger.New(logger.DebugLevel) // JUST FOR A TEST
-	log.Debug("debug level", "asd", 123, struct{}{})
-	log.Info("info level", "asd", 123, struct{}{})
-	log.Warn("warn level", "asd", 123, struct{}{})
-	log.Error("error level", "asd", 123, struct{}{})
-
 	const dotenvFileName = ".env" // dotenv (.env) file name
 
 	// load .env file (if file exists; useful for the local app development)

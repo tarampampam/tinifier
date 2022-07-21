@@ -11,7 +11,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
-	"go.uber.org/zap"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
@@ -20,12 +19,12 @@ import (
 )
 
 type command struct {
-	log *logger.Logger
+	log logger.Logger
 	c   *cli.Command
 }
 
 // NewCommand creates `compress` command.
-func NewCommand(log *logger.Logger) *cli.Command {
+func NewCommand(log logger.Logger) *cli.Command { //nolint:funlen
 	const (
 		apiKeyFlagName          = "api-key"
 		fileExtensionsFlagName  = "ext"
@@ -52,12 +51,12 @@ func NewCommand(log *logger.Logger) *cli.Command {
 			)
 
 			log.Debug("Run args",
-				zap.Strings("apiKeys", apiKeys),
-				zap.Strings("fileExtensions", fileExtensions),
-				zap.Uint("threadsCount", threadsCount),
-				zap.Uint("maxErrorsToStop", maxErrorsToStop),
-				zap.Bool("recursive", recursive),
-				zap.Strings("args", paths),
+				"apiKeys =", apiKeys,
+				"fileExtensions =", fileExtensions,
+				"threadsCount =", threadsCount,
+				"maxErrorsToStop =", maxErrorsToStop,
+				"recursive =", recursive,
+				"args =", paths,
 			)
 
 			if len(paths) == 0 {
@@ -113,7 +112,7 @@ func (cmd *command) Run(pCtx context.Context, paths, fileExt []string, recursive
 	)
 
 	oss.Subscribe(func(sig os.Signal) {
-		cmd.log.Debug("Stopping by OS signal..", zap.String("signal", sig.String()))
+		cmd.log.Debug("Stopping by OS signal..", "signal="+sig.String())
 
 		cancel()
 	})

@@ -2,100 +2,149 @@
 package logger
 
 import (
+	"bytes"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
 )
 
-type Logger struct {
-	stdLog *log.Logger
-	errLog *log.Logger
-	lvl    Level
+type Logger interface {
+	// Debug logs a message at DebugLevel.
+	Debug(msg string, v ...any)
+
+	// Info logs a message at InfoLevel.
+	Info(msg string, v ...any)
+
+	// Warn logs a message at WarnLevel.
+	Warn(msg string, v ...any)
+
+	// Error logs a message at ErrorLevel.
+	Error(msg string, v ...any)
+}
+
+type output struct {
+	mu sync.Mutex
+	to io.Writer
+}
+
+// LogOption is a function that can be used to modify a Log.
+type LogOption func(*Log)
+
+// WithStdOut sets the writer for standard output.
+func WithStdOut(w io.Writer) LogOption { return func(l *Log) { l.stdOut.to = w } }
+
+// WithStdErr sets the writer for standard error.
+func WithStdErr(w io.Writer) LogOption { return func(l *Log) { l.errOut.to = w } }
+
+// Log is a logger that logs messages at specified level.
+type Log struct {
+	stdOut, errOut output
+	lvl            Level
+}
+
+// New creates a new Logger with specified level.
+func New(lvl Level, opts ...LogOption) *Log {
+	var log = &Log{
+		stdOut: output{to: os.Stdout},
+		errOut: output{to: os.Stderr},
+		lvl:    lvl,
+	}
+
+	for _, opt := range opts {
+		opt(log)
+	}
+
+	return log
+}
+
+// NewNop creates a no-op Logger.
+func NewNop() *Log {
+	return &Log{
+		stdOut: output{to: io.Discard},
+		errOut: output{to: io.Discard},
+		lvl:    noLevel,
+	}
 }
 
 var (
-	debugColor     = color.New(color.FgMagenta)
-	infoColor      = color.New(color.FgBlue)
-	warnColor      = color.New(color.FgHiYellow, color.Bold)
-	errorColor     = color.New(color.FgHiRed, color.Bold)
-	underlineColor = color.New(color.Underline)
+	debugColor     = color.New(color.FgMagenta)              //nolint:gochecknoglobals
+	infoColor      = color.New(color.FgBlue)                 //nolint:gochecknoglobals
+	warnColor      = color.New(color.FgHiYellow, color.Bold) //nolint:gochecknoglobals
+	errorColor     = color.New(color.FgHiRed, color.Bold)    //nolint:gochecknoglobals
+	underlineColor = color.New(color.Underline)              //nolint:gochecknoglobals
+	extraDataColor = color.New(color.FgWhite)                //nolint:gochecknoglobals
 
-	debugMarker = color.New(color.BgMagenta, color.FgHiMagenta).Sprint(" debug ") + " "
-	infoMarker  = color.New(color.BgBlue, color.FgHiBlue).Sprint("  info ") + " "
-	warnMarker  = color.New(color.BgHiYellow, color.FgBlack).Sprint("  warn ") + " "
-	errorMarker = color.New(color.BgHiRed, color.FgHiWhite).Sprint(" error ") + " "
+	debugMarker = color.New(color.BgMagenta, color.FgHiMagenta).Sprint(" debug ") + " " //nolint:gochecknoglobals
+	infoMarker  = color.New(color.BgBlue, color.FgHiBlue).Sprint("  info ") + " "       //nolint:gochecknoglobals
+	warnMarker  = color.New(color.BgHiYellow, color.FgBlack).Sprint("  warn ") + " "    //nolint:gochecknoglobals
+	errorMarker = color.New(color.BgHiRed, color.FgHiWhite).Sprint(" error ") + " "     //nolint:gochecknoglobals
 )
 
 const timeFormat = "15:04:05.000"
 
-func New(lvl Level) *Logger {
-	const prefix, flag = "", 0
+func (*Log) write(out *output, prefix, msg string, v ...any) {
+	var buf bytes.Buffer
 
-	return &Logger{
-		stdLog: log.New(os.Stdout, prefix, flag),
-		errLog: log.New(os.Stderr, prefix, flag),
-		lvl:    lvl,
-	}
-}
-
-func NewNop() *Logger {
-	const prefix, flag = "", 0
-
-	return &Logger{
-		stdLog: log.New(io.Discard, prefix, flag),
-		errLog: log.New(io.Discard, prefix, flag),
-		lvl:    InfoLevel,
-	}
-}
-
-func (Logger) write(log *log.Logger, prefix, msg string, v ...any) {
-	var args []any
+	buf.Grow(len(prefix) + len(msg) + len(v)*32)
 
 	if prefix != "" {
-		args = make([]any, 2, len(v)+2)
-		args[0], args[1] = prefix, msg
-	} else {
-		args = make([]any, 1, len(v)+1)
-		args[0] = msg
+		buf.WriteString(prefix)
+		buf.WriteRune(' ')
 	}
 
-	args = append(args, v...)
+	buf.WriteString(msg)
+	buf.WriteRune(' ')
 
-	log.Println(args...)
+	for i, extra := range v {
+		buf.WriteString(extraDataColor.Sprint(extra))
+
+		if i < len(v)-1 {
+			buf.WriteRune(' ')
+		}
+	}
+
+	buf.WriteRune('\n')
+
+	out.mu.Lock()
+	_, _ = out.to.Write(buf.Bytes())
+	out.mu.Unlock()
 }
 
-func (l Logger) Debug(msg string, v ...any) {
+// Debug logs a message at DebugLevel.
+func (l *Log) Debug(msg string, v ...any) {
 	if DebugLevel >= l.lvl {
 		var prefix = debugMarker + debugColor.Sprint(time.Now().Format(timeFormat))
 
 		if _, file, line, ok := runtime.Caller(1); ok {
-			prefix += " " + underlineColor.Sprint(filepath.Base(file)+":"+strconv.Itoa(line))
+			prefix += underlineColor.Sprintf(" %s:%d", filepath.Base(file), line)
 		}
 
-		l.write(l.stdLog, prefix, msg, v...)
+		l.write(&l.stdOut, prefix, msg, v...)
 	}
 }
 
-func (l Logger) Info(msg string, v ...any) {
+// Info logs a message at InfoLevel.
+func (l *Log) Info(msg string, v ...any) {
 	if InfoLevel >= l.lvl {
-		l.write(l.stdLog, infoMarker+infoColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+		l.write(&l.stdOut, infoMarker+infoColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
 	}
 }
 
-func (l Logger) Warn(msg string, v ...any) {
+// Warn logs a message at WarnLevel.
+func (l *Log) Warn(msg string, v ...any) {
 	if WarnLevel >= l.lvl {
-		l.write(l.stdLog, warnMarker+warnColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+		l.write(&l.stdOut, warnMarker+warnColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
 	}
 }
 
-func (l Logger) Error(msg string, v ...any) {
+// Error logs a message at ErrorLevel.
+func (l *Log) Error(msg string, v ...any) {
 	if ErrorLevel >= l.lvl {
-		l.write(l.errLog, errorMarker+errorColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+		l.write(&l.errOut, errorMarker+errorColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
 	}
 }

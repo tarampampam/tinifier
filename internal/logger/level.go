@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"fmt"
+	"math"
 )
 
 // A Level is a logging level.
@@ -13,6 +14,8 @@ const (
 	InfoLevel        // default level (zero-value)
 	WarnLevel
 	ErrorLevel
+
+	noLevel Level = math.MaxInt8 // no level
 )
 
 // AllLevels returns all logging levels.
@@ -43,6 +46,8 @@ func (l Level) String() string {
 		return "warn"
 	case ErrorLevel:
 		return "error"
+	case noLevel:
+		return "none"
 	}
 
 	return fmt.Sprintf("level(%d)", l)
