@@ -77,6 +77,8 @@ const (
 	infoPrefix  = "  info "
 	warnPrefix  = "  warn "
 	errorPrefix = " error "
+
+	prefixGrowSize = 7 /* prefix */ + 8*4 /* colors */ + 12 /* timestamp */
 )
 
 var (
@@ -93,7 +95,7 @@ var (
 	errorMarker = color.New(color.BgHiRed, color.FgHiWhite)     //nolint:gochecknoglobals
 )
 
-func (*Log) write(out *output, prefix, msg string, extra ...any) {
+func (*Log) write(out *output, prefix []byte, msg string, extra ...any) {
 	var buf, extraBuf bytes.Buffer
 
 	if len(extra) > 0 {
@@ -113,8 +115,8 @@ func (*Log) write(out *output, prefix, msg string, extra ...any) {
 
 	buf.Grow(len(prefix) + len(msg) + extraBuf.Len() + 12)
 
-	if prefix != "" {
-		buf.WriteString(prefix)
+	if len(prefix) > 0 {
+		buf.Write(prefix)
 		buf.WriteRune(' ')
 	}
 
@@ -141,33 +143,60 @@ func (*Log) getTimestamp() string {
 // Debug logs a message at DebugLevel.
 func (l *Log) Debug(msg string, v ...any) {
 	if DebugLevel >= l.lvl {
-		var prefix = debugMarker.Sprint(debugPrefix) + " " + debugColor.Sprint(l.getTimestamp())
+		var prefix bytes.Buffer
+
+		prefix.Grow(prefixGrowSize)
+		_, _ = debugMarker.Fprint(&prefix, debugPrefix)
+		prefix.WriteRune(' ')
+		_, _ = debugColor.Fprint(&prefix, l.getTimestamp())
 
 		if _, file, line, ok := runtime.Caller(1); ok {
-			prefix += " " + underlineColor.Sprintf("%s:%d", filepath.Base(file), line)
+			prefix.WriteRune(' ')
+			_, _ = underlineColor.Fprintf(&prefix, "%s:%d", filepath.Base(file), line)
 		}
 
-		l.write(&l.stdOut, prefix, msg, v...)
+		l.write(&l.stdOut, prefix.Bytes(), msg, v...)
 	}
 }
 
 // Info logs a message at InfoLevel.
 func (l *Log) Info(msg string, v ...any) {
 	if InfoLevel >= l.lvl {
-		l.write(&l.stdOut, infoMarker.Sprint(infoPrefix)+" "+infoColor.Sprint(l.getTimestamp()), msg, v...)
+		var prefix bytes.Buffer
+
+		prefix.Grow(prefixGrowSize)
+		_, _ = infoMarker.Fprint(&prefix, infoPrefix)
+		prefix.WriteRune(' ')
+		_, _ = infoColor.Fprint(&prefix, l.getTimestamp())
+
+		l.write(&l.stdOut, prefix.Bytes(), msg, v...)
 	}
 }
 
 // Warn logs a message at WarnLevel.
 func (l *Log) Warn(msg string, v ...any) {
 	if WarnLevel >= l.lvl {
-		l.write(&l.stdOut, warnMarker.Sprint(warnPrefix)+" "+warnColor.Sprint(l.getTimestamp()), msg, v...)
+		var prefix bytes.Buffer
+
+		prefix.Grow(prefixGrowSize)
+		_, _ = warnMarker.Fprint(&prefix, warnPrefix)
+		prefix.WriteRune(' ')
+		_, _ = warnColor.Fprint(&prefix, l.getTimestamp())
+
+		l.write(&l.stdOut, prefix.Bytes(), msg, v...)
 	}
 }
 
 // Error logs a message at ErrorLevel.
 func (l *Log) Error(msg string, v ...any) {
 	if ErrorLevel >= l.lvl {
-		l.write(&l.errOut, errorMarker.Sprint(errorPrefix)+" "+errorColor.Sprint(l.getTimestamp()), msg, v...)
+		var prefix bytes.Buffer
+
+		prefix.Grow(prefixGrowSize)
+		_, _ = errorMarker.Fprint(&prefix, errorPrefix)
+		prefix.WriteRune(' ')
+		_, _ = errorColor.Fprint(&prefix, l.getTimestamp())
+
+		l.write(&l.errOut, prefix.Bytes(), msg, v...)
 	}
 }

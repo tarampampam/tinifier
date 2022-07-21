@@ -27,19 +27,19 @@ func TestNewNop(t *testing.T) {
 	assert.Empty(t, out)
 }
 
-func TestUsage(t *testing.T) {
-	var (
-		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-		l     = logger.New(logger.DebugLevel)
-	)
-
-	color.NoColor = false
-
-	l.Debug("debug msg", extra...)
-	l.Info("info msg", extra...)
-	l.Warn("warn msg", extra...)
-	l.Error("error msg", extra...)
-}
+// func TestUsage(t *testing.T) {
+// 	var (
+// 		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
+// 		l     = logger.New(logger.DebugLevel)
+// 	)
+//
+// 	color.NoColor = false
+//
+// 	l.Debug("debug msg", extra...)
+// 	l.Info("info msg", extra...)
+// 	l.Warn("warn msg", extra...)
+// 	l.Error("error msg", extra...)
+// }
 
 func TestLog_Debug(t *testing.T) {
 	var colorState = color.NoColor
@@ -213,7 +213,7 @@ func TestLog_Concurrent(t *testing.T) {
 	assert.NotEmpty(t, errOut.String())
 }
 
-// BenchmarkLog_Print-8         	  726880	      1585 ns/op	     692 B/op	      25 allocs/op
+// BenchmarkLog_Print-8         	  769725	      1524 ns/op	     665 B/op	      20 allocs/op
 func BenchmarkLog_Print(b *testing.B) { // our logger is really slow
 	b.ReportAllocs()
 
@@ -229,7 +229,7 @@ func BenchmarkLog_Print(b *testing.B) { // our logger is really slow
 	}
 }
 
-// BenchmarkStdLibLog_Print-8   	 5370418	       225.2 ns/op	     119 B/op	       1 allocs/op
+// BenchmarkStdLibLog_Print-8   	 5297905	       339.6 ns/op	     120 B/op	       1 allocs/op
 func BenchmarkStdLibLog_Print(b *testing.B) {
 	b.ReportAllocs()
 
