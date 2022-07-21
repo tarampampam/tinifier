@@ -72,29 +72,46 @@ func NewNop() *Log {
 	}
 }
 
-var (
-	debugColor     = color.New(color.FgMagenta)              //nolint:gochecknoglobals
-	infoColor      = color.New(color.FgBlue)                 //nolint:gochecknoglobals
-	warnColor      = color.New(color.FgHiYellow, color.Bold) //nolint:gochecknoglobals
-	errorColor     = color.New(color.FgHiRed, color.Bold)    //nolint:gochecknoglobals
-	underlineColor = color.New(color.Underline)              //nolint:gochecknoglobals
-	extraDataColor = color.New(color.FgWhite)                //nolint:gochecknoglobals
-
-	debugMarker = color.New(color.BgMagenta, color.FgHiMagenta).Sprint(" debug ") + " " //nolint:gochecknoglobals
-	infoMarker  = color.New(color.BgBlue, color.FgHiBlue).Sprint("  info ") + " "       //nolint:gochecknoglobals
-	warnMarker  = color.New(color.BgHiYellow, color.FgBlack).Sprint("  warn ") + " "    //nolint:gochecknoglobals
-	errorMarker = color.New(color.BgHiRed, color.FgHiWhite).Sprint(" error ") + " "     //nolint:gochecknoglobals
+const (
+	debugPrefix = " debug "
+	infoPrefix  = "  info "
+	warnPrefix  = "  warn "
+	errorPrefix = " error "
 )
 
-const timeFormat = "15:04:05.000"
+var (
+	debugColor       = color.New(color.FgMagenta)              //nolint:gochecknoglobals
+	infoColor        = color.New(color.FgBlue)                 //nolint:gochecknoglobals
+	warnColor        = color.New(color.FgHiYellow, color.Bold) //nolint:gochecknoglobals
+	errorColor       = color.New(color.FgHiRed, color.Bold)    //nolint:gochecknoglobals
+	underlineColor   = color.New(color.Underline)              //nolint:gochecknoglobals
+	runtimeInfoColor = color.New(color.FgWhite)                //nolint:gochecknoglobals
 
-func (*Log) write(out *output, prefix, msg string, v ...any) {
-	var (
-		buf          bytes.Buffer
-		extraBufSize = len(v) * 32
-	)
+	debugMarker = color.New(color.BgMagenta, color.FgHiMagenta) //nolint:gochecknoglobals
+	infoMarker  = color.New(color.BgBlue, color.FgHiBlue)       //nolint:gochecknoglobals
+	warnMarker  = color.New(color.BgHiYellow, color.FgBlack)    //nolint:gochecknoglobals
+	errorMarker = color.New(color.BgHiRed, color.FgHiWhite)     //nolint:gochecknoglobals
+)
 
-	buf.Grow(len(prefix) + len(msg) + extraBufSize)
+func (*Log) write(out *output, prefix, msg string, extra ...any) {
+	var buf, extraBuf bytes.Buffer
+
+	if len(extra) > 0 {
+		extraBuf.Grow(len(extra) * 32)
+		extraBuf.WriteRune('(')
+
+		for i, v := range extra {
+			extraBuf.WriteString(fmt.Sprint(v))
+
+			if i < len(extra)-1 {
+				extraBuf.WriteRune(' ')
+			}
+		}
+
+		extraBuf.WriteRune(')')
+	}
+
+	buf.Grow(len(prefix) + len(msg) + extraBuf.Len() + 12)
 
 	if prefix != "" {
 		buf.WriteString(prefix)
@@ -103,38 +120,28 @@ func (*Log) write(out *output, prefix, msg string, v ...any) {
 
 	buf.WriteString(msg)
 
-	if len(v) > 0 {
-		var extraBuf bytes.Buffer
-
-		extraBuf.Grow(extraBufSize)
-		extraBuf.WriteString(" (")
-
-		for i, extra := range v {
-			extraBuf.WriteString(fmt.Sprint(extra))
-
-			if i < len(v)-1 {
-				extraBuf.WriteRune(' ')
-			}
-		}
-
-		extraBuf.WriteRune(')')
-		buf.WriteString(extraDataColor.Sprint(extraBuf.String()))
-		extraBuf.Reset() // gc is our bro
+	if extraBuf.Len() > 0 {
+		buf.WriteRune(' ')
+		_, _ = runtimeInfoColor.Fprint(&buf, extraBuf.String())
 	}
 
 	buf.WriteRune('\n')
 
 	out.mu.Lock()
-	_, _ = out.to.Write(buf.Bytes())
+	_, _ = buf.WriteTo(out.to)
 	out.mu.Unlock()
+}
 
-	buf.Reset() // gc is our bro
+func (*Log) getTimestamp() string {
+	const timeFormat = "15:04:05.000"
+
+	return time.Now().Format(timeFormat)
 }
 
 // Debug logs a message at DebugLevel.
 func (l *Log) Debug(msg string, v ...any) {
 	if DebugLevel >= l.lvl {
-		var prefix = debugMarker + debugColor.Sprint(time.Now().Format(timeFormat))
+		var prefix = debugMarker.Sprint(debugPrefix) + " " + debugColor.Sprint(l.getTimestamp())
 
 		if _, file, line, ok := runtime.Caller(1); ok {
 			prefix += " " + underlineColor.Sprintf("%s:%d", filepath.Base(file), line)
@@ -147,20 +154,20 @@ func (l *Log) Debug(msg string, v ...any) {
 // Info logs a message at InfoLevel.
 func (l *Log) Info(msg string, v ...any) {
 	if InfoLevel >= l.lvl {
-		l.write(&l.stdOut, infoMarker+infoColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+		l.write(&l.stdOut, infoMarker.Sprint(infoPrefix)+" "+infoColor.Sprint(l.getTimestamp()), msg, v...)
 	}
 }
 
 // Warn logs a message at WarnLevel.
 func (l *Log) Warn(msg string, v ...any) {
 	if WarnLevel >= l.lvl {
-		l.write(&l.stdOut, warnMarker+warnColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+		l.write(&l.stdOut, warnMarker.Sprint(warnPrefix)+" "+warnColor.Sprint(l.getTimestamp()), msg, v...)
 	}
 }
 
 // Error logs a message at ErrorLevel.
 func (l *Log) Error(msg string, v ...any) {
 	if ErrorLevel >= l.lvl {
-		l.write(&l.errOut, errorMarker+errorColor.Sprint(time.Now().Format(timeFormat)), msg, v...)
+		l.write(&l.errOut, errorMarker.Sprint(errorPrefix)+" "+errorColor.Sprint(l.getTimestamp()), msg, v...)
 	}
 }

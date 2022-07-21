@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/kami-zh/go-capturer"
 	"github.com/stretchr/testify/assert"
 
@@ -26,7 +27,25 @@ func TestNewNop(t *testing.T) {
 	assert.Empty(t, out)
 }
 
+func TestUsage(t *testing.T) {
+	var (
+		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
+		l     = logger.New(logger.DebugLevel)
+	)
+
+	color.NoColor = false
+
+	l.Debug("debug msg", extra...)
+	l.Info("info msg", extra...)
+	l.Warn("warn msg", extra...)
+	l.Error("error msg", extra...)
+}
+
 func TestLog_Debug(t *testing.T) {
+	var colorState = color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = colorState }()
+
 	var (
 		stdOut, errOut bytes.Buffer
 		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
@@ -61,6 +80,10 @@ func TestLog_Debug(t *testing.T) {
 }
 
 func TestLog_Info(t *testing.T) {
+	var colorState = color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = colorState }()
+
 	var (
 		stdOut, errOut bytes.Buffer
 		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
@@ -95,6 +118,10 @@ func TestLog_Info(t *testing.T) {
 }
 
 func TestLog_Warn(t *testing.T) {
+	var colorState = color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = colorState }()
+
 	var (
 		stdOut, errOut bytes.Buffer
 		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
@@ -129,6 +156,10 @@ func TestLog_Warn(t *testing.T) {
 }
 
 func TestLog_Error(t *testing.T) {
+	var colorState = color.NoColor
+	color.NoColor = true
+	defer func() { color.NoColor = colorState }()
+
 	var (
 		stdOut, errOut bytes.Buffer
 		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
@@ -182,8 +213,8 @@ func TestLog_Concurrent(t *testing.T) {
 	assert.NotEmpty(t, errOut.String())
 }
 
-// BenchmarkLog_Print-8         	 1119032	      1061 ns/op	     423 B/op	      16 allocs/op
-func BenchmarkLog_Print(b *testing.B) { // our logger is slow
+// BenchmarkLog_Print-8         	  726880	      1585 ns/op	     692 B/op	      25 allocs/op
+func BenchmarkLog_Print(b *testing.B) { // our logger is really slow
 	b.ReportAllocs()
 
 	var (
@@ -198,7 +229,7 @@ func BenchmarkLog_Print(b *testing.B) { // our logger is slow
 	}
 }
 
-// BenchmarkStdLibLog_Print-8   	 5205457	       236.7 ns/op	     122 B/op	       1 allocs/op
+// BenchmarkStdLibLog_Print-8   	 5370418	       225.2 ns/op	     119 B/op	       1 allocs/op
 func BenchmarkStdLibLog_Print(b *testing.B) {
 	b.ReportAllocs()
 
