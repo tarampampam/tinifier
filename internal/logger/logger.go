@@ -99,7 +99,7 @@ func (*Log) write(out *output, prefix []byte, msg string, extra ...any) {
 	var buf, extraBuf bytes.Buffer
 
 	if len(extra) > 0 {
-		extraBuf.Grow(len(extra) * 32)
+		extraBuf.Grow(len(extra) * 32) //nolint:gomnd
 		extraBuf.WriteRune('(')
 
 		for i, v := range extra {
@@ -113,7 +113,7 @@ func (*Log) write(out *output, prefix []byte, msg string, extra ...any) {
 		extraBuf.WriteRune(')')
 	}
 
-	buf.Grow(len(prefix) + len(msg) + extraBuf.Len() + 12)
+	buf.Grow(len(prefix) + len(msg) + extraBuf.Len() + 12) //nolint:gomnd
 
 	if len(prefix) > 0 {
 		buf.Write(prefix)

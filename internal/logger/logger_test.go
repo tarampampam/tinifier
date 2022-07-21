@@ -43,7 +43,9 @@ func TestNewNop(t *testing.T) {
 
 func TestLog_Debug(t *testing.T) {
 	var colorState = color.NoColor
+
 	color.NoColor = true
+
 	defer func() { color.NoColor = colorState }()
 
 	var (
@@ -81,7 +83,9 @@ func TestLog_Debug(t *testing.T) {
 
 func TestLog_Info(t *testing.T) {
 	var colorState = color.NoColor
+
 	color.NoColor = true
+
 	defer func() { color.NoColor = colorState }()
 
 	var (
@@ -119,7 +123,9 @@ func TestLog_Info(t *testing.T) {
 
 func TestLog_Warn(t *testing.T) {
 	var colorState = color.NoColor
+
 	color.NoColor = true
+
 	defer func() { color.NoColor = colorState }()
 
 	var (
@@ -157,7 +163,9 @@ func TestLog_Warn(t *testing.T) {
 
 func TestLog_Error(t *testing.T) {
 	var colorState = color.NoColor
+
 	color.NoColor = true
+
 	defer func() { color.NoColor = colorState }()
 
 	var (
