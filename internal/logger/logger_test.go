@@ -27,19 +27,19 @@ func TestNewNop(t *testing.T) {
 	assert.Empty(t, out)
 }
 
-func TestUsage(t *testing.T) {
-	var (
-		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-		l     = logger.New(logger.DebugLevel)
-	)
-
-	color.NoColor = false
-
-	l.Debug("debug msg", extra...)
-	l.Info("info msg", extra...)
-	l.Warn("warn msg", extra...)
-	l.Error("error msg", extra...)
-}
+// func TestUsage(t *testing.T) {
+// 	var (
+// 		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
+// 		l     = logger.New(logger.DebugLevel)
+// 	)
+//
+// 	color.NoColor = false
+//
+// 	l.Debug("debug msg", extra...)
+// 	l.Info("info msg", extra...)
+// 	l.Warn("warn msg", extra...)
+// 	l.Error("error msg", extra...)
+// }
 
 func TestLog_Debug(t *testing.T) {
 	var colorState = color.NoColor

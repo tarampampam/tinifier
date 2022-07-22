@@ -16,5 +16,11 @@ func IsImage(src io.Reader) (bool, error) {
 		return false, err
 	}
 
+	if seeker, ok := src.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+			return false, err
+		}
+	}
+
 	return strings.HasPrefix(http.DetectContentType(buf), "image/"), nil
 }

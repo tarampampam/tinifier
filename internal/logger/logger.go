@@ -132,7 +132,7 @@ func (*Log) write(out *output, prefix string, msg string, extra ...any) {
 	out.mu.Unlock()
 }
 
-func (l *Log) buildPrefix(blockColor, tsColor *color.Color, s string) string {
+func (l *Log) formatPrefix(blockColor, tsColor *color.Color, s string) string {
 	var prefix bytes.Buffer
 
 	prefix.Grow(7 /* prefix */ + 8*4 /* colors */ + 12 /* timestamp */) //nolint:gomnd
@@ -146,7 +146,7 @@ func (l *Log) buildPrefix(blockColor, tsColor *color.Color, s string) string {
 // Debug logs a message at DebugLevel.
 func (l *Log) Debug(msg string, v ...any) {
 	if DebugLevel >= l.lvl {
-		var prefix = l.buildPrefix(debugMarker, debugColor, debugPrefix)
+		var prefix = l.formatPrefix(debugMarker, debugColor, debugPrefix)
 
 		if _, file, line, ok := runtime.Caller(1); ok {
 			prefix += " " + underlineColor.Sprintf("%s:%d", filepath.Base(file), line)
@@ -159,20 +159,20 @@ func (l *Log) Debug(msg string, v ...any) {
 // Info logs a message at InfoLevel.
 func (l *Log) Info(msg string, v ...any) {
 	if InfoLevel >= l.lvl {
-		l.write(&l.stdOut, l.buildPrefix(infoMarker, infoColor, infoPrefix), msg, v...)
+		l.write(&l.stdOut, l.formatPrefix(infoMarker, infoColor, infoPrefix), msg, v...)
 	}
 }
 
 // Warn logs a message at WarnLevel.
 func (l *Log) Warn(msg string, v ...any) {
 	if WarnLevel >= l.lvl {
-		l.write(&l.stdOut, l.buildPrefix(warnMarker, warnColor, warnPrefix), msg, v...)
+		l.write(&l.stdOut, l.formatPrefix(warnMarker, warnColor, warnPrefix), msg, v...)
 	}
 }
 
 // Error logs a message at ErrorLevel.
 func (l *Log) Error(msg string, v ...any) {
 	if ErrorLevel >= l.lvl {
-		l.write(&l.errOut, l.buildPrefix(errorMarker, errorColor, errorPrefix), msg, v...)
+		l.write(&l.errOut, l.formatPrefix(errorMarker, errorColor, errorPrefix), msg, v...)
 	}
 }
