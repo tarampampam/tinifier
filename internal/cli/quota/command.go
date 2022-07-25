@@ -32,7 +32,7 @@ func NewCommand(log logger.Logger) *cli.Command {
 				return fmt.Errorf("API key (%s) is too short", apiKey)
 			}
 
-			log.Debug("Running", "api_key="+apiKey)
+			log.Debug("Running", logger.With("api_key", apiKey))
 
 			var (
 				ctx, cancel = context.WithCancel(c.Context) // main context creation
@@ -40,7 +40,7 @@ func NewCommand(log logger.Logger) *cli.Command {
 			)
 
 			oss.Subscribe(func(sig os.Signal) {
-				log.Warn("Stopping by OS signal..", "signal="+sig.String())
+				log.Warn("Stopping by OS signal..", logger.With("signal", sig.String()))
 
 				cancel()
 			})

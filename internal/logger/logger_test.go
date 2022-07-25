@@ -2,13 +2,12 @@ package logger_test
 
 import (
 	"bytes"
-	"log"
 	"regexp"
 	"sync"
 	"testing"
 
-	"github.com/fatih/color"
 	"github.com/kami-zh/go-capturer"
+	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tarampampam/tinifier/v4/internal/logger"
@@ -18,10 +17,10 @@ func TestNewNop(t *testing.T) {
 	var l = logger.NewNop()
 
 	out := capturer.CaptureOutput(func() {
-		l.Debug("debug msg")
-		l.Info("info msg")
-		l.Warn("warn msg")
-		l.Error("error msg")
+		l.Debug("debug msg", logger.With("foo", struct{}{}))
+		l.Info("info msg", logger.With("foo", 123))
+		l.Warn("warn msg", logger.With("foo", []string{"bar"}))
+		l.Error("error msg", logger.With("foo", "bar"))
 	})
 
 	assert.Empty(t, out)
@@ -29,28 +28,36 @@ func TestNewNop(t *testing.T) {
 
 // func TestUsage(t *testing.T) {
 // 	var (
-// 		extra = []any{"foo", 123, struct{}{}, []string{"bar"}}
-// 		l     = logger.New(logger.DebugLevel)
+// 		extra = []logger.Extra{
+// 			logger.With("string", "foo"),
+// 			logger.With("int", 123),
+// 			logger.With("struct", struct{}{}),
+// 			logger.With("slice", []string{"bar"}),
+// 		}
+// 		l = logger.New(logger.DebugLevel)
 // 	)
 //
 // 	color.NoColor = false
 //
 // 	l.Debug("debug msg", extra...)
 // 	l.Info("info msg", extra...)
+// 	l.Success("success msg", extra...)
 // 	l.Warn("warn msg", extra...)
 // 	l.Error("error msg", extra...)
 // }
 
 func TestLog_Debug(t *testing.T) {
-	var colorState = color.NoColor
-
-	color.NoColor = true
-
-	defer func() { color.NoColor = colorState }()
+	pterm.DisableColor()
+	defer pterm.EnableColor()
 
 	var (
 		stdOut, errOut bytes.Buffer
-		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
+		extra          = []logger.Extra{
+			logger.With("string", "foo"),
+			logger.With("int", 123),
+			logger.With("struct", struct{}{}),
+			logger.With("slice", []string{"bar"}),
+		}
 	)
 
 	var l = logger.New(logger.DebugLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
@@ -76,21 +83,27 @@ func TestLog_Debug(t *testing.T) {
 	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+debug\s+\d{2}:\d{2}:\d{2}\.\d{3}\s\w+\.go:\d+ debug msg \(foo 123 {} \[bar]\)\n`),
+		regexp.MustCompile(`^\s+debug\s+\d{2}:\d{2}:\d{2}\.\d{3} debug msg\n`),
 		stdOutStr,
 	)
+	assert.Contains(t, stdOutStr, "string: foo")
+	assert.Contains(t, stdOutStr, "int: 123")
+	assert.Contains(t, stdOutStr, "struct: {}")
+	assert.Contains(t, stdOutStr, "slice: [bar]")
 }
 
 func TestLog_Info(t *testing.T) {
-	var colorState = color.NoColor
-
-	color.NoColor = true
-
-	defer func() { color.NoColor = colorState }()
+	pterm.DisableColor()
+	defer pterm.EnableColor()
 
 	var (
 		stdOut, errOut bytes.Buffer
-		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
+		extra          = []logger.Extra{
+			logger.With("string", "foo"),
+			logger.With("int", 123),
+			logger.With("struct", struct{}{}),
+			logger.With("slice", []string{"bar"}),
+		}
 	)
 
 	var l = logger.New(logger.InfoLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
@@ -116,21 +129,27 @@ func TestLog_Info(t *testing.T) {
 	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+info\s+\d{2}:\d{2}:\d{2}\.\d{3} info msg \(foo 123 {} \[bar]\)\n`),
+		regexp.MustCompile(`^\s+info\s+\d{2}:\d{2}:\d{2}\.\d{3} info msg\n`),
 		stdOutStr,
 	)
+	assert.Contains(t, stdOutStr, "string: foo")
+	assert.Contains(t, stdOutStr, "int: 123")
+	assert.Contains(t, stdOutStr, "struct: {}")
+	assert.Contains(t, stdOutStr, "slice: [bar]")
 }
 
 func TestLog_Warn(t *testing.T) {
-	var colorState = color.NoColor
-
-	color.NoColor = true
-
-	defer func() { color.NoColor = colorState }()
+	pterm.DisableColor()
+	defer pterm.EnableColor()
 
 	var (
 		stdOut, errOut bytes.Buffer
-		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
+		extra          = []logger.Extra{
+			logger.With("string", "foo"),
+			logger.With("int", 123),
+			logger.With("struct", struct{}{}),
+			logger.With("slice", []string{"bar"}),
+		}
 	)
 
 	var l = logger.New(logger.WarnLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
@@ -156,21 +175,27 @@ func TestLog_Warn(t *testing.T) {
 	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+warn\s+\d{2}:\d{2}:\d{2}\.\d{3} warn msg \(foo 123 {} \[bar]\)\n`),
+		regexp.MustCompile(`^\s+warn\s+\d{2}:\d{2}:\d{2}\.\d{3} warn msg\n`),
 		stdOutStr,
 	)
+	assert.Contains(t, stdOutStr, "string: foo")
+	assert.Contains(t, stdOutStr, "int: 123")
+	assert.Contains(t, stdOutStr, "struct: {}")
+	assert.Contains(t, stdOutStr, "slice: [bar]")
 }
 
 func TestLog_Error(t *testing.T) {
-	var colorState = color.NoColor
-
-	color.NoColor = true
-
-	defer func() { color.NoColor = colorState }()
+	pterm.DisableColor()
+	defer pterm.EnableColor()
 
 	var (
 		stdOut, errOut bytes.Buffer
-		extra          = []any{"foo", 123, struct{}{}, []string{"bar"}}
+		extra          = []logger.Extra{
+			logger.With("string", "foo"),
+			logger.With("int", 123),
+			logger.With("struct", struct{}{}),
+			logger.With("slice", []string{"bar"}),
+		}
 	)
 
 	var l = logger.New(logger.ErrorLevel, logger.WithStdOut(&stdOut), logger.WithStdErr(&errOut))
@@ -193,9 +218,13 @@ func TestLog_Error(t *testing.T) {
 	assert.Contains(t, stdErrStr, "error msg")
 
 	assert.Regexp(t,
-		regexp.MustCompile(`^\s+error\s+\d{2}:\d{2}:\d{2}\.\d{3} error msg \(foo 123 {} \[bar]\)\n`),
+		regexp.MustCompile(`^\s+error\s+\d{2}:\d{2}:\d{2}\.\d{3} error msg\n`),
 		stdErrStr,
 	)
+	assert.Contains(t, stdErrStr, "string: foo")
+	assert.Contains(t, stdErrStr, "int: 123")
+	assert.Contains(t, stdErrStr, "struct: {}")
+	assert.Contains(t, stdErrStr, "slice: [bar]")
 }
 
 func TestLog_Concurrent(t *testing.T) {
@@ -209,46 +238,14 @@ func TestLog_Concurrent(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		wg.Add(4)
 
-		go func() { defer wg.Done(); l.Debug("debug", struct{}{}) }()
-		go func() { defer wg.Done(); l.Info("info", struct{}{}) }()
-		go func() { defer wg.Done(); l.Warn("warn", struct{}{}) }()
-		go func() { defer wg.Done(); l.Error("error", struct{}{}) }()
+		go func() { defer wg.Done(); l.Debug("debug", logger.With("struct", struct{}{})) }()
+		go func() { defer wg.Done(); l.Info("info", logger.With("struct", struct{}{})) }()
+		go func() { defer wg.Done(); l.Warn("warn", logger.With("struct", struct{}{})) }()
+		go func() { defer wg.Done(); l.Error("error", logger.With("struct", struct{}{})) }()
 	}
 
 	wg.Wait()
 
 	assert.NotEmpty(t, stdOut.String())
 	assert.NotEmpty(t, errOut.String())
-}
-
-// BenchmarkLog_Print-8         	  645908	      1592 ns/op	     764 B/op	      22 allocs/op
-func BenchmarkLog_Print(b *testing.B) { // our logger is really slow
-	b.ReportAllocs()
-
-	var (
-		buf bytes.Buffer
-		l   = logger.New(logger.InfoLevel, logger.WithStdErr(&buf), logger.WithStdOut(&buf))
-	)
-
-	buf.Grow(1024)
-
-	for i := 0; i < b.N; i++ {
-		l.Info("message", struct{}{})
-	}
-}
-
-// BenchmarkStdLibLog_Print-8   	 5297905	       339.6 ns/op	     120 B/op	       1 allocs/op
-func BenchmarkStdLibLog_Print(b *testing.B) {
-	b.ReportAllocs()
-
-	var (
-		buf bytes.Buffer
-		l   = log.New(&buf, "log", log.LstdFlags)
-	)
-
-	buf.Grow(1024)
-
-	for i := 0; i < b.N; i++ {
-		l.Println("message", struct{}{})
-	}
 }

@@ -8,52 +8,110 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 )
 
-type Logger interface {
-	// Debug logs a message at DebugLevel.
-	Debug(msg string, v ...any)
+type (
+	Logger interface {
+		// Debug logs a message at DebugLevel.
+		Debug(msg string, v ...Extra)
 
-	// Info logs a message at InfoLevel.
-	Info(msg string, v ...any)
+		// Info logs a message at InfoLevel.
+		Info(msg string, v ...Extra)
 
-	// Warn logs a message at WarnLevel.
-	Warn(msg string, v ...any)
+		// Success logs a success message at InfoLevel.
+		Success(msg string, v ...Extra)
 
-	// Error logs a message at ErrorLevel.
-	Error(msg string, v ...any)
+		// Warn logs a message at WarnLevel.
+		Warn(msg string, v ...Extra)
+
+		// Error logs a message at ErrorLevel.
+		Error(msg string, v ...Extra)
+	}
+
+	Extra interface {
+		// Key returns the key of the extra field.
+		Key() string
+
+		// Value returns the value of the extra field.
+		Value() any
+	}
+)
+
+// extra is a helper struct for that implements Extra interface.
+type extra struct {
+	key   string
+	value any
 }
 
-type output struct {
-	mu sync.Mutex
-	to io.Writer
-}
+func (e *extra) Key() string { return e.key }
+func (e *extra) Value() any  { return e.value }
+
+// With returns an Extra logger field.
+func With(key string, value any) Extra { return &extra{key: key, value: value} }
 
 // LogOption is a function that can be used to modify a Log.
 type LogOption func(*Log)
 
 // WithStdOut sets the writer for standard output.
-func WithStdOut(w io.Writer) LogOption { return func(l *Log) { l.stdOut.to = w } }
+func WithStdOut(w io.Writer) LogOption {
+	return func(l *Log) {
+		l.debug.Writer = w
+		l.info.Writer = w
+		l.success.Writer = w
+		l.warn.Writer = w
+	}
+}
 
 // WithStdErr sets the writer for standard error.
-func WithStdErr(w io.Writer) LogOption { return func(l *Log) { l.errOut.to = w } }
+func WithStdErr(w io.Writer) LogOption { return func(l *Log) { l.error.Writer = w } }
 
 // Log is a logger that logs messages at specified level.
 type Log struct {
-	stdOut, errOut output
-	lvl            Level
+	debug   *pterm.PrefixPrinter
+	info    *pterm.PrefixPrinter
+	success *pterm.PrefixPrinter
+	warn    *pterm.PrefixPrinter
+	error   *pterm.PrefixPrinter
+
+	mu  sync.Mutex
+	lvl Level
 }
 
 // New creates a new Logger with specified level.
 func New(lvl Level, opts ...LogOption) *Log {
 	var log = &Log{
-		stdOut: output{to: os.Stdout},
-		errOut: output{to: os.Stderr},
-		lvl:    lvl,
+		debug: &pterm.PrefixPrinter{
+			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
+			Prefix:       pterm.Prefix{Text: "debug", Style: &pterm.Style{pterm.BgGray, pterm.FgDefault}},
+			Writer:       os.Stdout,
+		},
+		info: &pterm.PrefixPrinter{
+			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
+			Prefix:       pterm.Prefix{Text: " info", Style: &pterm.Style{pterm.BgLightBlue, pterm.FgLightWhite}},
+			Writer:       os.Stdout,
+		},
+		success: &pterm.PrefixPrinter{
+			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
+			Prefix:       pterm.Prefix{Text: "   ok", Style: &pterm.Style{pterm.BgLightGreen, pterm.FgLightWhite}},
+			Writer:       os.Stdout,
+		},
+		warn: &pterm.PrefixPrinter{
+			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
+			Prefix:       pterm.Prefix{Text: " warn", Style: &pterm.Style{pterm.BgLightYellow, pterm.FgLightWhite}},
+			Writer:       os.Stdout,
+		},
+		error: &pterm.PrefixPrinter{
+			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
+			Prefix:       pterm.Prefix{Text: "error", Style: &pterm.Style{pterm.BgLightRed, pterm.FgLightWhite}},
+			Writer:       os.Stderr,
+		},
+
+		lvl: lvl,
 	}
 
 	for _, opt := range opts {
@@ -65,53 +123,21 @@ func New(lvl Level, opts ...LogOption) *Log {
 
 // NewNop creates a no-op Logger.
 func NewNop() *Log {
+	var none = pterm.PrefixPrinter{Writer: io.Discard}
+
 	return &Log{
-		stdOut: output{to: io.Discard},
-		errOut: output{to: io.Discard},
-		lvl:    noLevel,
+		debug:   &none,
+		info:    &none,
+		success: &none,
+		warn:    &none,
+		error:   &none,
 	}
 }
 
-const (
-	debugPrefix = " debug "
-	infoPrefix  = "  info "
-	warnPrefix  = "  warn "
-	errorPrefix = " error "
-)
+func (l *Log) write(printer *pterm.PrefixPrinter, prefix string, msg string, extra ...Extra) {
+	var buf bytes.Buffer
 
-var (
-	debugColor       = color.New(color.FgMagenta)              //nolint:gochecknoglobals
-	infoColor        = color.New(color.FgBlue)                 //nolint:gochecknoglobals
-	warnColor        = color.New(color.FgHiYellow, color.Bold) //nolint:gochecknoglobals
-	errorColor       = color.New(color.FgHiRed, color.Bold)    //nolint:gochecknoglobals
-	underlineColor   = color.New(color.Underline)              //nolint:gochecknoglobals
-	runtimeInfoColor = color.New(color.FgWhite)                //nolint:gochecknoglobals
-
-	debugMarker = color.New(color.BgMagenta, color.FgHiMagenta) //nolint:gochecknoglobals
-	infoMarker  = color.New(color.BgBlue, color.FgHiBlue)       //nolint:gochecknoglobals
-	warnMarker  = color.New(color.BgHiYellow, color.FgBlack)    //nolint:gochecknoglobals
-	errorMarker = color.New(color.BgHiRed, color.FgHiWhite)     //nolint:gochecknoglobals
-)
-
-func (*Log) write(out *output, prefix string, msg string, extra ...any) {
-	var buf, extraBuf bytes.Buffer
-
-	if len(extra) > 0 {
-		extraBuf.Grow(len(extra) * 32) //nolint:gomnd
-		extraBuf.WriteRune('(')
-
-		for i, v := range extra {
-			extraBuf.WriteString(fmt.Sprint(v))
-
-			if i < len(extra)-1 {
-				extraBuf.WriteRune(' ')
-			}
-		}
-
-		extraBuf.WriteRune(')')
-	}
-
-	buf.Grow(len(prefix) + len(msg) + extraBuf.Len() + 12) //nolint:gomnd
+	buf.Grow(len(prefix) + len(msg) + len(extra)*64)
 
 	if len(prefix) > 0 {
 		buf.WriteString(prefix)
@@ -120,59 +146,84 @@ func (*Log) write(out *output, prefix string, msg string, extra ...any) {
 
 	buf.WriteString(msg)
 
-	if extraBuf.Len() > 0 {
-		buf.WriteRune(' ')
-		_, _ = runtimeInfoColor.Fprint(&buf, extraBuf.String())
+	if len(extra) > 0 {
+		buf.WriteRune('\n')
+
+		var extraBuf bytes.Buffer
+
+		for i, v := range extra {
+			extraBuf.Grow(len(v.Key()) + 32) //nolint:gomnd
+
+			var isLast = i >= len(extra)-1
+
+			extraBuf.WriteRune(' ')
+
+			if !isLast {
+				extraBuf.WriteRune('├')
+			} else {
+				extraBuf.WriteRune('└')
+			}
+
+			extraBuf.WriteRune('─')
+			extraBuf.WriteRune(' ')
+			extraBuf.WriteString(pterm.Bold.Sprint(v.Key()))
+			extraBuf.WriteRune(':')
+			extraBuf.WriteRune(' ')
+			extraBuf.WriteString(fmt.Sprint(v.Value()))
+
+			if !isLast {
+				extraBuf.WriteRune('\n')
+			}
+
+			buf.WriteString(pterm.FgGray.Sprint(extraBuf.String()))
+
+			extraBuf.Reset()
+		}
 	}
 
-	buf.WriteRune('\n')
-
-	out.mu.Lock()
-	_, _ = buf.WriteTo(out.to)
-	out.mu.Unlock()
+	l.mu.Lock()
+	printer.Println(buf.String())
+	l.mu.Unlock()
 }
 
-func (l *Log) formatPrefix(blockColor, tsColor *color.Color, s string) string {
-	var prefix bytes.Buffer
-
-	prefix.Grow(7 /* prefix */ + 8*4 /* colors */ + 12 /* timestamp */) //nolint:gomnd
-	_, _ = blockColor.Fprint(&prefix, s)
-	prefix.WriteRune(' ')
-	_, _ = tsColor.Fprint(&prefix, time.Now().Format("15:04:05.000"))
-
-	return prefix.String()
-}
+// ts returns the current timestamp.
+func (l *Log) ts() string { return time.Now().Format("15:04:05.000") }
 
 // Debug logs a message at DebugLevel.
-func (l *Log) Debug(msg string, v ...any) {
-	if DebugLevel >= l.lvl {
-		var prefix = l.formatPrefix(debugMarker, debugColor, debugPrefix)
-
+func (l *Log) Debug(msg string, v ...Extra) {
+	if DebugLevel >= l.lvl && l.debug.Writer != io.Discard {
 		if _, file, line, ok := runtime.Caller(1); ok {
-			prefix += " " + underlineColor.Sprintf("%s:%d", filepath.Base(file), line)
+			v = append([]Extra{With("Caller", filepath.Base(file)+":"+strconv.Itoa(line))}, v...)
 		}
 
-		l.write(&l.stdOut, prefix, msg, v...)
+		l.write(l.debug, pterm.FgGray.Sprint(l.ts()), msg, v...)
 	}
 }
 
 // Info logs a message at InfoLevel.
-func (l *Log) Info(msg string, v ...any) {
-	if InfoLevel >= l.lvl {
-		l.write(&l.stdOut, l.formatPrefix(infoMarker, infoColor, infoPrefix), msg, v...)
+func (l *Log) Info(msg string, v ...Extra) {
+	if InfoLevel >= l.lvl && l.info.Writer != io.Discard {
+		l.write(l.info, pterm.FgLightBlue.Sprint(l.ts()), msg, v...)
+	}
+}
+
+// Success logs a success message at InfoLevel.
+func (l *Log) Success(msg string, v ...Extra) {
+	if InfoLevel >= l.lvl && l.success.Writer != io.Discard {
+		l.write(l.success, pterm.FgLightGreen.Sprint(l.ts()), msg, v...)
 	}
 }
 
 // Warn logs a message at WarnLevel.
-func (l *Log) Warn(msg string, v ...any) {
-	if WarnLevel >= l.lvl {
-		l.write(&l.stdOut, l.formatPrefix(warnMarker, warnColor, warnPrefix), msg, v...)
+func (l *Log) Warn(msg string, v ...Extra) {
+	if WarnLevel >= l.lvl && l.warn.Writer != io.Discard {
+		l.write(l.warn, pterm.FgLightYellow.Sprint(l.ts()), msg, v...)
 	}
 }
 
 // Error logs a message at ErrorLevel.
-func (l *Log) Error(msg string, v ...any) {
-	if ErrorLevel >= l.lvl {
-		l.write(&l.errOut, l.formatPrefix(errorMarker, errorColor, errorPrefix), msg, v...)
+func (l *Log) Error(msg string, v ...Extra) {
+	if ErrorLevel >= l.lvl && l.error.Writer != io.Discard {
+		l.write(l.error, pterm.FgRed.Sprint(l.ts()), msg, v...)
 	}
 }

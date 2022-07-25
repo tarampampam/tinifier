@@ -2,11 +2,12 @@
 package main
 
 import (
+	"io"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
+	"github.com/pterm/pterm"
 
 	"github.com/tarampampam/tinifier/v4/internal/cli"
 )
@@ -19,11 +20,13 @@ func main() {
 	code, err := run()
 	if err != nil {
 		var (
-			left  = color.New(color.BgHiRed, color.FgBlack, color.Bold)
-			right = color.New(color.FgHiRed, color.BgBlack)
+			w     io.Writer = os.Stderr
+			left            = &pterm.Style{pterm.BgLightRed, pterm.FgBlack, pterm.Bold}
+			right           = &pterm.Style{pterm.BgBlack, pterm.FgLightRed}
 		)
 
-		println(left.Sprintf("  %s  ", "Fatal error") + right.Sprintf("  %s  ", err)) //nolint:forbidigo
+		pterm.Fprintln(w)
+		pterm.Fprintln(w, left.Sprintf("  %s  ", "Fatal error"), right.Sprintf("  %s  ", err))
 	}
 
 	exitFn(code)

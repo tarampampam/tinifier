@@ -29,7 +29,7 @@ func TestLevel_String(t *testing.T) {
 		"info":      {giveLevel: logger.InfoLevel, wantString: "info"},
 		"warn":      {giveLevel: logger.WarnLevel, wantString: "warn"},
 		"error":     {giveLevel: logger.ErrorLevel, wantString: "error"},
-		"<unknown>": {giveLevel: logger.Level(126), wantString: "level(126)"},
+		"<unknown>": {giveLevel: logger.Level(127), wantString: "level(127)"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Equal(t, tt.wantString, tt.giveLevel.String())

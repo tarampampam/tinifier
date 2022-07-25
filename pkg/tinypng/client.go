@@ -178,6 +178,9 @@ func (c Compressed) Size() uint64 { return c.size }
 func (c Compressed) URL() string { return c.url }
 
 // Download image from remote server and write to the passed destination.
+//
+// If the provided source is also an io.Closer - it will be closed automatically by the HTTP client (if the
+// default HTTP client is used).
 func (c Compressed) Download(ctx context.Context, to io.Writer) error {
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, c.url, http.NoBody)
 	if reqErr != nil {
