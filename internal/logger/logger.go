@@ -92,17 +92,17 @@ func New(lvl Level, opts ...LogOption) *Log {
 		},
 		info: &pterm.PrefixPrinter{
 			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
-			Prefix:       pterm.Prefix{Text: " info", Style: &pterm.Style{pterm.BgLightBlue, pterm.FgLightWhite}},
+			Prefix:       pterm.Prefix{Text: " info", Style: &pterm.Style{pterm.BgBlue, pterm.FgLightWhite}},
 			Writer:       os.Stdout,
 		},
 		success: &pterm.PrefixPrinter{
 			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
-			Prefix:       pterm.Prefix{Text: "   ok", Style: &pterm.Style{pterm.BgLightGreen, pterm.FgLightWhite}},
+			Prefix:       pterm.Prefix{Text: "   ok", Style: &pterm.Style{pterm.BgGreen, pterm.FgLightWhite}},
 			Writer:       os.Stdout,
 		},
 		warn: &pterm.PrefixPrinter{
 			MessageStyle: &pterm.Style{pterm.FgDefault, pterm.BgDefault},
-			Prefix:       pterm.Prefix{Text: " warn", Style: &pterm.Style{pterm.BgLightYellow, pterm.FgLightWhite}},
+			Prefix:       pterm.Prefix{Text: " warn", Style: &pterm.Style{pterm.BgYellow, pterm.FgLightWhite}},
 			Writer:       os.Stdout,
 		},
 		error: &pterm.PrefixPrinter{

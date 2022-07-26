@@ -18,20 +18,20 @@ import (
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
-	appFs "github.com/tarampampam/tinifier/v4/internal/fs"
-	"github.com/tarampampam/tinifier/v4/internal/logger"
+	"github.com/tarampampam/tinifier/v4/internal/files"
+	l "github.com/tarampampam/tinifier/v4/internal/logger"
 	"github.com/tarampampam/tinifier/v4/internal/retry"
 	"github.com/tarampampam/tinifier/v4/internal/validate"
 	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
 
 type command struct {
-	log logger.Logger
+	log l.Logger
 	c   *cli.Command
 }
 
 // NewCommand creates `compress` command.
-func NewCommand(log logger.Logger) *cli.Command { //nolint:funlen
+func NewCommand(log l.Logger) *cli.Command { //nolint:funlen
 	const (
 		apiKeyFlagName            = "api-key"
 		fileExtensionsFlagName    = "ext"
@@ -60,13 +60,13 @@ func NewCommand(log logger.Logger) *cli.Command { //nolint:funlen
 			)
 
 			log.Debug("Run args",
-				logger.With("api-keys", apiKeys),
-				logger.With("file-extensions", fileExtensions),
-				logger.With("threads-count", threadsCount),
-				logger.With("max-errors-to-stop", maxErrorsToStop),
-				logger.With("recursive", recursive),
-				logger.With("update-mod-date", updateFileModDate),
-				logger.With("args", paths),
+				l.With("api-keys", apiKeys),
+				l.With("file-extensions", fileExtensions),
+				l.With("threads-count", threadsCount),
+				l.With("max-errors-to-stop", maxErrorsToStop),
+				l.With("recursive", recursive),
+				l.With("update-mod-date", updateFileModDate),
+				l.With("args", paths),
 			)
 
 			if threadsCount < 1 {
@@ -110,7 +110,7 @@ func NewCommand(log logger.Logger) *cli.Command { //nolint:funlen
 				Name:    threadsCountFlagName,
 				Aliases: []string{"t"},
 				Usage:   "threads count",
-				Value:   uint(runtime.NumCPU() * 8), //nolint:gomnd
+				Value:   uint(runtime.NumCPU() * 6), //nolint:gomnd
 				EnvVars: []string{env.ThreadsCount.String()},
 			},
 			&cli.UintFlag{
@@ -136,6 +136,15 @@ func NewCommand(log logger.Logger) *cli.Command { //nolint:funlen
 	return cmd.c
 }
 
+type compressionStats struct {
+	filePath       string
+	fileType       string
+	originalSize   uint64
+	compressedSize uint64
+}
+
+var errNoClients = errors.New("no clients")
+
 // Run current command.
 func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	pCtx context.Context,
@@ -153,7 +162,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	)
 
 	oss.Subscribe(func(sig os.Signal) {
-		cmd.log.Debug("Stopping by OS signal..", logger.With("Signal", sig.String()))
+		cmd.log.Debug("Stopping by OS signal..", l.With("Signal", sig.String()))
 
 		cancel()
 	})
@@ -163,7 +172,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		oss.Stop() // stop system signals listening
 	}()
 
-	files, findErr := cmd.FindFiles(ctx, paths, fileExt, recursive)
+	filesList, findErr := cmd.FindFiles(ctx, paths, fileExt, recursive)
 	if findErr != nil {
 		if errors.Is(findErr, context.Canceled) {
 			return errors.New("images searching was canceled")
@@ -172,13 +181,23 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		return findErr
 	}
 
-	if len(files) == 0 {
+	if len(filesList) == 0 {
 		return errors.New("nothing to compress (files not found)")
 	}
 
-	var errorsChannel = make(chan error, 1) // TODO close
+	var (
+		errorsChannel = make(chan error, 1)
+		statsChannel  = make(chan compressionStats, 1)
+		statsBuf      = struct {
+			history             []compressionStats
+			totalOriginalSize   uint64
+			totalCompressedSize uint64
+		}{
+			history: make([]compressionStats, 0, len(filesList)),
+		}
+	)
 
-	go func() { // start the errors watcher
+	go func(ch <-chan error) { // start the errors watcher
 		var counter uint
 
 		for {
@@ -186,8 +205,12 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 			case <-ctx.Done():
 				return
 
-			case err := <-errorsChannel:
-				cmd.log.Error("Error occurred", logger.With("Error", err))
+			case err, isOpened := <-ch:
+				if !isOpened {
+					return
+				}
+
+				cmd.log.Error("Error occurred", l.With("Error", err))
 				counter++
 
 				if counter >= maxErrorsToStop {
@@ -198,7 +221,25 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 				}
 			}
 		}
-	}()
+	}(errorsChannel)
+
+	go func(ch <-chan compressionStats) { // start the stats watcher
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case stat, isOpened := <-ch:
+				if !isOpened {
+					return
+				}
+
+				statsBuf.history = append(statsBuf.history, stat)
+				statsBuf.totalOriginalSize += stat.originalSize
+				statsBuf.totalCompressedSize += stat.compressedSize
+			}
+		}
+	}(statsChannel)
 
 	var (
 		pool         = newClientsPool(apiKeys)
@@ -206,17 +247,192 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		wg           sync.WaitGroup
 	)
 
-	const (
-		uploadingRetryAttempts   = 5
-		downloadingRetryAttempts = 10
-
-		ignoreCompressedFileSizeDelta = 32 // bytes
-	)
-
 	// docs: <https://github.com/pterm/pterm/tree/master/_examples/progressbar>
-	precessProgress, _ := pterm.ProgressbarPrinter{
-		Total:                     len(files),
-		Title:                     "Images compressing",
+	precessProgress, _ := cmd.newProgressBar(len(filesList), "Images compressing").Start()
+	defer func() { _, _ = precessProgress.Stop() }()
+
+workersLoop:
+	for _, filePath := range filesList {
+		select {
+		case uploadsGuard <- struct{}{}: // would block if guard channel is already filled
+			wg.Add(1)
+
+		case <-ctx.Done():
+			break workersLoop
+		}
+
+		go func(filePath string) {
+			defer func() { wg.Done(); <-uploadsGuard /* release the guard */ }()
+			defer precessProgress.Increment()
+
+			if ctx.Err() != nil { // check the context
+				return
+			}
+
+			var startedAt = time.Now()
+
+			origFileStat, statErr := os.Stat(filePath)
+			if statErr != nil {
+				select {
+				case <-ctx.Done():
+				case errorsChannel <- errors.Wrapf(statErr, "file (%s) statistics reading failed", filePath):
+				}
+
+				return // stop the process on error
+			}
+
+			// STEP 1. Upload the file to TinyPNG server
+			compressed, compErr := cmd.Upload(ctx, pool, filePath)
+			if compErr != nil {
+				switch {
+				case errors.Is(compErr, errNoClients):
+					cmd.log.Error("No one valid API key, working canceled")
+					cancel()
+
+				case errors.Is(compErr, context.Canceled): // do nothing
+
+				default:
+					select {
+					case <-ctx.Done():
+					case errorsChannel <- errors.Wrapf(compErr, "image (%s) uploading failed", filePath):
+					}
+				}
+
+				return // stop the process on uploading error
+			}
+
+			cmd.log.Debug("File compressed",
+				l.With("File", filePath),
+				l.With("Compressed file size", humanize.Bytes(compressed.Size())),
+				l.With("Used quota", compressed.UsedQuota()),
+			)
+
+			if ctx.Err() != nil { // check the context
+				return
+			}
+
+			if size := uint64(origFileStat.Size()); size <= compressed.Size() {
+				cmd.log.Info(
+					fmt.Sprintf("File %s ignored (the size of the compressed and original files are the same)", path.Base(filePath)), //nolint:lll
+					l.With("File", filePath),
+					l.With("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
+					l.With("Original file size", humanize.Bytes(size)),
+					l.With("Compressed file size", humanize.Bytes(compressed.Size())),
+				)
+
+				return
+			}
+
+			var tmpFilePath = filePath + ".tiny" // temporary file path
+
+			defer func() {
+				if _, err := os.Stat(tmpFilePath); err == nil { // check the temporary file existence
+					if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
+						cmd.log.Warn("Error removing temporary file",
+							l.With("File", tmpFilePath),
+							l.With("Error", err),
+						)
+					}
+				}
+			}()
+
+			// STEP 2. Download the compressed file from TinyPNG to temporary file
+			if err := cmd.Download(ctx, compressed, tmpFilePath, origFileStat.Mode()); err != nil {
+				select {
+				case <-ctx.Done():
+				case errorsChannel <- errors.Wrapf(err, "image (%s) downloading failed", filePath):
+				}
+
+				return // stop the process on error
+			}
+
+			if ctx.Err() != nil { // check the context
+				return
+			}
+
+			tmpFileStat, statErr := os.Stat(tmpFilePath)
+			if statErr != nil {
+				select {
+				case <-ctx.Done():
+				case errorsChannel <- errors.Wrapf(statErr, "file (%s) statistics reading failed", tmpFilePath):
+				}
+
+				return // stop the process on error
+			}
+
+			// STEP 3. Replace original file content with compressed
+			if err := cmd.Replace(filePath, tmpFilePath, !updateFileModDate); err != nil {
+				select {
+				case <-ctx.Done():
+				case errorsChannel <- errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath):
+				}
+
+				return // stop the process on error
+			}
+
+			var oldSize, newSize = float64(origFileStat.Size()), float64(tmpFileStat.Size())
+
+			cmd.log.Success(fmt.Sprintf("File %s compressed", pterm.Bold.Sprint(path.Base(filePath))),
+				l.With("File", filePath),
+				l.With("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
+				l.With("Original file size", humanize.Bytes(uint64(oldSize))),
+				l.With("Compressed file size", humanize.Bytes(uint64(newSize))),
+				l.With("Saved space", fmt.Sprintf(
+					"%s (%0.2f%%)",
+					humanize.IBytes(uint64(oldSize-newSize)),
+					((oldSize-newSize)/newSize)*100, //nolint:gomnd
+				)),
+			)
+
+			select {
+			case <-ctx.Done():
+			case statsChannel <- compressionStats{
+				filePath:       filePath,
+				fileType:       compressed.Type(),
+				originalSize:   uint64(origFileStat.Size()),
+				compressedSize: uint64(tmpFileStat.Size()),
+			}:
+			}
+		}(filePath)
+	}
+
+	wg.Wait()
+	_, _ = precessProgress.Stop() //nolint:wsl
+
+	close(uploadsGuard)
+	close(errorsChannel)
+	close(statsChannel)
+
+	if len(statsBuf.history) > 0 {
+		(&pterm.HeaderPrinter{
+			TextStyle:       &pterm.Style{pterm.FgLightWhite, pterm.Bold},
+			BackgroundStyle: &pterm.Style{pterm.BgBlue},
+			Margin:          5, //nolint:gomnd
+			FullWidth:       true,
+			Writer:          os.Stdout,
+		}).Println("Compression results")
+
+		_ = pterm.DefaultBarChart.WithHorizontal().WithShowValue().WithBars(pterm.Bars{
+			pterm.Bar{
+				Label: fmt.Sprintf("Original files size (%s)", humanize.Bytes(statsBuf.totalOriginalSize)),
+				Value: int(statsBuf.totalOriginalSize),
+			},
+			pterm.Bar{
+				Label: fmt.Sprintf("Compressed files size (%s)", humanize.Bytes(statsBuf.totalCompressedSize)),
+				Value: int(statsBuf.totalCompressedSize),
+			},
+		}).Render()
+	} else {
+		cmd.log.Warn("No files compressed")
+	}
+
+	return nil
+}
+
+func (*command) newProgressBar(total int, title string) *pterm.ProgressbarPrinter {
+	return &pterm.ProgressbarPrinter{
+		Total:                     total,
+		Title:                     title,
 		BarCharacter:              "█",
 		LastCharacter:             "█",
 		ElapsedTimeRoundingFactor: time.Second,
@@ -229,246 +445,122 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		RemoveWhenDone:            true,
 		BarFiller:                 " ",
 		Writer:                    os.Stdout,
-	}.Start()
-	defer func() { _, _ = precessProgress.Stop() }()
+	}
+}
 
-	for _, filePath := range files {
-		select {
-		case uploadsGuard <- struct{}{}: // would block if guard channel is already filled
-			wg.Add(1)
+// Upload uploads the file to TinyPNG server.
+func (*command) Upload(ctx context.Context, pool *clientsPool, filePath string) (*tinypng.Compressed, error) {
+	const (
+		retryAttempts = 5
+		retryInterval = time.Millisecond * 700
+	)
 
-		case <-ctx.Done():
-			return errors.New("compression was canceled")
+	var (
+		compressed           *tinypng.Compressed
+		errInvalidFileFormat = errors.New("invalid file format")
+	)
+
+	if limitExceeded, err := retry.Do(func(attemptNum uint) error { // uploading retry loop
+		f, openingErr := os.OpenFile(filePath, os.O_RDONLY, 0) // open file
+		if openingErr != nil {
+			return openingErr
 		}
 
-		go func(filePath string) {
-			defer func() {
-				wg.Done()
-				precessProgress.Increment()
-				<-uploadsGuard // release the guard
-			}()
+		defer f.Close()
 
-			if ctx.Err() != nil { // check the context
-				return
+		if ok, err := validate.IsImage(f); err != nil { // validate (is image?)
+			return err
+		} else if !ok {
+			return errInvalidFileFormat
+		}
+
+		apiKey, client := pool.Get() // get client from pool
+		if client == nil || apiKey == "" {
+			return errNoClients
+		}
+
+		if c, err := client.Compress(ctx, f); err != nil {
+			if errors.Is(err, tinypng.ErrTooManyRequests) || errors.Is(err, tinypng.ErrUnauthorized) {
+				pool.Remove(apiKey)
 			}
 
-			var startedAt = time.Now()
+			return err
+		} else {
+			compressed = c
+		}
 
-			origFileStat, statErr := os.Stat(filePath)
-			if statErr != nil {
-				cmd.log.Error("Error file statistics reading",
-					logger.With("File", filePath),
-					logger.With("Error", statErr),
-				)
-
-				return
-			}
-
-			var (
-				compressed     *tinypng.Compressed
-				errInvalidFile = errors.New("invalid file")
-			)
-
-			// STEP 1. Upload the file to TinyPNG
-			if _, err := retry.Do(func(attemptNum uint) error { // uploading retry loop
-				f, openingErr := os.OpenFile(filePath, os.O_RDONLY, 0) // open file
-				if openingErr != nil {
-					cmd.log.Error("Error opening file",
-						logger.With("File", filePath),
-						logger.With("Error", openingErr),
-					)
-
-					return openingErr
-				}
-
-				defer f.Close()
-
-				if ok, err := validate.IsImage(f); err != nil { // validate (is image?)
-					cmd.log.Error("Error validating file",
-						logger.With("File", filePath),
-						logger.With("Error", err),
-					)
-
-					return err
-				} else if !ok {
-					cmd.log.Error("File is not an image", logger.With("File", filePath))
-
-					return errInvalidFile
-				}
-
-				apiKey, client := pool.Get() // get client from pool
-				if client == nil {
-					cmd.log.Error("No one valid API key, working canceled")
-					cancel()
-
-					return errors.New("no one valid API key")
-				}
-
-				var compErr error // compressing error
-
-				compressed, compErr = client.Compress(ctx, f) // compress the image
-				if compErr != nil {
-					cmd.log.Warn("Error compressing file",
-						logger.With("File", filePath),
-						logger.With("Attempt", attemptNum),
-						logger.With("Error", compErr),
-					)
-
-					if errors.Is(compErr, tinypng.ErrTooManyRequests) || errors.Is(compErr, tinypng.ErrUnauthorized) {
-						pool.Remove(apiKey)
-					}
-
-					return compErr
-				}
-
-				return nil
-			},
-				retry.WithContext(ctx),
-				retry.Attempts(uploadingRetryAttempts),
-				retry.Delay(time.Millisecond*700), //nolint:gomnd
-				retry.StopOnError(errInvalidFile),
-			); err != nil {
-				select {
-				case <-ctx.Done():
-				case errorsChannel <- errors.Wrapf(err, "Image (%s) uploading failed", filePath):
-				}
-
-				return
-			}
-
-			if ctx.Err() != nil { // check the context
-				return
-			}
-
-			cmd.log.Debug("File compressed", logger.With("File", filePath))
-
-			if uint64(origFileStat.Size()) <= compressed.Size()+ignoreCompressedFileSizeDelta {
-				cmd.log.Info(fmt.Sprintf("File %s ignored (the size of the compressed file has not changed)", path.Base(filePath)),
-					logger.With("File", filePath),
-					logger.With("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-					logger.With("Original file size", humanize.Bytes(uint64(origFileStat.Size()))),
-					logger.With("Compressed file size", humanize.Bytes(compressed.Size())),
-				)
-
-				return
-			}
-
-			var tmpFilePath = filePath + ".tiny" // temporary file path
-
-			defer func() {
-				if _, err := os.Stat(tmpFilePath); err == nil { // check if temporary file exists
-					if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
-						cmd.log.Warn("Error removing temporary file",
-							logger.With("File", tmpFilePath),
-							logger.With("Error", err),
-						)
-					}
-				}
-			}()
-
-			// STEP 2. Download the compressed file from TinyPNG to temporary file
-			if _, err := retry.Do(func(uint) error {
-				f, err := os.OpenFile(tmpFilePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE|os.O_SYNC, origFileStat.Mode())
-				if err != nil {
-					return err
-				}
-
-				defer f.Close()
-
-				return compressed.Download(ctx, f)
-			},
-				retry.WithContext(ctx),
-				retry.Attempts(downloadingRetryAttempts),
-				retry.Delay(time.Second+time.Millisecond*500),
-			); err != nil {
-				select {
-				case <-ctx.Done():
-				case errorsChannel <- errors.Wrapf(err, "Image (%s) downloading failed", compressed.URL()):
-				}
-
-				return
-			}
-
-			if ctx.Err() != nil { // check the context
-				return
-			}
-
-			// STEP 3. Replace original file content with compressed
-			origFile, origFileErr := os.OpenFile(filePath, os.O_WRONLY, 0)
-			if origFileErr != nil {
-				cmd.log.Error("Error opening original file",
-					logger.With("File", filePath),
-					logger.With("Error", origFileErr),
-				)
-
-				return
-			}
-
-			defer origFile.Close()
-
-			tmpFile, tmpFileErr := os.OpenFile(tmpFilePath, os.O_RDONLY, 0)
-			if tmpFileErr != nil {
-				cmd.log.Error("Error opening compressed file",
-					logger.With("File", tmpFilePath),
-					logger.With("Error", tmpFileErr),
-				)
-
-				return
-			}
-
-			defer tmpFile.Close()
-
-			tmpFileStat, tmpFileStatErr := tmpFile.Stat()
-			if tmpFileStatErr != nil {
-				cmd.log.Error("Error getting compressed file stat",
-					logger.With("File", tmpFilePath),
-					logger.With("Error", tmpFileStatErr),
-				)
-
-				return
-			}
-
-			if _, err := io.Copy(origFile, tmpFile); err != nil { // copy compressed file content to original file
-				cmd.log.Error("Error copying compressed file content to original file",
-					logger.With("From", tmpFilePath),
-					logger.With("To", filePath),
-					logger.With("Error", err),
-				)
-
-				return
-			}
-
-			if !updateFileModDate { // restore original file modification date
-				if err := os.Chtimes(filePath, origFileStat.ModTime(), origFileStat.ModTime()); err != nil {
-					cmd.log.Error("Error changing file modification time",
-						logger.With("File", filePath),
-						logger.With("Error", err),
-					)
-
-					return
-				}
-			}
-
-			var oldSize, newSize = float64(origFileStat.Size()), float64(tmpFileStat.Size())
-
-			cmd.log.Success(fmt.Sprintf("File %s compressed", path.Base(filePath)),
-				logger.With("File", filePath),
-				logger.With("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-				logger.With("Original file size", humanize.Bytes(uint64(oldSize))),
-				logger.With("Compressed file size", humanize.Bytes(uint64(newSize))),
-				logger.With("Saved space", fmt.Sprintf(
-					"%s (%0.2f%%)",
-					humanize.IBytes(uint64(oldSize-newSize)),
-					((oldSize-newSize)/newSize)*100, //nolint:gomnd
-				)),
-			)
-		}(filePath)
+		return nil
+	},
+		retry.WithContext(ctx),
+		retry.Attempts(retryAttempts),
+		retry.Delay(retryInterval),
+		retry.StopOnError(errInvalidFileFormat),
+	); err != nil {
+		return nil, err
+	} else if limitExceeded {
+		return nil, errors.New("too many attempts to compress (upload) the file " + path.Base(filePath))
 	}
 
-	wg.Wait()
-	_, _ = precessProgress.Stop() //nolint:wsl
+	return compressed, nil
+}
 
-	// cmd.log.Debug("Found files", zap.Strings("files", files))
+// Download downloads the compressed file from TinyPNG server.
+func (*command) Download(ctx context.Context, comp *tinypng.Compressed, filePath string, perm os.FileMode) error {
+	const (
+		retryAttempts = 10
+		retryInterval = time.Second + time.Millisecond*500
+	)
+
+	if limitExceeded, err := retry.Do(func(uint) error {
+		f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE|os.O_SYNC, perm)
+		if err != nil {
+			return err
+		}
+
+		defer f.Close()
+
+		return comp.Download(ctx, f)
+	}, retry.WithContext(ctx), retry.Attempts(retryAttempts), retry.Delay(retryInterval)); err != nil {
+		return err
+	} else if limitExceeded {
+		return errors.New("too many attempts to download the file")
+	}
+
+	return nil
+}
+
+// Replace replaces the original file content with the compressed one (from temporary file).
+func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTime bool) error {
+	origFile, origFileErr := os.OpenFile(origFilePath, os.O_WRONLY, 0)
+	if origFileErr != nil {
+		return origFileErr
+	}
+
+	defer origFile.Close()
+
+	origFileStat, statErr := origFile.Stat()
+	if statErr != nil {
+		return statErr
+	}
+
+	tmpFile, tmpFileErr := os.OpenFile(tmpFilePath, os.O_RDONLY, 0)
+	if tmpFileErr != nil {
+		return tmpFileErr
+	}
+
+	defer tmpFile.Close()
+
+	if _, err := io.Copy(origFile, tmpFile); err != nil { // copy compressed file content to original file
+		return err
+	}
+
+	if keepOriginalFileModTime { // restore original file modification date
+		// atime: time of last access (ls -lu),
+		// mtime: time of last modification (ls -l)
+		if err := os.Chtimes(origFilePath, time.Now(), origFileStat.ModTime()); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -494,12 +586,12 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 
 	var found = make([]string, 0, len(where))
 
-	if err := appFs.FindFiles(ctx, where, func(absPath string) {
+	if err := files.FindFiles(ctx, where, func(absPath string) {
 		found = append(found, absPath)
 
 		spin.UpdateText(fmt.Sprintf("Found image: %s (%d total)", absPath, len(found)))
-	}, appFs.WithRecursive(recursive), appFs.WithFilesExt(filesExt...)); err != nil {
-		return nil, err
+	}, files.WithRecursive(recursive), files.WithFilesExt(filesExt...)); err != nil {
+		return nil, errors.Wrap(err, "wrong target path")
 	}
 
 	sort.Strings(found)

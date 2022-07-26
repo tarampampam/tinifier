@@ -1,4 +1,4 @@
-package fs_test
+package files_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarampampam/tinifier/v4/internal/fs"
+	"github.com/tarampampam/tinifier/v4/internal/files"
 )
 
 func TestFindFiles(t *testing.T) {
@@ -19,7 +19,7 @@ func TestFindFiles(t *testing.T) {
 		makeOSDirs  []string
 		makeOSFiles []string
 		giveWhere   []string
-		giveOptions []fs.FinderOption
+		giveOptions []files.FinderOption
 		wantResult  []string
 	}{
 		"just files": {
@@ -29,7 +29,7 @@ func TestFindFiles(t *testing.T) {
 				"baz.txt",
 			},
 			giveWhere:   []string{""},
-			giveOptions: []fs.FinderOption{fs.WithFilesExt("txt")},
+			giveOptions: []files.FinderOption{files.WithFilesExt("txt")},
 			wantResult: []string{
 				"bar.txt",
 				"baz.txt",
@@ -50,7 +50,7 @@ func TestFindFiles(t *testing.T) {
 				"bar.txt", // duplicates must be skipped,
 				"baz",
 			},
-			giveOptions: []fs.FinderOption{fs.WithFilesExt("txt")},
+			giveOptions: []files.FinderOption{files.WithFilesExt("txt")},
 			wantResult: []string{
 				"foo.txt",
 				"bar.txt",
@@ -71,7 +71,7 @@ func TestFindFiles(t *testing.T) {
 			giveWhere: []string{
 				"",
 			},
-			giveOptions: []fs.FinderOption{fs.WithFilesExt("txt"), fs.WithRecursive(true)},
+			giveOptions: []files.FinderOption{files.WithFilesExt("txt"), files.WithRecursive(true)},
 			wantResult: []string{
 				"foo.txt",
 				"bar.txt",
@@ -111,7 +111,7 @@ func TestFindFiles(t *testing.T) {
 
 			var result []string
 
-			assert.NoError(t, fs.FindFiles(context.Background(), tt.giveWhere, func(path string) {
+			assert.NoError(t, files.FindFiles(context.Background(), tt.giveWhere, func(path string) {
 				result = append(result, path)
 			}, tt.giveOptions...))
 
@@ -125,5 +125,5 @@ func TestFindFiles_CancelledContext(t *testing.T) {
 
 	cancel() // <-- important
 
-	assert.ErrorIs(t, fs.FindFiles(ctx, []string{"."}, func(path string) {}), context.Canceled)
+	assert.ErrorIs(t, files.FindFiles(ctx, []string{"."}, func(path string) {}), context.Canceled)
 }
