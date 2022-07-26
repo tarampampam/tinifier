@@ -22,7 +22,7 @@ ENV LDFLAGS="-s -w -X github.com/tarampampam/tinifier/v4/internal/version.versio
 RUN set -x \
     && go version \
     && CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/ \
-    && /tmp/tinifier version
+    && /tmp/tinifier --version
 
 # prepare rootfs for runtime
 RUN mkdir -p /tmp/rootfs
