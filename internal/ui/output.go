@@ -1,4 +1,4 @@
-package uikit
+package ui
 
 import (
 	"bytes"
@@ -6,12 +6,15 @@ import (
 	"io"
 	"os"
 	"sync"
+
+	"github.com/mattn/go-colorable"
 )
 
 type (
 	// Output is a writer that can be used to write to stdout or stderr.
 	Output interface {
 		io.Writer
+		sync.Locker
 		fmt.Stringer
 	}
 
@@ -29,9 +32,9 @@ type (
 
 // the following variables are used as a singletons for stdout/stderr/noop (like a context.Background).
 var (
-	stdOut Output = &outWithLocker{dest: os.Stdout}
-	stdErr Output = &outWithLocker{dest: os.Stderr}
-	noOut  Output = &outWithLocker{dest: io.Discard}
+	stdOut Output = &outWithLocker{dest: colorable.NewColorable(os.Stdout)} //nolint:gochecknoglobals
+	stdErr Output = &outWithLocker{dest: colorable.NewColorable(os.Stderr)} //nolint:gochecknoglobals
+	noOut  Output = &outWithLocker{dest: io.Discard}                        //nolint:gochecknoglobals
 	_      Output = new(bufOutWithLocker)
 )
 
@@ -49,6 +52,7 @@ func BufOut() BufferedOutput { return new(bufOutWithLocker) }
 
 // outWithLocker is a wrapper for io.Writer that locks the mutex.
 type outWithLocker struct {
+	sync.Mutex
 	m    sync.Mutex
 	dest io.Writer
 }
@@ -81,15 +85,16 @@ func (o *outWithLocker) String() string {
 
 // bufOutWithLocker is a buffered output.
 type bufOutWithLocker struct {
+	sync.Mutex
 	m   sync.Mutex
 	buf bytes.Buffer
 }
 
 // Grow grows the output buffer to the given size.
-func (o *bufOutWithLocker) Grow(n int) { o.buf.Grow(n) }
+func (o *bufOutWithLocker) Grow(n int) { o.m.Lock(); o.buf.Grow(n); o.m.Unlock() }
 
 // Reset resets the output buffer to be empty.
-func (o *bufOutWithLocker) Reset() { o.buf.Reset() }
+func (o *bufOutWithLocker) Reset() { o.m.Lock(); o.buf.Reset(); o.m.Unlock() }
 
 // AsBytes returns a buffer as a slice of bytes.
 func (o *bufOutWithLocker) AsBytes() []byte { return o.buf.Bytes() }

@@ -1,4 +1,4 @@
-package uikit_test
+package ui_test
 
 import (
 	"sync"
@@ -6,14 +6,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarampampam/tinifier/v4/internal/uikit"
+	"github.com/tarampampam/tinifier/v4/internal/ui"
 )
 
 func TestNoOut(t *testing.T) {
-	var output = uikit.NoOut()
+	var output = ui.NoOut()
 
 	assert.NotNil(t, output)
-	assert.Same(t, output, uikit.NoOut())
+	assert.Same(t, output, ui.NoOut())
 	assert.EqualValues(t, "noop", output.String())
 
 	var wg sync.WaitGroup
@@ -35,10 +35,10 @@ func TestNoOut(t *testing.T) {
 }
 
 func TestStdOut(t *testing.T) {
-	var output = uikit.StdOut()
+	var output = ui.StdOut()
 
 	assert.NotNil(t, output)
-	assert.Same(t, output, uikit.StdOut())
+	assert.Same(t, output, ui.StdOut())
 	assert.EqualValues(t, "stdout", output.String())
 
 	var wg sync.WaitGroup
@@ -60,10 +60,10 @@ func TestStdOut(t *testing.T) {
 }
 
 func TestStdErr(t *testing.T) {
-	var output = uikit.StdErr()
+	var output = ui.StdErr()
 
 	assert.NotNil(t, output)
-	assert.Same(t, output, uikit.StdErr())
+	assert.Same(t, output, ui.StdErr())
 	assert.EqualValues(t, "stderr", output.String())
 
 	var wg sync.WaitGroup
@@ -85,10 +85,10 @@ func TestStdErr(t *testing.T) {
 }
 
 func TestBufOut(t *testing.T) {
-	var output = uikit.BufOut()
+	var output = ui.BufOut()
 
 	assert.NotNil(t, output)
-	assert.NotSame(t, output, uikit.BufOut()) // always new instance
+	assert.NotSame(t, output, ui.BufOut()) // always new instance
 	assert.EqualValues(t, "buffer", output.String())
 
 	output.Grow(1_000)
