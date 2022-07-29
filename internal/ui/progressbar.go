@@ -13,6 +13,7 @@ import (
 )
 
 type (
+	// ProgressBar is a progress bar (wow :D).
 	ProgressBar struct {
 		max     uint32
 		maxText string
@@ -27,6 +28,7 @@ type (
 		startedAt    time.Time
 	}
 
+	// ProgressBarTheme defines the theme of the progress bar.
 	ProgressBarTheme struct {
 		PrefixColor  TextStyle
 		CounterColor TextStyle
@@ -52,16 +54,20 @@ type (
 	}
 )
 
+// ProgressBarOption is a function that can be used to configure a progress bar.
 type ProgressBarOption func(*ProgressBar)
 
+// WithTheme sets the theme of the progress bar.
 func WithTheme(theme ProgressBarTheme) ProgressBarOption {
 	return func(p *ProgressBar) { p.theme = theme }
 }
 
+// WithTimeRounding sets the rounding of the time.
 func WithTimeRounding(d time.Duration) ProgressBarOption {
 	return func(p *ProgressBar) { p.timeRounding = d }
 }
 
+// NewProgressBar creates a new progress bar.
 func NewProgressBar(max uint32, opts ...ProgressBarOption) *ProgressBar {
 	var p = &ProgressBar{
 		max:     max,
@@ -104,19 +110,25 @@ func NewProgressBar(max uint32, opts ...ProgressBarOption) *ProgressBar {
 	return p
 }
 
-func (p *ProgressBar) Add(delta uint32) {
-	if current := atomic.LoadUint32(&p.current); current+delta > p.max {
-		atomic.StoreUint32(&p.current, p.max)
+// Add adds the given value to the current progress.
+func (p *ProgressBar) Add(delta uint32) { p.Set(atomic.LoadUint32(&p.current) + delta) }
+
+// SetPrefix sets the prefix of the progress bar.
+func (p *ProgressBar) SetPrefix(prefix string) { p.prefix.Store(prefix) }
+
+// Set sets the current progress to the given value. If the value is greater than the maximal progress value, it is set
+// to the maximal value.
+func (p *ProgressBar) Set(val uint32) {
+	var n uint32
+
+	if val > p.max {
+		n = p.max
 	} else {
-		atomic.CompareAndSwapUint32(&p.current, current, current+delta)
+		n = val
 	}
-}
 
-func (p *ProgressBar) SetPrefix(prefix string) {
-	p.prefix.Store(prefix)
+	atomic.StoreUint32(&p.current, n)
 }
-
-func (p *ProgressBar) Set(val uint32) { atomic.StoreUint32(&p.current, val) }
 
 func (p *ProgressBar) Start() {
 	p.startedAt = time.Now()
@@ -178,7 +190,7 @@ func (p *ProgressBar) Render() string {
 		barWidth++
 	}
 
-	const colorsExtraSize = 8 /* colors count */ * 5 /* color size */ * 2 /* color reset */
+	const colorsExtraSize = 8 /* colors count */ * 6 /* color size */ * 2 /* color reset */
 
 	buf.Grow(int(width) + colorsExtraSize)
 
@@ -248,12 +260,12 @@ func (p *ProgressBar) Render() string {
 	buf.WriteRune(' ')
 
 	// percent
-	for i := p.digitsCount(uint32(percent)); i < 3; i++ {
-		buf.WriteRune(' ')
+	var percentText = strconv.FormatFloat(percent, 'f', 0, 64)
+	if l := 3 - utf8.RuneCountInString(percentText); l > 0 {
+		buf.WriteString(strings.Repeat(" ", l))
 	}
-
 	buf.WriteString(p.theme.PercentColor.Start())
-	buf.WriteString(strconv.FormatFloat(percent, 'f', 0, 64))
+	buf.WriteString(percentText)
 	buf.WriteRune('%')
 	buf.WriteString(p.theme.PercentColor.Reset())
 	buf.WriteRune(' ')
