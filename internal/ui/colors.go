@@ -364,13 +364,17 @@ func (ts TextStyle) ColorCodes() (start, reset string) {
 }
 
 // String returns a string starting text styling (useful for usage with fmt.Sprintf).
-// Note: Don't forget to use Reset() to reset the styling (resting is not needed for FgDefault, BgDefault and Reset).
+// Note: Don't forget to use Reset() to reset the styling (resting is NOT needed for FgDefault, BgDefault and Reset).
 func (ts TextStyle) String() string { return ts.Start() }
 
-// Start returns a string starting text styling. An empty string will return when colors are disabled.
+// Start returns current text style starting code. An empty string will return when colors are disabled.
 func (ts TextStyle) Start() (start string) {
+	if ts == 0 {
+		return
+	}
+
 	if !ColorsEnabled() {
-		return ""
+		return
 	}
 
 	start, _ = ts.ColorCodes()
@@ -378,10 +382,15 @@ func (ts TextStyle) Start() (start string) {
 	return
 }
 
-// Reset returns a string ending text styling. An empty string will return when colors are disabled.
+// Reset returns current text style resetting code. An empty string will return when colors are disabled or when called
+// on FgDefault, BgDefault, or Reset.
 func (ts TextStyle) Reset() (reset string) {
+	if ts == 0 {
+		return
+	}
+
 	if !ColorsEnabled() {
-		return ""
+		return
 	}
 
 	_, reset = ts.ColorCodes()
@@ -392,6 +401,10 @@ func (ts TextStyle) Reset() (reset string) {
 // Wrap wraps provided string with staring and reset color codes. The provided string will return without any
 // modifications when colors are disabled.
 func (ts TextStyle) Wrap(s string) string {
+	if ts == 0 {
+		return s
+	}
+
 	if !ColorsEnabled() {
 		return s
 	}
