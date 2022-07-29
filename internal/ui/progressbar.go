@@ -104,13 +104,6 @@ func NewProgressBar(max uint32, opts ...ProgressBarOption) *ProgressBar {
 	return p
 }
 
-// getTerminalSize returns the visible dimensions of the given terminal.
-func (p *ProgressBar) getTerminalSize() (width, height uint16) {
-	w, h, _ := term.GetSize(int(os.Stdin.Fd()))
-
-	return uint16(w), uint16(h)
-}
-
 func (p *ProgressBar) Add(delta uint32) {
 	if current := atomic.LoadUint32(&p.current); current+delta > p.max {
 		atomic.StoreUint32(&p.current, p.max)
@@ -126,11 +119,12 @@ func (p *ProgressBar) SetPrefix(prefix string) {
 func (p *ProgressBar) Set(val uint32) { atomic.StoreUint32(&p.current, val) }
 
 func (p *ProgressBar) Start() {
-	p.startedAt = time.Now().Add(-time.Hour + time.Second*6)
+	p.startedAt = time.Now()
 }
 
 func (p *ProgressBar) Stop() {}
 
+// digitsCount returns the number of digits in the given number.
 func (p *ProgressBar) digitsCount(n uint32) (count uint32) {
 	if n == 0 {
 		return 1
@@ -141,6 +135,13 @@ func (p *ProgressBar) digitsCount(n uint32) (count uint32) {
 	}
 
 	return
+}
+
+// getTerminalSize returns the visible dimensions of the given terminal.
+func (p *ProgressBar) getTerminalSize() (width, height uint16) {
+	w, h, _ := term.GetSize(int(os.Stdin.Fd()))
+
+	return uint16(w), uint16(h)
 }
 
 func (p *ProgressBar) Render() string {

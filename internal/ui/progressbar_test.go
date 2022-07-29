@@ -9,6 +9,7 @@ import (
 var progressBarRendered string
 
 //	BenchmarkProgressBar_Render-8   	    2466	    478197 ns/op	  698825 B/op	      17 allocs/op
+//	BenchmarkProgressBar_Render-8   	   18397	     60097 ns/op	  637584 B/op	       9 allocs/op
 func BenchmarkProgressBar_Render(b *testing.B) {
 	ui.ColorsEnabled(true)
 
