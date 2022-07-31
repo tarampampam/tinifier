@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"bytes"
+	"io"
 	"math"
 	"os"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -15,17 +17,18 @@ import (
 type (
 	// ProgressBar is a progress bar (wow :D).
 	ProgressBar struct {
-		max     uint32
-		maxText string
-
-		prefix atomic.Value // string
-		theme  ProgressBarTheme
-		width  uint16 // default (0) = full width
-
-		current uint32 // atomic usage only
-
+		max          uint32 // maximal progress bar value (X of ???)
+		maxText      string // string representation of max (needed for optimization reasons)
+		width        uint16 // default (0) = full width
 		timeRounding time.Duration
-		startedAt    time.Time
+		theme        ProgressBarTheme
+
+		mu        sync.RWMutex // protects all fields above
+		prefix    string       // user-defined progress bar prefix string
+		current   uint32       // current progress value (??? of X)
+		isStarted bool         // is the progress bar drawing started?
+		startedAt time.Time    // when the progress bar was started
+		onStop    func()
 	}
 
 	// ProgressBarTheme defines the theme of the progress bar.
@@ -67,6 +70,11 @@ func WithTimeRounding(d time.Duration) ProgressBarOption {
 	return func(p *ProgressBar) { p.timeRounding = d }
 }
 
+// WithWidth sets the width of the progress bar.
+func WithWidth(width uint16) ProgressBarOption {
+	return func(p *ProgressBar) { p.width = width }
+}
+
 // NewProgressBar creates a new progress bar.
 func NewProgressBar(max uint32, opts ...ProgressBarOption) *ProgressBar {
 	var p = &ProgressBar{
@@ -95,26 +103,27 @@ func NewProgressBar(max uint32, opts ...ProgressBarOption) *ProgressBar {
 			SeparatorColor: FgWhite,
 			TimeColor:      FgWhite | FgBright,
 		},
+		timeRounding: time.Second,
 	}
-
-	p.prefix.Store("")
 
 	for _, opt := range opts {
 		opt(p)
 	}
 
-	if p.timeRounding == time.Duration(0) {
-		p.timeRounding = time.Second
-	}
-
 	return p
 }
 
-// Add adds the given value to the current progress.
-func (p *ProgressBar) Add(delta uint32) { p.Set(atomic.LoadUint32(&p.current) + delta) }
-
 // SetPrefix sets the prefix of the progress bar.
-func (p *ProgressBar) SetPrefix(prefix string) { p.prefix.Store(prefix) }
+func (p *ProgressBar) SetPrefix(prefix string) { p.mu.Lock(); p.prefix = prefix; p.mu.Unlock() }
+
+// Add adds the given value to the current progress.
+func (p *ProgressBar) Add(delta uint32) {
+	p.mu.RLock()
+	c := p.current
+	p.mu.RUnlock()
+
+	p.Set(c + delta)
+}
 
 // Set sets the current progress to the given value. If the value is greater than the maximal progress value, it is set
 // to the maximal value.
@@ -127,14 +136,49 @@ func (p *ProgressBar) Set(val uint32) {
 		n = val
 	}
 
-	atomic.StoreUint32(&p.current, n)
+	p.mu.Lock()
+	p.current = n
+	p.mu.Unlock()
 }
 
-func (p *ProgressBar) Start() {
+func (p *ProgressBar) Start(out interface {
+	io.Writer
+	WritingMutator
+}) {
+	p.mu.RLock()
+	var isStarted = p.isStarted
+	p.mu.RUnlock()
+
+	if isStarted {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.isStarted = true
 	p.startedAt = time.Now()
+	p.onStop = out.Mutate(func(data *[]byte) {
+		var buf bytes.Buffer
+
+		// buf.WriteRune('\n')
+		buf.WriteRune('\r')
+		buf.WriteString(p.Render())
+
+		*data = append(*data, buf.Bytes()...)
+	})
 }
 
-func (p *ProgressBar) Stop() {}
+func (p *ProgressBar) Stop() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.isStarted = false
+
+	if p.onStop != nil {
+		p.onStop()
+	}
+}
 
 // digitsCount returns the number of digits in the given number.
 func (p *ProgressBar) digitsCount(n uint32) (count uint32) {
@@ -143,7 +187,7 @@ func (p *ProgressBar) digitsCount(n uint32) (count uint32) {
 	}
 
 	for n > 0 {
-		n, count = n/10, count+1
+		n, count = n/10, count+1 //nolint:gomnd
 	}
 
 	return
@@ -156,12 +200,12 @@ func (p *ProgressBar) getTerminalSize() (width, height uint16) {
 	return uint16(w), uint16(h)
 }
 
-func (p *ProgressBar) Render() string {
-	var (
-		buf strings.Builder
+func (p *ProgressBar) Render() string { //nolint:funlen,gocyclo
+	p.mu.RLock()
+	var current, prefix = p.current, p.prefix
+	p.mu.RUnlock()
 
-		current   = atomic.LoadUint32(&p.current)
-		prefix    = p.prefix.Load().(string)
+	var (
 		elapsed   = time.Since(p.startedAt).Round(p.timeRounding).String()
 		leftSize  = uint16(utf8.RuneCountInString(prefix)) + uint16(p.digitsCount(p.max)+p.digitsCount(current)) + 6
 		rightSize = uint16(utf8.RuneCountInString(elapsed)) + 10
@@ -174,7 +218,7 @@ func (p *ProgressBar) Render() string {
 	}
 
 	var (
-		percent  = float64((float32(current) / float32(p.max)) * 100)
+		percent  = float64((float32(current) / float32(p.max)) * 100) //nolint:gomnd
 		barWidth = width - (leftSize + rightSize)
 	)
 
@@ -191,6 +235,8 @@ func (p *ProgressBar) Render() string {
 	}
 
 	const colorsExtraSize = 8 /* colors count */ * 6 /* color size */ * 2 /* color reset */
+
+	var buf strings.Builder
 
 	buf.Grow(int(width) + colorsExtraSize)
 
@@ -235,7 +281,16 @@ func (p *ProgressBar) Render() string {
 	// cursor
 	if cursorPos < barWidth {
 		buf.WriteString(p.theme.CursorColor.Start())
-		buf.WriteRune(p.theme.Cursor)
+
+		switch {
+		case p.theme.Cursor != rune(0):
+			buf.WriteRune(p.theme.Cursor)
+		case p.theme.Fill != rune(0):
+			buf.WriteRune(p.theme.Fill)
+		default:
+			buf.WriteRune(' ')
+		}
+
 		buf.WriteString(p.theme.CursorColor.Reset())
 	}
 
@@ -260,10 +315,11 @@ func (p *ProgressBar) Render() string {
 	buf.WriteRune(' ')
 
 	// percent
-	var percentText = strconv.FormatFloat(percent, 'f', 0, 64)
-	if l := 3 - utf8.RuneCountInString(percentText); l > 0 {
+	var percentText = strconv.FormatFloat(percent, 'f', 0, 64) //nolint:gomnd
+	if l := 3 - utf8.RuneCountInString(percentText); l > 0 {   //nolint:gomnd
 		buf.WriteString(strings.Repeat(" ", l))
 	}
+
 	buf.WriteString(p.theme.PercentColor.Start())
 	buf.WriteString(percentText)
 	buf.WriteRune('%')

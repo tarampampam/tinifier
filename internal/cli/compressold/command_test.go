@@ -13,7 +13,7 @@ package compressold
 // 	cmd.SetArgs([]string{"--api-key", "", "/tmp"})
 //
 // 	output := capturer.CaptureStderr(func() {
-// 		assert.Error(t, cmd.Execute())
+// 		assert.Error(t, cmd.RunAll())
 // 	})
 //
 // 	assert.Contains(t, output, "API key was not provided")
@@ -24,7 +24,7 @@ package compressold
 // 	cmd.SetArgs([]string{"--api-key", "xxx", "/tmp"})
 //
 // 	output := capturer.CaptureStderr(func() {
-// 		assert.Error(t, cmd.Execute())
+// 		assert.Error(t, cmd.RunAll())
 // 	})
 //
 // 	assert.Contains(t, output, "API key")

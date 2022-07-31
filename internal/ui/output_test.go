@@ -9,6 +9,76 @@ import (
 	"github.com/tarampampam/tinifier/v4/internal/ui"
 )
 
+func TestOutputMutate(t *testing.T) {
+	for name, tt := range map[string]struct {
+		giveOut ui.Output
+	}{
+		"stdout": {ui.StdOut()},
+		"stderr": {ui.StdErr()},
+		"noop":   {ui.NoOut()},
+		"buffer": {ui.BufOut()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var (
+				origData   = []byte{1, 2, 3}
+				mutatorRan bool
+			)
+
+			cancelMutation := tt.giveOut.Mutate(func(data *[]byte) {
+				defer func() { mutatorRan = true }()
+
+				assert.EqualValues(t, origData, *data)
+
+				*data = []byte{} // reset data
+			})
+
+			defer cancelMutation()
+
+			assert.False(t, mutatorRan)
+
+			wrote, err := tt.giveOut.Write(origData)
+
+			assert.True(t, mutatorRan)
+			assert.Equal(t, 0, wrote)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestOutputMutateWithBuffer(t *testing.T) {
+	var out = ui.BufOut()
+
+	var cancelM1 = out.Mutate(func(data *[]byte) {
+		*data = append(*data, []byte{1, 2, 3}...)
+	})
+
+	l, err := out.Write([]byte{7})
+
+	assert.EqualValues(t, 4, l)
+	assert.NoError(t, err)
+	assert.EqualValues(t, []byte{7, 1, 2, 3}, out.AsBytes())
+
+	out.Reset()
+
+	l, err = out.Write([]byte{7})
+
+	assert.EqualValues(t, 4, l) // not changed
+	assert.NoError(t, err)
+	assert.EqualValues(t, []byte{7, 1, 2, 3}, out.AsBytes())
+
+	out.Reset()
+
+	cancelM1() // call the cancellation func now
+	cancelM1()
+	cancelM1()
+
+	l, err = out.Write([]byte{7})
+
+	assert.EqualValues(t, 1, l) // without mutation
+	assert.NoError(t, err)
+	assert.EqualValues(t, []byte{7}, out.AsBytes())
+}
+
 func TestNoOut(t *testing.T) {
 	var output = ui.NoOut()
 

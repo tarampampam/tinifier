@@ -6,16 +6,23 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/mattn/go-colorable"
 )
 
 type (
+	WritingMutator interface {
+		// Mutate adds the given mutator function into pre-write hooks. The cancellation function calling removes it.
+		// Mutators' execution order immutability is NOT guaranteed.
+		Mutate(mutateDataFn) (cancel func())
+	}
+
 	// Output is a writer that can be used to write to stdout or stderr.
 	Output interface {
 		io.Writer
-		sync.Locker
 		fmt.Stringer
+		WritingMutator
 	}
 
 	// BufferedOutput is a buffered output.
@@ -52,24 +59,30 @@ func BufOut() BufferedOutput { return new(bufOutWithLocker) }
 
 // outWithLocker is a wrapper for io.Writer that locks the mutex.
 type outWithLocker struct {
-	sync.Mutex
 	m    sync.Mutex
 	dest io.Writer
+	mut  outputMutator
 }
+
+// Mutate adds the given mutator function into pre-write hooks. The cancellation function calling removes it.
+func (o *outWithLocker) Mutate(fn mutateDataFn) (cancel func()) { return o.mut.Add(fn) }
 
 // Write writes the given bytes to the output.
 func (o *outWithLocker) Write(p []byte) (n int, err error) {
+	o.mut.RunAll(&p)
+
 	if o.dest != io.Discard {
 		o.m.Lock()
-		defer o.m.Unlock()
+		n, err = o.dest.Write(p)
+		o.m.Unlock()
+	} else {
+		n = len(p)
 	}
-
-	n, err = o.dest.Write(p)
 
 	return
 }
 
-// String returns a string representation of the output.
+// String returns a string representation of the output (name only).
 func (o *outWithLocker) String() string {
 	switch {
 	case o.dest == os.Stdout:
@@ -85,9 +98,9 @@ func (o *outWithLocker) String() string {
 
 // bufOutWithLocker is a buffered output.
 type bufOutWithLocker struct {
-	sync.Mutex
 	m   sync.Mutex
 	buf bytes.Buffer
+	mut outputMutator
 }
 
 // Grow grows the output buffer to the given size.
@@ -105,8 +118,12 @@ func (o *bufOutWithLocker) AsString() string { return o.buf.String() }
 // Len returns the number of bytes in the output buffer.
 func (o *bufOutWithLocker) Len() int { return o.buf.Len() }
 
+func (o *bufOutWithLocker) Mutate(fn mutateDataFn) (cancel func()) { return o.mut.Add(fn) }
+
 // Write writes the given bytes to the output.
 func (o *bufOutWithLocker) Write(p []byte) (n int, err error) {
+	o.mut.RunAll(&p)
+
 	o.m.Lock()
 	n, err = o.buf.Write(p)
 	o.m.Unlock()
@@ -114,5 +131,55 @@ func (o *bufOutWithLocker) Write(p []byte) (n int, err error) {
 	return
 }
 
-// String returns a string representation of the output.
+// String returns a string representation of the output (name only).
 func (o *bufOutWithLocker) String() string { return "buffer" }
+
+type (
+	// outputMutator allows to mutate the output data before writing it.
+	outputMutator struct {
+		counter uint32 // atomic usage only
+		m       sync.Mutex
+		mut     map[uint32]mutateDataFn
+	}
+
+	// mutateDataFn is a function that mutates the data.
+	mutateDataFn func(data *[]byte)
+)
+
+// Add adds the given mutator func into the collection. The cancellation function calling removes it. Cancellation
+// function can be called multiple times.
+func (om *outputMutator) Add(fn mutateDataFn) (cancel func()) {
+	om.m.Lock()
+	defer om.m.Unlock()
+
+	if om.mut == nil { // lazy init
+		om.mut = make(map[uint32]mutateDataFn)
+	}
+
+	var (
+		id   = atomic.AddUint32(&om.counter, 1)
+		once sync.Once
+	)
+
+	om.mut[id] = fn
+
+	return func() {
+		once.Do(func() {
+			om.m.Lock()
+			delete(om.mut, id)
+			om.m.Unlock()
+		})
+	}
+}
+
+// RunAll runs all the mutators on the given data.
+func (om *outputMutator) RunAll(data *[]byte) {
+	om.m.Lock()
+	defer om.m.Unlock()
+
+	for _, fn := range om.mut {
+		om.m.Unlock()
+		fn(data)
+		om.m.Lock()
+	}
+}
