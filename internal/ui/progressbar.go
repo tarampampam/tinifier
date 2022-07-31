@@ -17,7 +17,7 @@ import (
 type (
 	// ProgressBar is a progress bar (wow :D).
 	ProgressBar struct {
-		max          uint32 // maximal progress bar value (X of ???)
+		max          uint32 // maximal progress bar value
 		maxText      string // string representation of max (needed for optimization reasons)
 		width        uint16 // default (0) = full width
 		timeRounding time.Duration
@@ -25,7 +25,7 @@ type (
 
 		mu        sync.RWMutex // protects all fields above
 		prefix    string       // user-defined progress bar prefix string
-		current   uint32       // current progress value (??? of X)
+		current   uint32       // current progress value (??? of max)
 		isStarted bool         // is the progress bar drawing started?
 		startedAt time.Time    // when the progress bar was started
 		onStop    func()
