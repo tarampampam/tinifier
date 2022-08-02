@@ -2,7 +2,6 @@ package ui
 
 import (
 	"bytes"
-	"io"
 	"math"
 	"os"
 	"strconv"
@@ -22,6 +21,7 @@ type (
 		width        uint16 // default (0) = full width
 		timeRounding time.Duration
 		theme        ProgressBarTheme
+		writer       Output
 
 		mu        sync.RWMutex // protects all fields above
 		prefix    string       // user-defined progress bar prefix string
@@ -75,11 +75,17 @@ func WithWidth(width uint16) ProgressBarOption {
 	return func(p *ProgressBar) { p.width = width }
 }
 
+// WithWriter sets the writer of the progress bar.
+func WithWriter(w Output) ProgressBarOption {
+	return func(p *ProgressBar) { p.writer = w }
+}
+
 // NewProgressBar creates a new progress bar.
 func NewProgressBar(max uint32, opts ...ProgressBarOption) *ProgressBar {
 	var p = &ProgressBar{
 		max:     max,
 		maxText: strconv.Itoa(int(max)),
+		writer:  StdOut(),
 		theme: ProgressBarTheme{
 			PrefixColor:  FgBlue | FgBright | Bold,
 			CounterColor: FgDefault,
@@ -141,10 +147,7 @@ func (p *ProgressBar) Set(val uint32) {
 	p.mu.Unlock()
 }
 
-func (p *ProgressBar) Start(out interface {
-	io.Writer
-	WritingMutator
-}) {
+func (p *ProgressBar) Start() {
 	p.mu.RLock()
 	var isStarted = p.isStarted
 	p.mu.RUnlock()
@@ -158,25 +161,50 @@ func (p *ProgressBar) Start(out interface {
 
 	p.isStarted = true
 	p.startedAt = time.Now()
-	p.onStop = out.Mutate(func(data *[]byte) {
-		var buf bytes.Buffer
+	p.onStop = p.writer.Mutate(func(data *[]byte) {
+		if data == nil { // just in case
+			return
+		}
 
-		// buf.WriteRune('\n')
-		buf.WriteRune('\r')
-		buf.WriteString(p.Render())
+		p.mu.RLock()
+		var wasStarted = p.isStarted
+		p.mu.RUnlock()
 
-		*data = append(*data, buf.Bytes()...)
+		if !wasStarted {
+			return
+		}
+
+		var (
+			buf      bytes.Buffer
+			rendered = p.Render()
+			// linesCount = bytes.Count(*data, []byte{'\n'})
+		)
+
+		buf.Grow(len(rendered) + 8 /* control symbols */)
+
+		if len(*data) > 0 && (*data)[len(*data)-1] != '\n' { // data NOT ends with a line breaker?
+			buf.WriteByte('\n') // start buffer data with a new line breaker
+		}
+
+		buf.WriteString(rendered) // append the progress bar
+		buf.WriteRune('\n')       // and line breaker
+
+		//	ESC[#A	-	moves cursor up # lines
+		//	ESC[K	-	erase in line (same as ESC[0K)
+		*data = append([]byte("\x1b[1A\x1b[K"), *data...) // clear previous line
+
+		*data = append(*data, buf.Bytes()...) // append the new progress bar
 	})
 }
 
 func (p *ProgressBar) Stop() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.isStarted = false
+	onStop := p.onStop
+	p.mu.Unlock()
 
-	if p.onStop != nil {
-		p.onStop()
+	if onStop != nil {
+		onStop()
 	}
 }
 

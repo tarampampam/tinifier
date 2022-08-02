@@ -60,29 +60,13 @@ func TestProgressBar_Render_Common(t *testing.T) {
 }
 
 func TestProgressBar_Render_Clear(t *testing.T) {
-	const (
-		width   = 40
-		noColor = ui.TextStyle(0)
-		noRune  = rune(0)
-	)
+	const width = 40
 
-	var p = ui.NewProgressBar(10, ui.WithWidth(width), ui.WithTheme(ui.ProgressBarTheme{
-		PrefixColor:    noColor,
-		CounterColor:   noColor,
-		Start:          noRune,
-		StartColor:     noColor,
-		Fill:           noRune,
-		FillColor:      noColor,
-		Cursor:         noRune,
-		CursorColor:    noColor,
-		Spacer:         noRune,
-		SpacerColor:    noColor,
-		End:            noRune,
-		EndColor:       noColor,
-		PercentColor:   noColor,
-		SeparatorColor: noColor,
-		TimeColor:      noColor,
-	}), ui.WithTimeRounding(time.Hour))
+	var p = ui.NewProgressBar(10,
+		ui.WithWidth(width),
+		ui.WithTheme(ui.ProgressBarTheme{}), // empty theme
+		ui.WithTimeRounding(time.Hour),
+	)
 
 	p.SetPrefix("foo")
 	p.Start(ui.NoOut())
