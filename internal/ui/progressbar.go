@@ -13,6 +13,13 @@ import (
 	"golang.org/x/term"
 )
 
+var pbPrinter = struct { // progress bars printer
+	sync.Mutex
+	bars map[Output][]*ProgressBar
+}{
+	bars: make(map[Output][]*ProgressBar),
+}
+
 type (
 	// ProgressBar is a progress bar (wow :D).
 	ProgressBar struct {

@@ -123,7 +123,7 @@ Changes log can be [found here][link_changes_log].
 [![Issues][badge_issues]][link_issues]
 [![Issues][badge_pulls]][link_pulls]
 
-If you will find any package errors, please, [make an issue][link_create_issue] in current repository.
+If you find any package errors, please, [make an issue][link_create_issue] in current repository.
 
 ## License
 
