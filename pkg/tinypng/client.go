@@ -226,7 +226,7 @@ func (c *Client) extractCompressionCount(headers http.Header) (uint64, error) {
 	const headerName = "Compression-Count"
 
 	if val, ok := headers[headerName]; ok {
-		count, err := strconv.ParseUint(val[0], 10, 64) //nolint:gomnd
+		count, err := strconv.ParseUint(val[0], 10, 64)
 		if err == nil {
 			return count, nil
 		}

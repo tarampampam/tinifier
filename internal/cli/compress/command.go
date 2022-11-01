@@ -15,23 +15,23 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
 	"github.com/tarampampam/tinifier/v4/internal/files"
-	l "github.com/tarampampam/tinifier/v4/internal/logger"
 	"github.com/tarampampam/tinifier/v4/internal/retry"
 	"github.com/tarampampam/tinifier/v4/internal/validate"
 	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
 
 type command struct {
-	log l.Logger
+	log *zap.Logger
 	c   *cli.Command
 }
 
 // NewCommand creates `compress` command.
-func NewCommand(log l.Logger) *cli.Command { //nolint:funlen
+func NewCommand(log *zap.Logger) *cli.Command { //nolint:funlen
 	const (
 		apiKeyFlagName            = "api-key"
 		fileExtensionsFlagName    = "ext"
@@ -60,13 +60,13 @@ func NewCommand(log l.Logger) *cli.Command { //nolint:funlen
 			)
 
 			log.Debug("Run args",
-				l.With("api-keys", apiKeys),
-				l.With("file-extensions", fileExtensions),
-				l.With("threads-count", threadsCount),
-				l.With("max-errors-to-stop", maxErrorsToStop),
-				l.With("recursive", recursive),
-				l.With("update-mod-date", updateFileModDate),
-				l.With("args", paths),
+				zap.Strings("api-keys", apiKeys),
+				zap.Strings("file-extensions", fileExtensions),
+				zap.Uint("threads-count", threadsCount),
+				zap.Uint("max-errors-to-stop", maxErrorsToStop),
+				zap.Bool("recursive", recursive),
+				zap.Bool("update-mod-date", updateFileModDate),
+				zap.Strings("args", paths),
 			)
 
 			if threadsCount < 1 {
@@ -162,7 +162,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	)
 
 	oss.Subscribe(func(sig os.Signal) {
-		cmd.log.Debug("Stopping by OS signal..", l.With("Signal", sig.String()))
+		cmd.log.Debug("Stopping by OS signal..", zap.String("Signal", sig.String()))
 
 		cancel()
 	})
@@ -210,7 +210,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 					return
 				}
 
-				cmd.log.Error("Error occurred", l.With("Error", err))
+				cmd.log.Error("Error occurred", zap.Error(err))
 				counter++
 
 				if counter >= maxErrorsToStop {
@@ -302,9 +302,9 @@ workersLoop:
 			}
 
 			cmd.log.Debug("File compressed",
-				l.With("File", filePath),
-				l.With("Compressed file size", humanize.Bytes(compressed.Size())),
-				l.With("Used quota", compressed.UsedQuota()),
+				zap.String("File", filePath),
+				zap.String("Compressed file size", humanize.Bytes(compressed.Size())),
+				zap.Uint64("Used quota", compressed.UsedQuota()),
 			)
 
 			if ctx.Err() != nil { // check the context
@@ -314,10 +314,10 @@ workersLoop:
 			if size := uint64(origFileStat.Size()); size <= compressed.Size() {
 				cmd.log.Info(
 					fmt.Sprintf("File %s ignored (the size of the compressed and original files are the same)", path.Base(filePath)), //nolint:lll
-					l.With("File", filePath),
-					l.With("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-					l.With("Original file size", humanize.Bytes(size)),
-					l.With("Compressed file size", humanize.Bytes(compressed.Size())),
+					zap.String("File", filePath),
+					zap.String("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
+					zap.String("Original file size", humanize.Bytes(size)),
+					zap.String("Compressed file size", humanize.Bytes(compressed.Size())),
 				)
 
 				return
@@ -329,8 +329,8 @@ workersLoop:
 				if _, err := os.Stat(tmpFilePath); err == nil { // check the temporary file existence
 					if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
 						cmd.log.Warn("Error removing temporary file",
-							l.With("File", tmpFilePath),
-							l.With("Error", err),
+							zap.String("File", tmpFilePath),
+							zap.Error(err),
 						)
 					}
 				}
@@ -372,12 +372,12 @@ workersLoop:
 
 			var oldSize, newSize = float64(origFileStat.Size()), float64(tmpFileStat.Size())
 
-			cmd.log.Success(fmt.Sprintf("File %s compressed", pterm.Bold.Sprint(path.Base(filePath))),
-				l.With("File", filePath),
-				l.With("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-				l.With("Original file size", humanize.Bytes(uint64(oldSize))),
-				l.With("Compressed file size", humanize.Bytes(uint64(newSize))),
-				l.With("Saved space", fmt.Sprintf(
+			cmd.log.Info(fmt.Sprintf("File %s compressed", pterm.Bold.Sprint(path.Base(filePath))),
+				zap.String("File", filePath),
+				zap.String("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
+				zap.String("Original file size", humanize.Bytes(uint64(oldSize))),
+				zap.String("Compressed file size", humanize.Bytes(uint64(newSize))),
+				zap.String("Saved space", fmt.Sprintf(
 					"%s (%0.2f%%)",
 					humanize.IBytes(uint64(oldSize-newSize)),
 					((oldSize-newSize)/newSize)*100, //nolint:gomnd

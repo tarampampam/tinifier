@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 
 	"github.com/tarampampam/tinifier/v4/internal/cli/compress"
 	"github.com/tarampampam/tinifier/v4/internal/cli/quota"
@@ -21,7 +22,7 @@ func NewApp() *cli.App {
 	)
 
 	// create "default" logger (will be overwritten later with customized)
-	var log = logger.NewNop()
+	var log = zap.NewNop()
 
 	return &cli.App{
 		Usage: "CLI client for images compressing using tinypng.com API",
@@ -36,7 +37,12 @@ func NewApp() *cli.App {
 				return err
 			}
 
-			*log = *logger.New(logLevel) // replace "default" logger with customized
+			configured, err := logger.New(logLevel) // create new logger instance
+			if err != nil {
+				return err
+			}
+
+			*log = *configured // replace "default" logger with customized
 
 			return nil
 		},

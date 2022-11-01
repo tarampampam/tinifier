@@ -2,12 +2,12 @@
 package main
 
 import (
-	"io"
+	"fmt"
 	"os"
 
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
-	"github.com/pterm/pterm"
 
 	"github.com/tarampampam/tinifier/v4/internal/cli"
 )
@@ -19,14 +19,10 @@ var exitFn = os.Exit //nolint:gochecknoglobals
 func main() {
 	code, err := run()
 	if err != nil {
-		var (
-			w     io.Writer = os.Stderr
-			left            = &pterm.Style{pterm.BgLightRed, pterm.FgBlack, pterm.Bold}
-			right           = &pterm.Style{pterm.BgBlack, pterm.FgLightRed}
+		_, _ = fmt.Fprintf(os.Stderr, "%s%s\n",
+			text.Colors{text.BgHiRed, text.FgBlack, text.Bold}.Sprint("  Fatal error  "),
+			text.Colors{text.BgBlack, text.FgHiRed}.Sprintf("  %s  ", err.Error()),
 		)
-
-		pterm.Fprintln(w)
-		pterm.Fprintln(w, left.Sprintf("  %s  ", "Fatal error"), right.Sprintf("  %s  ", err))
 	}
 
 	exitFn(code)

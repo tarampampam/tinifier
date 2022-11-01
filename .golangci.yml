@@ -77,7 +77,6 @@ linters: # All available linters list: <https://golangci-lint.run/usage/linters/
     - prealloc # Finds slice declarations that could potentially be preallocated
     - typecheck # Like the front-end of a Go compiler, parses and type-checks Go code
     - unconvert # Remove unnecessary type conversions
-    - varcheck # Finds unused global variables and constants
     - whitespace # Tool for detection of leading and trailing whitespace
     - wsl # Whitespace Linter - Forces you to use empty lines!
 

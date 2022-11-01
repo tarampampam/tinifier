@@ -7,15 +7,15 @@ import (
 	"os"
 
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
-	"github.com/tarampampam/tinifier/v4/internal/logger"
 	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
 
 // NewCommand creates `quota` command.
-func NewCommand(log logger.Logger) *cli.Command {
+func NewCommand(log *zap.Logger) *cli.Command {
 	const (
 		apiKeyFlagName  = "api-key"
 		apiKeyMinLength = 8
@@ -32,7 +32,7 @@ func NewCommand(log logger.Logger) *cli.Command {
 				return fmt.Errorf("API key (%s) is too short", apiKey)
 			}
 
-			log.Debug("Running", logger.With("api_key", apiKey))
+			log.Debug("Running", zap.String("api_key", apiKey))
 
 			var (
 				ctx, cancel = context.WithCancel(c.Context) // main context creation
@@ -40,7 +40,7 @@ func NewCommand(log logger.Logger) *cli.Command {
 			)
 
 			oss.Subscribe(func(sig os.Signal) {
-				log.Warn("Stopping by OS signal..", logger.With("signal", sig.String()))
+				log.Warn("Stopping by OS signal..", zap.String("signal", sig.String()))
 
 				cancel()
 			})

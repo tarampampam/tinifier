@@ -12,7 +12,7 @@ type Keeper struct {
 	state map[string]struct{}
 }
 
-// ErrKeyNotExists occurred when keeper does not contains keys.
+// ErrKeyNotExists occurred when keeper does not contain keys.
 var ErrKeyNotExists = errors.New("key not exists")
 
 // NewKeeper creates new keeper instance.
