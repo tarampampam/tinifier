@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/pkg/errors"
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
-	"go.uber.org/zap"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
 	"github.com/tarampampam/tinifier/v4/internal/env"
@@ -26,12 +26,11 @@ import (
 )
 
 type command struct {
-	log *zap.Logger
-	c   *cli.Command
+	c *cli.Command
 }
 
 // NewCommand creates `compress` command.
-func NewCommand(log *zap.Logger) *cli.Command { //nolint:funlen
+func NewCommand() *cli.Command { //nolint:funlen
 	const (
 		apiKeyFlagName            = "api-key"
 		fileExtensionsFlagName    = "ext"
@@ -41,7 +40,7 @@ func NewCommand(log *zap.Logger) *cli.Command { //nolint:funlen
 		updateFileModDateFlagName = "update-mod-date"
 	)
 
-	var cmd = command{log: log}
+	var cmd = command{}
 
 	cmd.c = &cli.Command{
 		Name:      "compress",
@@ -59,15 +58,15 @@ func NewCommand(log *zap.Logger) *cli.Command { //nolint:funlen
 				paths             = c.Args().Slice()
 			)
 
-			log.Debug("Run args",
-				zap.Strings("api-keys", apiKeys),
-				zap.Strings("file-extensions", fileExtensions),
-				zap.Uint("threads-count", threadsCount),
-				zap.Uint("max-errors-to-stop", maxErrorsToStop),
-				zap.Bool("recursive", recursive),
-				zap.Bool("update-mod-date", updateFileModDate),
-				zap.Strings("args", paths),
-			)
+			// log.Debug("Run args",
+			// 	zap.Strings("api-keys", apiKeys),
+			// 	zap.Strings("file-extensions", fileExtensions),
+			// 	zap.Uint("threads-count", threadsCount),
+			// 	zap.Uint("max-errors-to-stop", maxErrorsToStop),
+			// 	zap.Bool("recursive", recursive),
+			// 	zap.Bool("update-mod-date", updateFileModDate),
+			// 	zap.Strings("args", paths),
+			// )
 
 			if threadsCount < 1 {
 				return errors.New("threads count must be greater than 0")
@@ -161,11 +160,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		oss         = breaker.NewOSSignals(ctx) // OS signals listener
 	)
 
-	oss.Subscribe(func(sig os.Signal) {
-		cmd.log.Debug("Stopping by OS signal..", zap.String("Signal", sig.String()))
-
-		cancel()
-	})
+	oss.Subscribe(func(os.Signal) { cancel() })
 
 	defer func() {
 		cancel()   // call cancellation function after all for "service" goroutines stopping
@@ -197,6 +192,21 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		}
 	)
 
+	var pw, totalTracker = progress.NewWriter(), progress.Tracker{
+		Total:   int64(len(filesList)),
+		Units:   unitsAsIs,
+		Message: "› Overall progress",
+	}
+
+	pw.SetTrackerPosition(progress.PositionRight)
+	pw.SetStyle(progressStyleDefault)
+	pw.Style().Visibility.Value = false
+	pw.Style().Options.Separator = ": "
+	pw.SetUpdateFrequency(time.Millisecond * 100)
+	pw.AppendTracker(&totalTracker)
+	pw.SetSortBy(progress.SortByMessage)
+	go pw.Render()
+
 	go func(ch <-chan error) { // start the errors watcher
 		var counter uint
 
@@ -210,11 +220,11 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 					return
 				}
 
-				cmd.log.Error("Error occurred", zap.Error(err))
+				pw.Log("Error occurred: %s", err.Error())
 				counter++
 
 				if counter >= maxErrorsToStop {
-					cmd.log.Error("Maximum errors count reached, stopping...")
+					pw.Log("Maximum errors count reached, stopping...")
 					cancel()
 
 					return
@@ -247,10 +257,6 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		wg           sync.WaitGroup
 	)
 
-	// docs: <https://github.com/pterm/pterm/tree/master/_examples/progressbar>
-	precessProgress, _ := cmd.newProgressBar(len(filesList), "Images compressing").Start()
-	defer func() { _, _ = precessProgress.Stop() }()
-
 workersLoop:
 	for _, filePath := range filesList {
 		select {
@@ -263,13 +269,22 @@ workersLoop:
 
 		go func(filePath string) {
 			defer func() { wg.Done(); <-uploadsGuard /* release the guard */ }()
-			defer precessProgress.Increment()
+			defer totalTracker.Increment(1)
 
 			if ctx.Err() != nil { // check the context
 				return
 			}
 
-			var startedAt = time.Now()
+			var fileName = path.Base(filePath)
+			var tracker = progress.Tracker{Message: fileName, Total: 3, Units: unitsAsIs}
+
+			pw.AppendTracker(&tracker)
+
+			defer func() {
+				if !tracker.IsDone() {
+					tracker.MarkAsErrored()
+				}
+			}()
 
 			origFileStat, statErr := os.Stat(filePath)
 			if statErr != nil {
@@ -282,11 +297,13 @@ workersLoop:
 			}
 
 			// STEP 1. Upload the file to TinyPNG server
+			tracker.SetValue(1)
+			tracker.UpdateMessage(fmt.Sprintf("%s uploading (%s)", fileName, humanize.Bytes(uint64(origFileStat.Size()))))
 			compressed, compErr := cmd.Upload(ctx, pool, filePath)
 			if compErr != nil {
 				switch {
 				case errors.Is(compErr, errNoClients):
-					cmd.log.Error("No one valid API key, working canceled")
+					pw.Log("No one valid API key, working canceled")
 					cancel()
 
 				case errors.Is(compErr, context.Canceled): // do nothing
@@ -301,24 +318,12 @@ workersLoop:
 				return // stop the process on uploading error
 			}
 
-			cmd.log.Debug("File compressed",
-				zap.String("File", filePath),
-				zap.String("Compressed file size", humanize.Bytes(compressed.Size())),
-				zap.Uint64("Used quota", compressed.UsedQuota()),
-			)
-
 			if ctx.Err() != nil { // check the context
 				return
 			}
 
 			if size := uint64(origFileStat.Size()); size <= compressed.Size() {
-				cmd.log.Info(
-					fmt.Sprintf("File %s ignored (the size of the compressed and original files are the same)", path.Base(filePath)), //nolint:lll
-					zap.String("File", filePath),
-					zap.String("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-					zap.String("Original file size", humanize.Bytes(size)),
-					zap.String("Compressed file size", humanize.Bytes(compressed.Size())),
-				)
+				tracker.UpdateMessage(fmt.Sprintf("%s skipped (original size is less than compressed)", fileName))
 
 				return
 			}
@@ -328,15 +333,17 @@ workersLoop:
 			defer func() {
 				if _, err := os.Stat(tmpFilePath); err == nil { // check the temporary file existence
 					if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
-						cmd.log.Warn("Error removing temporary file",
-							zap.String("File", tmpFilePath),
-							zap.Error(err),
+						pw.Log("Error removing temporary file %s (%s)",
+							tmpFilePath,
+							err.Error(),
 						)
 					}
 				}
 			}()
 
 			// STEP 2. Download the compressed file from TinyPNG to temporary file
+			tracker.SetValue(2)
+			tracker.UpdateMessage(fmt.Sprintf("%s downloading (%s)", fileName, humanize.Bytes(compressed.Size())))
 			if err := cmd.Download(ctx, compressed, tmpFilePath, origFileStat.Mode()); err != nil {
 				select {
 				case <-ctx.Done():
@@ -361,6 +368,7 @@ workersLoop:
 			}
 
 			// STEP 3. Replace original file content with compressed
+			tracker.SetValue(3)
 			if err := cmd.Replace(filePath, tmpFilePath, !updateFileModDate); err != nil {
 				select {
 				case <-ctx.Done():
@@ -370,19 +378,26 @@ workersLoop:
 				return // stop the process on error
 			}
 
-			var oldSize, newSize = float64(origFileStat.Size()), float64(tmpFileStat.Size())
+			tracker.UpdateMessage(fmt.Sprintf(
+				"%s compressed (%s → %s)",
+				fileName,
+				humanize.Bytes(uint64(origFileStat.Size())),
+				humanize.Bytes(compressed.Size()),
+			))
 
-			cmd.log.Info(fmt.Sprintf("File %s compressed", pterm.Bold.Sprint(path.Base(filePath))),
-				zap.String("File", filePath),
-				zap.String("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-				zap.String("Original file size", humanize.Bytes(uint64(oldSize))),
-				zap.String("Compressed file size", humanize.Bytes(uint64(newSize))),
-				zap.String("Saved space", fmt.Sprintf(
-					"%s (%0.2f%%)",
-					humanize.IBytes(uint64(oldSize-newSize)),
-					((oldSize-newSize)/newSize)*100, //nolint:gomnd
-				)),
-			)
+			// var oldSize, newSize = float64(origFileStat.Size()), float64(tmpFileStat.Size())
+			//
+			// pw.Log(fmt.Sprintf("File %s compressed", pterm.Bold.Sprint(path.Base(filePath))),
+			// 	zap.String("File", filePath),
+			// 	zap.String("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
+			// 	zap.String("Original file size", humanize.Bytes(uint64(oldSize))),
+			// 	zap.String("Compressed file size", humanize.Bytes(uint64(newSize))),
+			// 	zap.String("Saved space", fmt.Sprintf(
+			// 		"%s (%0.2f%%)",
+			// 		humanize.IBytes(uint64(oldSize-newSize)),
+			// 		((oldSize-newSize)/newSize)*100, //nolint:gomnd
+			// 	)),
+			// )
 
 			select {
 			case <-ctx.Done():
@@ -393,11 +408,13 @@ workersLoop:
 				compressedSize: uint64(tmpFileStat.Size()),
 			}:
 			}
+
+			tracker.MarkAsDone()
 		}(filePath)
 	}
 
 	wg.Wait()
-	_, _ = precessProgress.Stop() //nolint:wsl
+	pw.Stop()
 
 	close(uploadsGuard)
 	close(errorsChannel)
@@ -423,29 +440,10 @@ workersLoop:
 			},
 		}).Render()
 	} else {
-		cmd.log.Warn("No files compressed")
+		fmt.Println("No files compressed")
 	}
 
 	return nil
-}
-
-func (*command) newProgressBar(total int, title string) *pterm.ProgressbarPrinter {
-	return &pterm.ProgressbarPrinter{
-		Total:                     total,
-		Title:                     title,
-		BarCharacter:              "█",
-		LastCharacter:             "█",
-		ElapsedTimeRoundingFactor: time.Second,
-		BarStyle:                  &pterm.ThemeDefault.ProgressbarBarStyle,
-		TitleStyle:                &pterm.ThemeDefault.ProgressbarTitleStyle,
-		ShowTitle:                 true,
-		ShowCount:                 true,
-		ShowPercentage:            true,
-		ShowElapsedTime:           true,
-		RemoveWhenDone:            true,
-		BarFiller:                 " ",
-		Writer:                    os.Stdout,
-	}
 }
 
 // Upload uploads the file to TinyPNG server.
@@ -466,7 +464,7 @@ func (*command) Upload(ctx context.Context, pool *clientsPool, filePath string) 
 			return openingErr
 		}
 
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		if ok, err := validate.IsImage(f); err != nil { // validate (is image?)
 			return err
@@ -517,7 +515,7 @@ func (*command) Download(ctx context.Context, comp *tinypng.Compressed, filePath
 			return err
 		}
 
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		return comp.Download(ctx, f)
 	}, retry.WithContext(ctx), retry.Attempts(retryAttempts), retry.Delay(retryInterval)); err != nil {
@@ -536,7 +534,7 @@ func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTim
 		return origFileErr
 	}
 
-	defer origFile.Close()
+	defer func() { _ = origFile.Close() }()
 
 	origFileStat, statErr := origFile.Stat()
 	if statErr != nil {
@@ -548,7 +546,7 @@ func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTim
 		return tmpFileErr
 	}
 
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }()
 
 	if _, err := io.Copy(origFile, tmpFile); err != nil { // copy compressed file content to original file
 		return err
@@ -571,28 +569,30 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 		return []string{}, nil
 	}
 
-	spin, _ := pterm.SpinnerPrinter{ // docs: <https://github.com/pterm/pterm/tree/master/_examples/spinner>
-		Sequence:            []string{" ⣾", " ⣽", " ⣻", " ⢿", " ⡿", " ⣟", " ⣯", " ⣷"},
-		Delay:               time.Millisecond * 200, //nolint:gomnd
-		Style:               &pterm.ThemeDefault.SpinnerStyle,
-		TimerStyle:          &pterm.ThemeDefault.TimerStyle,
-		MessageStyle:        &pterm.ThemeDefault.SpinnerTextStyle,
-		RemoveWhenDone:      true,
-		ShowTimer:           true,
-		TimerRoundingFactor: time.Second,
-		Writer:              os.Stdout,
-	}.Start("Images searching")
-	defer func() { _ = spin.Stop() }()
+	var pw, tracker = progress.NewWriter(), progress.Tracker{Total: 0, Units: unitsAsIs}
+
+	pw.SetStyle(progressStyleDefault)
+	pw.SetUpdateFrequency(time.Millisecond * 100)
+	pw.AppendTracker(&tracker)
+
+	go pw.Render()
+	defer pw.Stop()
 
 	var found = make([]string, 0, len(where))
 
 	if err := files.FindFiles(ctx, where, func(absPath string) {
 		found = append(found, absPath)
 
-		spin.UpdateText(fmt.Sprintf("Found image: %s (%d total)", absPath, len(found)))
+		tracker.UpdateMessage(path.Base(absPath))
+		tracker.SetValue(int64(len(found)))
 	}, files.WithRecursive(recursive), files.WithFilesExt(filesExt...)); err != nil {
+		tracker.MarkAsErrored()
+
 		return nil, errors.Wrap(err, "wrong target path")
 	}
+
+	tracker.UpdateMessage("Images searching")
+	tracker.MarkAsDone()
 
 	sort.Strings(found)
 

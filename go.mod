@@ -11,7 +11,6 @@ require (
 	github.com/pterm/pterm v0.12.44
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli/v2 v2.11.0
-	go.uber.org/zap v1.23.0
 )
 
 require (
@@ -28,8 +27,6 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
