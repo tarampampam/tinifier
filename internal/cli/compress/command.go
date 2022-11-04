@@ -14,7 +14,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/pkg/errors"
-	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
@@ -135,13 +134,6 @@ func NewCommand() *cli.Command { //nolint:funlen
 	return cmd.c
 }
 
-type compressionStats struct {
-	filePath       string
-	fileType       string
-	originalSize   uint64
-	compressedSize uint64
-}
-
 var errNoClients = errors.New("no clients")
 
 // Run current command.
@@ -181,15 +173,8 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	}
 
 	var (
-		errorsChannel = make(chan error, 1)
-		statsChannel  = make(chan compressionStats, 1)
-		statsBuf      = struct {
-			history             []compressionStats
-			totalOriginalSize   uint64
-			totalCompressedSize uint64
-		}{
-			history: make([]compressionStats, 0, len(filesList)),
-		}
+		errorsWatcher  = make(ErrorsWatcher, 1)
+		statsCollector = NewStatsCollector(len(filesList))
 	)
 
 	var pw, totalTracker = progress.NewWriter(), progress.Tracker{
@@ -203,53 +188,22 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	pw.Style().Visibility.Value = false
 	pw.Style().Options.Separator = ": "
 	pw.SetUpdateFrequency(time.Millisecond * 100)
-	pw.AppendTracker(&totalTracker)
 	pw.SetSortBy(progress.SortByMessage)
+	pw.AppendTracker(&totalTracker)
+
 	go pw.Render()
 
-	go func(ch <-chan error) { // start the errors watcher
-		var counter uint
+	go errorsWatcher.Watch(ctx, maxErrorsToStop, // start the errors watcher
+		WithOnErrorHandler(func(err error) {
+			pw.Log("Error occurred: %s", err.Error())
+		}),
+		WithLimitExceededHandler(func() {
+			pw.Log("Maximum errors count reached, stopping...")
+			cancel()
+		}),
+	)
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-
-			case err, isOpened := <-ch:
-				if !isOpened {
-					return
-				}
-
-				pw.Log("Error occurred: %s", err.Error())
-				counter++
-
-				if counter >= maxErrorsToStop {
-					pw.Log("Maximum errors count reached, stopping...")
-					cancel()
-
-					return
-				}
-			}
-		}
-	}(errorsChannel)
-
-	go func(ch <-chan compressionStats) { // start the stats watcher
-		for {
-			select {
-			case <-ctx.Done():
-				return
-
-			case stat, isOpened := <-ch:
-				if !isOpened {
-					return
-				}
-
-				statsBuf.history = append(statsBuf.history, stat)
-				statsBuf.totalOriginalSize += stat.originalSize
-				statsBuf.totalCompressedSize += stat.compressedSize
-			}
-		}
-	}(statsChannel)
+	go statsCollector.Watch(ctx) // start the stats watcher
 
 	var (
 		pool         = newClientsPool(apiKeys)
@@ -288,10 +242,7 @@ workersLoop:
 
 			origFileStat, statErr := os.Stat(filePath)
 			if statErr != nil {
-				select {
-				case <-ctx.Done():
-				case errorsChannel <- errors.Wrapf(statErr, "file (%s) statistics reading failed", filePath):
-				}
+				errorsWatcher.Push(ctx, errors.Wrapf(statErr, "file (%s) statistics reading failed", filePath))
 
 				return // stop the process on error
 			}
@@ -309,10 +260,7 @@ workersLoop:
 				case errors.Is(compErr, context.Canceled): // do nothing
 
 				default:
-					select {
-					case <-ctx.Done():
-					case errorsChannel <- errors.Wrapf(compErr, "image (%s) uploading failed", filePath):
-					}
+					errorsWatcher.Push(ctx, errors.Wrapf(compErr, "image (%s) uploading failed", filePath))
 				}
 
 				return // stop the process on uploading error
@@ -333,10 +281,7 @@ workersLoop:
 			defer func() {
 				if _, err := os.Stat(tmpFilePath); err == nil { // check the temporary file existence
 					if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
-						pw.Log("Error removing temporary file %s (%s)",
-							tmpFilePath,
-							err.Error(),
-						)
+						pw.Log("Error removing temporary file %s (%s)", tmpFilePath, err.Error())
 					}
 				}
 			}()
@@ -345,10 +290,7 @@ workersLoop:
 			tracker.SetValue(2)
 			tracker.UpdateMessage(fmt.Sprintf("%s downloading (%s)", fileName, humanize.Bytes(compressed.Size())))
 			if err := cmd.Download(ctx, compressed, tmpFilePath, origFileStat.Mode()); err != nil {
-				select {
-				case <-ctx.Done():
-				case errorsChannel <- errors.Wrapf(err, "image (%s) downloading failed", filePath):
-				}
+				errorsWatcher.Push(ctx, errors.Wrapf(err, "image (%s) downloading failed", filePath))
 
 				return // stop the process on error
 			}
@@ -359,10 +301,7 @@ workersLoop:
 
 			tmpFileStat, statErr := os.Stat(tmpFilePath)
 			if statErr != nil {
-				select {
-				case <-ctx.Done():
-				case errorsChannel <- errors.Wrapf(statErr, "file (%s) statistics reading failed", tmpFilePath):
-				}
+				errorsWatcher.Push(ctx, errors.Wrapf(statErr, "file (%s) statistics reading failed", tmpFilePath))
 
 				return // stop the process on error
 			}
@@ -370,44 +309,25 @@ workersLoop:
 			// STEP 3. Replace original file content with compressed
 			tracker.SetValue(3)
 			if err := cmd.Replace(filePath, tmpFilePath, !updateFileModDate); err != nil {
-				select {
-				case <-ctx.Done():
-				case errorsChannel <- errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath):
-				}
+				errorsWatcher.Push(ctx, errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath))
 
 				return // stop the process on error
 			}
 
 			tracker.UpdateMessage(fmt.Sprintf(
-				"%s compressed (%s → %s)",
+				"%s compressed (%s → %s, %s saved)",
 				fileName,
 				humanize.Bytes(uint64(origFileStat.Size())),
-				humanize.Bytes(compressed.Size()),
+				humanize.Bytes(uint64(tmpFileStat.Size())),
+				humanize.IBytes(uint64(origFileStat.Size()-tmpFileStat.Size())),
 			))
 
-			// var oldSize, newSize = float64(origFileStat.Size()), float64(tmpFileStat.Size())
-			//
-			// pw.Log(fmt.Sprintf("File %s compressed", pterm.Bold.Sprint(path.Base(filePath))),
-			// 	zap.String("File", filePath),
-			// 	zap.String("Elapsed time", time.Since(startedAt).Round(time.Second).String()),
-			// 	zap.String("Original file size", humanize.Bytes(uint64(oldSize))),
-			// 	zap.String("Compressed file size", humanize.Bytes(uint64(newSize))),
-			// 	zap.String("Saved space", fmt.Sprintf(
-			// 		"%s (%0.2f%%)",
-			// 		humanize.IBytes(uint64(oldSize-newSize)),
-			// 		((oldSize-newSize)/newSize)*100, //nolint:gomnd
-			// 	)),
-			// )
-
-			select {
-			case <-ctx.Done():
-			case statsChannel <- compressionStats{
+			statsCollector.Push(ctx, CompressionStat{
 				filePath:       filePath,
 				fileType:       compressed.Type(),
 				originalSize:   uint64(origFileStat.Size()),
 				compressedSize: uint64(tmpFileStat.Size()),
-			}:
-			}
+			})
 
 			tracker.MarkAsDone()
 		}(filePath)
@@ -417,31 +337,31 @@ workersLoop:
 	pw.Stop()
 
 	close(uploadsGuard)
-	close(errorsChannel)
-	close(statsChannel)
+	close(errorsWatcher)
+	statsCollector.Close()
 
-	if len(statsBuf.history) > 0 {
-		(&pterm.HeaderPrinter{
-			TextStyle:       &pterm.Style{pterm.FgLightWhite, pterm.Bold},
-			BackgroundStyle: &pterm.Style{pterm.BgBlue},
-			Margin:          5, //nolint:gomnd
-			FullWidth:       true,
-			Writer:          os.Stdout,
-		}).Println("Compression results")
-
-		_ = pterm.DefaultBarChart.WithHorizontal().WithShowValue().WithBars(pterm.Bars{
-			pterm.Bar{
-				Label: fmt.Sprintf("Original files size (%s)", humanize.Bytes(statsBuf.totalOriginalSize)),
-				Value: int(statsBuf.totalOriginalSize),
-			},
-			pterm.Bar{
-				Label: fmt.Sprintf("Compressed files size (%s)", humanize.Bytes(statsBuf.totalCompressedSize)),
-				Value: int(statsBuf.totalCompressedSize),
-			},
-		}).Render()
-	} else {
-		fmt.Println("No files compressed")
-	}
+	// if len(statsCollector.history) > 0 {
+	// 	(&pterm.HeaderPrinter{
+	// 		TextStyle:       &pterm.Style{pterm.FgLightWhite, pterm.Bold},
+	// 		BackgroundStyle: &pterm.Style{pterm.BgBlue},
+	// 		Margin:          5, //nolint:gomnd
+	// 		FullWidth:       true,
+	// 		Writer:          os.Stdout,
+	// 	}).Println("Compression results")
+	//
+	// 	_ = pterm.DefaultBarChart.WithHorizontal().WithShowValue().WithBars(pterm.Bars{
+	// 		pterm.Bar{
+	// 			Label: fmt.Sprintf("Original files size (%s)", humanize.Bytes(statsBuf.totalOriginalSize)),
+	// 			Value: int(statsBuf.totalOriginalSize),
+	// 		},
+	// 		pterm.Bar{
+	// 			Label: fmt.Sprintf("Compressed files size (%s)", humanize.Bytes(statsBuf.totalCompressedSize)),
+	// 			Value: int(statsBuf.totalCompressedSize),
+	// 		},
+	// 	}).Render()
+	// } else {
+	// 	fmt.Println("No files compressed")
+	// }
 
 	return nil
 }
@@ -547,6 +467,10 @@ func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTim
 	}
 
 	defer func() { _ = tmpFile.Close() }()
+
+	if err := origFile.Truncate(0); err != nil {
+		return err
+	}
 
 	if _, err := io.Copy(origFile, tmpFile); err != nil { // copy compressed file content to original file
 		return err
