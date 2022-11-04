@@ -1,10 +1,13 @@
 package compress
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
+
+var errNoClients = errors.New("no clients")
 
 type clientsPool struct {
 	mu   sync.Mutex

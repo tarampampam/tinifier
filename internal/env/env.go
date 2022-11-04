@@ -6,8 +6,6 @@ import "os"
 type envVariable string
 
 const (
-	LogLevel envVariable = "LOG_LEVEL" // logging level
-
 	ThreadsCount envVariable = "THREADS_COUNT" // Threads count
 
 	TinyPngAPIKey envVariable = "TINYPNG_API_KEY" //nolint:gosec // TinyPNG API key

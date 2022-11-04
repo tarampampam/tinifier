@@ -7,8 +7,8 @@ import (
 
 type (
 	CompressionStat struct {
-		filePath, fileType           string
-		compressedSize, originalSize uint64
+		FilePath, FileType           string
+		CompressedSize, OriginalSize uint64
 	}
 
 	StatsCollector struct {
@@ -17,6 +17,7 @@ type (
 
 		totalOriginalSize   uint64
 		totalCompressedSize uint64
+		totalSavedBytes     int64
 
 		closed uint32
 		close  chan struct{}
@@ -31,7 +32,13 @@ func NewStatsCollector(expectedHistoryLen int) *StatsCollector {
 	}
 }
 
-func (s StatsCollector) Watch(ctx context.Context) {
+func (s *StatsCollector) History() []CompressionStat  { return s.history }
+func (s *StatsCollector) TotalOriginalSize() uint64   { return s.totalOriginalSize }
+func (s *StatsCollector) TotalCompressedSize() uint64 { return s.totalCompressedSize }
+func (s *StatsCollector) TotalSavedBytes() int64      { return s.totalSavedBytes }
+func (s *StatsCollector) TotalFiles() uint32          { return uint32(len(s.history)) }
+
+func (s *StatsCollector) Watch(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -46,13 +53,14 @@ func (s StatsCollector) Watch(ctx context.Context) {
 			}
 
 			s.history = append(s.history, stat)
-			s.totalOriginalSize += stat.originalSize
-			s.totalCompressedSize += stat.compressedSize
+			s.totalOriginalSize += stat.OriginalSize
+			s.totalCompressedSize += stat.CompressedSize
+			s.totalSavedBytes += int64(stat.OriginalSize) - int64(stat.CompressedSize)
 		}
 	}
 }
 
-func (s StatsCollector) Push(ctx context.Context, stat CompressionStat) {
+func (s *StatsCollector) Push(ctx context.Context, stat CompressionStat) {
 	select {
 	case <-ctx.Done():
 	case <-s.close:
@@ -60,7 +68,7 @@ func (s StatsCollector) Push(ctx context.Context, stat CompressionStat) {
 	}
 }
 
-func (s StatsCollector) Close() {
+func (s *StatsCollector) Close() {
 	if atomic.CompareAndSwapUint32(&s.closed, 0, 1) {
 		close(s.close)
 		close(s.ch)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"runtime"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/progress"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
@@ -134,8 +136,6 @@ func NewCommand() *cli.Command { //nolint:funlen
 	return cmd.c
 }
 
-var errNoClients = errors.New("no clients")
-
 // Run current command.
 func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	pCtx context.Context,
@@ -177,7 +177,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		statsCollector = NewStatsCollector(len(filesList))
 	)
 
-	var pw, totalTracker = progress.NewWriter(), progress.Tracker{
+	var pw, overall = progress.NewWriter(), progress.Tracker{
 		Total:   int64(len(filesList)),
 		Units:   unitsAsIs,
 		Message: "› Overall progress",
@@ -189,7 +189,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	pw.Style().Options.Separator = ": "
 	pw.SetUpdateFrequency(time.Millisecond * 100)
 	pw.SetSortBy(progress.SortByMessage)
-	pw.AppendTracker(&totalTracker)
+	pw.AppendTracker(&overall)
 
 	go pw.Render()
 
@@ -207,7 +207,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 
 	var (
 		pool         = newClientsPool(apiKeys)
-		uploadsGuard = make(chan struct{}, threadsCount) // TODO close
+		uploadsGuard = make(chan struct{}, threadsCount)
 		wg           sync.WaitGroup
 	)
 
@@ -223,145 +223,177 @@ workersLoop:
 
 		go func(filePath string) {
 			defer func() { wg.Done(); <-uploadsGuard /* release the guard */ }()
-			defer totalTracker.Increment(1)
+			defer overall.Increment(1)
 
-			if ctx.Err() != nil { // check the context
-				return
-			}
-
-			var fileName = path.Base(filePath)
-			var tracker = progress.Tracker{Message: fileName, Total: 3, Units: unitsAsIs}
-
-			pw.AppendTracker(&tracker)
-
-			defer func() {
-				if !tracker.IsDone() {
-					tracker.MarkAsErrored()
-				}
-			}()
-
-			origFileStat, statErr := os.Stat(filePath)
-			if statErr != nil {
-				errorsWatcher.Push(ctx, errors.Wrapf(statErr, "file (%s) statistics reading failed", filePath))
-
-				return // stop the process on error
-			}
-
-			// STEP 1. Upload the file to TinyPNG server
-			tracker.SetValue(1)
-			tracker.UpdateMessage(fmt.Sprintf("%s uploading (%s)", fileName, humanize.Bytes(uint64(origFileStat.Size()))))
-			compressed, compErr := cmd.Upload(ctx, pool, filePath)
-			if compErr != nil {
+			if err := cmd.CompressLocalImage(ctx, pw, pool, statsCollector, filePath, !updateFileModDate); err != nil {
 				switch {
-				case errors.Is(compErr, errNoClients):
+				case errors.Is(err, errNoClients):
 					pw.Log("No one valid API key, working canceled")
 					cancel()
 
-				case errors.Is(compErr, context.Canceled): // do nothing
+				case errors.Is(err, context.Canceled): // do nothing
 
 				default:
-					errorsWatcher.Push(ctx, errors.Wrapf(compErr, "image (%s) uploading failed", filePath))
+					errorsWatcher.Push(ctx, err)
 				}
-
-				return // stop the process on uploading error
 			}
-
-			if ctx.Err() != nil { // check the context
-				return
-			}
-
-			if size := uint64(origFileStat.Size()); size <= compressed.Size() {
-				tracker.UpdateMessage(fmt.Sprintf("%s skipped (original size is less than compressed)", fileName))
-
-				return
-			}
-
-			var tmpFilePath = filePath + ".tiny" // temporary file path
-
-			defer func() {
-				if _, err := os.Stat(tmpFilePath); err == nil { // check the temporary file existence
-					if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
-						pw.Log("Error removing temporary file %s (%s)", tmpFilePath, err.Error())
-					}
-				}
-			}()
-
-			// STEP 2. Download the compressed file from TinyPNG to temporary file
-			tracker.SetValue(2)
-			tracker.UpdateMessage(fmt.Sprintf("%s downloading (%s)", fileName, humanize.Bytes(compressed.Size())))
-			if err := cmd.Download(ctx, compressed, tmpFilePath, origFileStat.Mode()); err != nil {
-				errorsWatcher.Push(ctx, errors.Wrapf(err, "image (%s) downloading failed", filePath))
-
-				return // stop the process on error
-			}
-
-			if ctx.Err() != nil { // check the context
-				return
-			}
-
-			tmpFileStat, statErr := os.Stat(tmpFilePath)
-			if statErr != nil {
-				errorsWatcher.Push(ctx, errors.Wrapf(statErr, "file (%s) statistics reading failed", tmpFilePath))
-
-				return // stop the process on error
-			}
-
-			// STEP 3. Replace original file content with compressed
-			tracker.SetValue(3)
-			if err := cmd.Replace(filePath, tmpFilePath, !updateFileModDate); err != nil {
-				errorsWatcher.Push(ctx, errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath))
-
-				return // stop the process on error
-			}
-
-			tracker.UpdateMessage(fmt.Sprintf(
-				"%s compressed (%s → %s, %s saved)",
-				fileName,
-				humanize.Bytes(uint64(origFileStat.Size())),
-				humanize.Bytes(uint64(tmpFileStat.Size())),
-				humanize.IBytes(uint64(origFileStat.Size()-tmpFileStat.Size())),
-			))
-
-			statsCollector.Push(ctx, CompressionStat{
-				filePath:       filePath,
-				fileType:       compressed.Type(),
-				originalSize:   uint64(origFileStat.Size()),
-				compressedSize: uint64(tmpFileStat.Size()),
-			})
-
-			tracker.MarkAsDone()
 		}(filePath)
 	}
 
 	wg.Wait()
 	pw.Stop()
 
+	{ // wait until the progress bar rendering is uncompleted
+		var ticker = time.NewTicker(time.Millisecond * 50)
+
+	progressBarWait:
+		for pw.IsRenderInProgress() {
+			select {
+			case <-ctx.Done():
+				break progressBarWait
+
+			case <-ticker.C: // do nothing
+			}
+		}
+
+		ticker.Stop()
+	}
+
 	close(uploadsGuard)
 	close(errorsWatcher)
 	statsCollector.Close()
 
-	// if len(statsCollector.history) > 0 {
-	// 	(&pterm.HeaderPrinter{
-	// 		TextStyle:       &pterm.Style{pterm.FgLightWhite, pterm.Bold},
-	// 		BackgroundStyle: &pterm.Style{pterm.BgBlue},
-	// 		Margin:          5, //nolint:gomnd
-	// 		FullWidth:       true,
-	// 		Writer:          os.Stdout,
-	// 	}).Println("Compression results")
-	//
-	// 	_ = pterm.DefaultBarChart.WithHorizontal().WithShowValue().WithBars(pterm.Bars{
-	// 		pterm.Bar{
-	// 			Label: fmt.Sprintf("Original files size (%s)", humanize.Bytes(statsBuf.totalOriginalSize)),
-	// 			Value: int(statsBuf.totalOriginalSize),
-	// 		},
-	// 		pterm.Bar{
-	// 			Label: fmt.Sprintf("Compressed files size (%s)", humanize.Bytes(statsBuf.totalCompressedSize)),
-	// 			Value: int(statsBuf.totalCompressedSize),
-	// 		},
-	// 	}).Render()
-	// } else {
-	// 	fmt.Println("No files compressed")
-	// }
+	tbl := table.NewWriter()
+	tbl.SetStyle(table.StyleColoredBlackOnBlueWhite)
+	tbl.AppendHeader(table.Row{"File Name", "Type", "Size Difference", "Saved"})
+
+	for _, stat := range statsCollector.History() {
+		tbl.AppendRow(table.Row{
+			path.Base(stat.FilePath), // File Name
+			stat.FileType,            // Type
+			fmt.Sprintf( // Size Difference
+				"%s → %s",
+				humanize.IBytes(stat.OriginalSize),
+				humanize.IBytes(stat.CompressedSize),
+			),
+			fmt.Sprintf( // Saved
+				"%s (%s)",
+				humanize.IBytes(stat.OriginalSize-stat.CompressedSize),
+				cmd.percentageDiff(float64(stat.CompressedSize), float64(stat.OriginalSize)),
+			),
+		})
+	}
+
+	tbl.AppendFooter(table.Row{"", "",
+		fmt.Sprintf("Total saved (%d files)", statsCollector.TotalFiles()),
+		fmt.Sprintf("%s (%s)", // Saved
+			humanize.IBytes(uint64(statsCollector.TotalSavedBytes())),
+			cmd.percentageDiff(float64(statsCollector.TotalCompressedSize()), float64(statsCollector.TotalOriginalSize())),
+		),
+	})
+
+	if _, err := fmt.Fprintf(os.Stdout, "\n%s\n", tbl.Render()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cmd *command) CompressLocalImage(
+	ctx context.Context,
+	pw progress.Writer,
+	pool *clientsPool,
+	statsCollector *StatsCollector,
+	filePath string,
+	keepOriginalFileModTime bool,
+) error {
+	if err := ctx.Err(); err != nil { // check the context
+		return err
+	}
+
+	var (
+		fileName = path.Base(filePath)
+		tracker  = progress.Tracker{Message: fileName, Total: 3, Units: unitsAsIs}
+	)
+
+	pw.AppendTracker(&tracker)
+
+	defer func() {
+		if !tracker.IsDone() {
+			tracker.MarkAsErrored()
+		}
+	}()
+
+	origFileStat, statErr := os.Stat(filePath)
+	if statErr != nil {
+		return errors.Wrapf(statErr, "file (%s) statistics reading failed", filePath)
+	}
+
+	// STEP 1. Upload the file to TinyPNG server
+	tracker.SetValue(1)
+	tracker.UpdateMessage(fmt.Sprintf("%s uploading (%s)", fileName, humanize.IBytes(uint64(origFileStat.Size()))))
+	compressed, compErr := cmd.Upload(ctx, pool, filePath)
+	if compErr != nil {
+		return errors.Wrapf(compErr, "image (%s) uploading failed", filePath)
+	}
+
+	if err := ctx.Err(); err != nil { // check the context
+		return err
+	}
+
+	if size := uint64(origFileStat.Size()); size <= compressed.Size() {
+		tracker.UpdateMessage(fmt.Sprintf("%s skipped (original size less than compressed)", fileName))
+
+		return nil
+	}
+
+	var tmpFilePath = filePath + ".tiny" // temporary file path
+
+	defer func() {
+		if _, err := os.Stat(tmpFilePath); err == nil { // check the temporary file existence
+			if err = os.Remove(tmpFilePath); err != nil { // remove the temporary file
+				pw.Log("Error removing temporary file %s (%s)", tmpFilePath, err.Error())
+			}
+		}
+	}()
+
+	// STEP 2. Download the compressed file from TinyPNG to temporary file
+	tracker.SetValue(2)
+	tracker.UpdateMessage(fmt.Sprintf("%s downloading (%s)", fileName, humanize.IBytes(compressed.Size())))
+	if err := cmd.Download(ctx, compressed, tmpFilePath, origFileStat.Mode()); err != nil {
+		return errors.Wrapf(err, "image (%s) downloading failed", filePath)
+	}
+
+	if err := ctx.Err(); err != nil { // check the context
+		return err
+	}
+
+	tmpFileStat, statErr := os.Stat(tmpFilePath)
+	if statErr != nil {
+		return statErr
+	}
+
+	// STEP 3. Replace original file content with compressed
+	tracker.SetValue(3)
+	if err := cmd.Replace(filePath, tmpFilePath, keepOriginalFileModTime); err != nil {
+		return errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath)
+	}
+
+	tracker.UpdateMessage(fmt.Sprintf(
+		"%s compressed (%s → %s)",
+		fileName,
+		humanize.IBytes(uint64(origFileStat.Size())),
+		humanize.IBytes(uint64(tmpFileStat.Size())),
+	))
+
+	statsCollector.Push(ctx, CompressionStat{
+		FilePath:       filePath,
+		FileType:       compressed.Type(),
+		OriginalSize:   uint64(origFileStat.Size()),
+		CompressedSize: uint64(tmpFileStat.Size()),
+	})
+
+	tracker.MarkAsDone()
 
 	return nil
 }
@@ -521,4 +553,9 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 	sort.Strings(found)
 
 	return found, nil
+}
+
+// percentageDiff calculates difference between passed values in percentage representation.
+func (*command) percentageDiff(from, to float64) string {
+	return fmt.Sprintf("%0.2f%%", math.Abs(((from-to)/to)*100)) //nolint:gomnd
 }
