@@ -3,6 +3,9 @@
 /.idea
 /.vscode
 
+# ENV files
+.env
+
 # Temp dirs & trash
 /temp
 /tmp

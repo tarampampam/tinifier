@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## UNRELEASED
+
+### Changed
+
+- Go version updated from `1.18` up to `1.19`
+- Sub-command `quota` now supports multiple keys at once
+- Default threads count for `compress` sub-command is now `NumCPU * 6`
+- Go package (module) name changed to `github.com/tarampampam/tinifier/v4`
+- New terminal UI
+
+### Added
+
+- `.env` file support
+- Global `--version` flag
+- `--update-mod-date` flag for `compress` sub-command (since this release, the original file modification date will be preserved by default)
+
+### Removed
+
+- Sub-command `version` (you can use `--version` flag instead)
+- Global `--debug` flag
+- Global `--verbose` flag
+
 ## v3.5.0
 
 ### Changed

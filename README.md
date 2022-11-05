@@ -13,14 +13,14 @@
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-    <a href="https://asciinema.org/a/381354?autoplay=1" target="_blank"><img src="https://asciinema.org/a/381354.svg" width="900"></a>
+  <img src="./art/demo.gif">
 </p>
 
-> API key can be set using environment variable named `TINYPNG_API_KEY`
+> API key can be set using environment variable named `TINYPNG_API_KEY`; multiple keys are allowed - ise `,` as a separator
 
 ## Installing
 
-Download latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
+Download the latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
 
 ### Go package
 
@@ -31,7 +31,7 @@ Download latest binary file for your os/arch from [releases page][link_releases]
 Install the API client with `go get`:
 
 ```bash
-$ go get -u github.com/tarampampam/tinifier/v3
+$ go get -u github.com/tarampampam/tinifier/v4
 ```
 
 Client sources and usage examples can be found in [`pkg/tinypng`](pkg/tinypng) directory.
@@ -64,8 +64,6 @@ $ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 2
 
 ### Using docker
 
-[![image stats](https://dockeri.co/image/tarampampam/tinifier)][link_docker_hub]
-
 > All supported image tags [can be found here][link_docker_hub] and [here][link_ghcr].
 
 Compress all images in **current** directory:
@@ -75,7 +73,7 @@ $ docker run --rm -ti \
     -u "$(id -u):$(id -g)" \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
-    tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -r .
+      tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -r .
 ```
 
 or
@@ -86,7 +84,7 @@ $ docker run --rm -ti \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
     -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
-    tarampampam/tinifier compress -r .
+      tarampampam/tinifier compress -r .
 ```
 
 ## Testing
@@ -123,7 +121,7 @@ Changes log can be [found here][link_changes_log].
 [![Issues][badge_issues]][link_issues]
 [![Issues][badge_pulls]][link_pulls]
 
-If you will find any package errors, please, [make an issue][link_create_issue] in current repository.
+If you find any package errors, please, [make an issue][link_create_issue] in current repository.
 
 ## License
 
@@ -145,7 +143,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_golang]:https://golang.org/
 [link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
 [link_coverage]:https://codecov.io/gh/tarampampam/tinifier
-[link_gopkg]:https://pkg.go.dev/github.com/tarampampam/tinifier/v3
+[link_gopkg]:https://pkg.go.dev/github.com/tarampampam/tinifier/v4
 [link_actions]:https://github.com/tarampampam/tinifier/actions
 [link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
 [link_ghcr]:https://github.com/users/tarampampam/packages/container/package/tinifier

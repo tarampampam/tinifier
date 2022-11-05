@@ -3,7 +3,7 @@
 # Makefile readme (en): <https://www.gnu.org/software/make/manual/html_node/index.html#SEC_Contents>
 
 SHELL = /bin/sh
-LDFLAGS = "-s -w -X github.com/tarampampam/tinifier/v3/internal/pkg/version.version=$(shell git rev-parse HEAD)"
+LDFLAGS = "-s -w -X github.com/tarampampam/tinifier/v4/internal/version.version=$(shell git rev-parse HEAD)"
 
 DC_RUN_ARGS = --rm --user "$(shell id -u):$(shell id -g)"
 APP_NAME = $(notdir $(CURDIR))
@@ -20,11 +20,11 @@ help: ## Show this help
 
 image: ## Build docker image with app
 	docker build -f ./Dockerfile -t $(APP_NAME):local .
-	docker run --rm $(APP_NAME):local version
+	docker run --rm $(APP_NAME):local --version
 	@printf "\n   \e[30;42m %s \033[0m\n\n" 'Now you can use image like `docker run --rm $(APP_NAME):local ...`';
 
 build: ## Build app binary file
-	docker-compose run $(DC_RUN_ARGS) -e "CGO_ENABLED=0" --no-deps app go build -trimpath -ldflags $(LDFLAGS) -o ./tinifier ./cmd/tinifier/main.go
+	docker-compose run $(DC_RUN_ARGS) -e "CGO_ENABLED=0" --no-deps app go build -trimpath -ldflags $(LDFLAGS) -o ./tinifier ./cmd/tinifier/
 
 fmt: ## Run source code formatter tools
 	docker-compose run $(DC_RUN_ARGS) -e "GO111MODULE=off" --no-deps app sh -c 'go get golang.org/x/tools/cmd/goimports && $$GOPATH/bin/goimports -d -w .'
