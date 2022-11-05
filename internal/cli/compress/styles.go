@@ -8,17 +8,19 @@ import (
 )
 
 var (
-	progressStyleDefault = progress.Style{
+	progressStyleDefault = progress.Style{ //nolint:gochecknoglobals
 		Name: "StyleCustomized",
 		Chars: progress.StyleChars{
-			BoxLeft:       "▐",
-			BoxRight:      "▌",
-			Finished:      "█",
-			Finished25:    "░",
-			Finished50:    "▒",
-			Finished75:    "▓",
-			Indeterminate: progress.IndeterminateIndicatorMovingLeftToRight("▒█▒", progress.DefaultUpdateFrequency/2),
-			Unfinished:    "░",
+			BoxLeft:    "▐",
+			BoxRight:   "▌",
+			Finished:   "█",
+			Finished25: "░",
+			Finished50: "▒",
+			Finished75: "▓",
+			Indeterminate: progress.IndeterminateIndicatorMovingLeftToRight(
+				"▒█▒", progress.DefaultUpdateFrequency/2, //nolint:gomnd
+			),
+			Unfinished: "░",
 		},
 		Colors: progress.StyleColors{
 			Message: text.Colors{text.FgWhite},
@@ -35,7 +37,7 @@ var (
 		Visibility: progress.StyleVisibilityDefault,
 	}
 
-	unitsAsIs = progress.Units{
+	unitsAsIs = progress.Units{ //nolint:gochecknoglobals
 		Notation:         "",
 		NotationPosition: progress.UnitsNotationPositionBefore,
 		Formatter:        func(value int64) string { return strconv.Itoa(int(value)) },

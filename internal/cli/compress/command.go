@@ -137,7 +137,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 }
 
 // Run current command.
-func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
+func (cmd *command) Run( //nolint:funlen
 	pCtx context.Context,
 	apiKeys []string,
 	paths []string,
@@ -173,23 +173,24 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 	}
 
 	var (
-		errorsWatcher  = make(ErrorsWatcher, 1)
-		statsCollector = NewStatsCollector(len(filesList))
+		errorsWatcher                = make(ErrorsWatcher, 1)
+		stats         StatsCollector = NewStatsStorage(len(filesList))
 	)
 
-	var pw, overall = progress.NewWriter(), progress.Tracker{
-		Total:   int64(len(filesList)),
-		Units:   unitsAsIs,
-		Message: "› Overall progress",
-	}
+	var pw = progress.NewWriter()
 
+	pw.SetNumTrackersExpected(len(filesList))
 	pw.SetTrackerPosition(progress.PositionRight)
 	pw.SetStyle(progressStyleDefault)
+	pw.SetUpdateFrequency(time.Millisecond * 100) //nolint:gomnd
+
 	pw.Style().Visibility.Value = false
-	pw.Style().Options.Separator = ": "
-	pw.SetUpdateFrequency(time.Millisecond * 100)
-	pw.SetSortBy(progress.SortByMessage)
-	pw.AppendTracker(&overall)
+	pw.Style().Visibility.Percentage = false
+	pw.Style().Visibility.Pinned = true
+	pw.Style().Visibility.ETA = true
+	pw.Style().Visibility.TrackerOverall = true
+	pw.Style().Options.TimeInProgressPrecision = time.Millisecond
+	pw.Style().Options.TimeDonePrecision = time.Millisecond
 
 	go pw.Render()
 
@@ -203,7 +204,7 @@ func (cmd *command) Run( //nolint:funlen,gocognit,gocyclo
 		}),
 	)
 
-	go statsCollector.Watch(ctx) // start the stats watcher
+	go stats.Watch(ctx) // start the stats watcher
 
 	var (
 		pool         = newClientsPool(apiKeys)
@@ -223,9 +224,8 @@ workersLoop:
 
 		go func(filePath string) {
 			defer func() { wg.Done(); <-uploadsGuard /* release the guard */ }()
-			defer overall.Increment(1)
 
-			if err := cmd.CompressLocalImage(ctx, pw, pool, statsCollector, filePath, !updateFileModDate); err != nil {
+			if err := cmd.ProcessFile(ctx, pw, pool, stats, filePath, !updateFileModDate); err != nil {
 				switch {
 				case errors.Is(err, errNoClients):
 					pw.Log("No one valid API key, working canceled")
@@ -244,7 +244,7 @@ workersLoop:
 	pw.Stop()
 
 	{ // wait until the progress bar rendering is uncompleted
-		var ticker = time.NewTicker(time.Millisecond * 50)
+		var ticker = time.NewTicker(time.Millisecond * 50) //nolint:gomnd
 
 	progressBarWait:
 		for pw.IsRenderInProgress() {
@@ -261,13 +261,13 @@ workersLoop:
 
 	close(uploadsGuard)
 	close(errorsWatcher)
-	statsCollector.Close()
+	stats.Close()
 
 	tbl := table.NewWriter()
 	tbl.SetStyle(table.StyleColoredBlackOnBlueWhite)
 	tbl.AppendHeader(table.Row{"File Name", "Type", "Size Difference", "Saved"})
 
-	for _, stat := range statsCollector.History() {
+	for _, stat := range stats.History() {
 		tbl.AppendRow(table.Row{
 			path.Base(stat.FilePath), // File Name
 			stat.FileType,            // Type
@@ -284,11 +284,17 @@ workersLoop:
 		})
 	}
 
+	tbl.AppendFooter(table.Row{"", "", fmt.Sprintf( // Overall size difference
+		"%s → %s",
+		humanize.IBytes(stats.TotalOriginalSize()),
+		humanize.IBytes(stats.TotalCompressedSize()),
+	)})
+
 	tbl.AppendFooter(table.Row{"", "",
-		fmt.Sprintf("Total saved (%d files)", statsCollector.TotalFiles()),
+		fmt.Sprintf("Total saved (%d files)", stats.TotalFiles()),
 		fmt.Sprintf("%s (%s)", // Saved
-			humanize.IBytes(uint64(statsCollector.TotalSavedBytes())),
-			cmd.percentageDiff(float64(statsCollector.TotalCompressedSize()), float64(statsCollector.TotalOriginalSize())),
+			humanize.IBytes(uint64(stats.TotalSavedBytes())),
+			cmd.percentageDiff(float64(stats.TotalCompressedSize()), float64(stats.TotalOriginalSize())),
 		),
 	})
 
@@ -299,11 +305,11 @@ workersLoop:
 	return nil
 }
 
-func (cmd *command) CompressLocalImage(
+func (cmd *command) ProcessFile( //nolint:funlen
 	ctx context.Context,
 	pw progress.Writer,
 	pool *clientsPool,
-	statsCollector *StatsCollector,
+	stats StatsCollector,
 	filePath string,
 	keepOriginalFileModTime bool,
 ) error {
@@ -311,9 +317,16 @@ func (cmd *command) CompressLocalImage(
 		return err
 	}
 
+	const (
+		totalStepsCount = 3
+		stepUpload      = iota
+		stepDownload
+		stepReplace
+	)
+
 	var (
 		fileName = path.Base(filePath)
-		tracker  = progress.Tracker{Message: fileName, Total: 3, Units: unitsAsIs}
+		tracker  = progress.Tracker{Message: fileName, Total: totalStepsCount, Units: unitsAsIs}
 	)
 
 	pw.AppendTracker(&tracker)
@@ -330,8 +343,9 @@ func (cmd *command) CompressLocalImage(
 	}
 
 	// STEP 1. Upload the file to TinyPNG server
-	tracker.SetValue(1)
+	tracker.SetValue(stepUpload)
 	tracker.UpdateMessage(fmt.Sprintf("%s uploading (%s)", fileName, humanize.IBytes(uint64(origFileStat.Size()))))
+
 	compressed, compErr := cmd.Upload(ctx, pool, filePath)
 	if compErr != nil {
 		return errors.Wrapf(compErr, "image (%s) uploading failed", filePath)
@@ -358,8 +372,9 @@ func (cmd *command) CompressLocalImage(
 	}()
 
 	// STEP 2. Download the compressed file from TinyPNG to temporary file
-	tracker.SetValue(2)
+	tracker.SetValue(stepDownload)
 	tracker.UpdateMessage(fmt.Sprintf("%s downloading (%s)", fileName, humanize.IBytes(compressed.Size())))
+
 	if err := cmd.Download(ctx, compressed, tmpFilePath, origFileStat.Mode()); err != nil {
 		return errors.Wrapf(err, "image (%s) downloading failed", filePath)
 	}
@@ -374,7 +389,8 @@ func (cmd *command) CompressLocalImage(
 	}
 
 	// STEP 3. Replace original file content with compressed
-	tracker.SetValue(3)
+	tracker.SetValue(stepReplace)
+
 	if err := cmd.Replace(filePath, tmpFilePath, keepOriginalFileModTime); err != nil {
 		return errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath)
 	}
@@ -386,7 +402,7 @@ func (cmd *command) CompressLocalImage(
 		humanize.IBytes(uint64(tmpFileStat.Size())),
 	))
 
-	statsCollector.Push(ctx, CompressionStat{
+	stats.Push(ctx, CompressionStat{
 		FilePath:       filePath,
 		FileType:       compressed.Type(),
 		OriginalSize:   uint64(origFileStat.Size()),
@@ -528,7 +544,7 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 	var pw, tracker = progress.NewWriter(), progress.Tracker{Total: 0, Units: unitsAsIs}
 
 	pw.SetStyle(progressStyleDefault)
-	pw.SetUpdateFrequency(time.Millisecond * 100)
+	pw.SetUpdateFrequency(time.Millisecond * 100) //nolint:gomnd
 	pw.AppendTracker(&tracker)
 
 	go pw.Render()

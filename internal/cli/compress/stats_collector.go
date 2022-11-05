@@ -6,12 +6,24 @@ import (
 )
 
 type (
+	StatsCollector interface {
+		Watch(context.Context)
+		Push(context.Context, CompressionStat)
+		Close()
+
+		History() []CompressionStat
+		TotalOriginalSize() uint64
+		TotalCompressedSize() uint64
+		TotalSavedBytes() int64
+		TotalFiles() uint32
+	}
+
 	CompressionStat struct {
 		FilePath, FileType           string
 		CompressedSize, OriginalSize uint64
 	}
 
-	StatsCollector struct {
+	StatsStorage struct {
 		ch      chan CompressionStat
 		history []CompressionStat
 
@@ -24,21 +36,23 @@ type (
 	}
 )
 
-func NewStatsCollector(expectedHistoryLen int) *StatsCollector {
-	return &StatsCollector{
+var _ StatsCollector = (*StatsStorage)(nil) // ensure that struct implements the StatsCollector interface
+
+func NewStatsStorage(expectedHistoryLen int) *StatsStorage {
+	return &StatsStorage{
 		ch:      make(chan CompressionStat, 1),
 		history: make([]CompressionStat, 0, expectedHistoryLen),
 		close:   make(chan struct{}),
 	}
 }
 
-func (s *StatsCollector) History() []CompressionStat  { return s.history }
-func (s *StatsCollector) TotalOriginalSize() uint64   { return s.totalOriginalSize }
-func (s *StatsCollector) TotalCompressedSize() uint64 { return s.totalCompressedSize }
-func (s *StatsCollector) TotalSavedBytes() int64      { return s.totalSavedBytes }
-func (s *StatsCollector) TotalFiles() uint32          { return uint32(len(s.history)) }
+func (s *StatsStorage) History() []CompressionStat  { return s.history }
+func (s *StatsStorage) TotalOriginalSize() uint64   { return s.totalOriginalSize }
+func (s *StatsStorage) TotalCompressedSize() uint64 { return s.totalCompressedSize }
+func (s *StatsStorage) TotalSavedBytes() int64      { return s.totalSavedBytes }
+func (s *StatsStorage) TotalFiles() uint32          { return uint32(len(s.history)) }
 
-func (s *StatsCollector) Watch(ctx context.Context) {
+func (s *StatsStorage) Watch(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -60,7 +74,7 @@ func (s *StatsCollector) Watch(ctx context.Context) {
 	}
 }
 
-func (s *StatsCollector) Push(ctx context.Context, stat CompressionStat) {
+func (s *StatsStorage) Push(ctx context.Context, stat CompressionStat) {
 	select {
 	case <-ctx.Done():
 	case <-s.close:
@@ -68,7 +82,7 @@ func (s *StatsCollector) Push(ctx context.Context, stat CompressionStat) {
 	}
 }
 
-func (s *StatsCollector) Close() {
+func (s *StatsStorage) Close() {
 	if atomic.CompareAndSwapUint32(&s.closed, 0, 1) {
 		close(s.close)
 		close(s.ch)
