@@ -59,16 +59,6 @@ func NewCommand() *cli.Command { //nolint:funlen
 				paths             = c.Args().Slice()
 			)
 
-			// log.Debug("Run args",
-			// 	zap.Strings("api-keys", apiKeys),
-			// 	zap.Strings("file-extensions", fileExtensions),
-			// 	zap.Uint("threads-count", threadsCount),
-			// 	zap.Uint("max-errors-to-stop", maxErrorsToStop),
-			// 	zap.Bool("recursive", recursive),
-			// 	zap.Bool("update-mod-date", updateFileModDate),
-			// 	zap.Strings("args", paths),
-			// )
-
 			if threadsCount < 1 {
 				return errors.New("threads count must be greater than 0")
 			}
@@ -104,7 +94,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 				Aliases: []string{"e"},
 				Usage:   "image file extensions (without leading dots)",
 				Value:   cli.NewStringSlice("jpg", "JPG", "jpeg", "JPEG", "png", "PNG"),
-				EnvVars: []string{}, // TODO implement
+				// EnvVars: []string{}, // TODO implement
 			},
 			&cli.UintFlag{
 				Name:    threadsCountFlagName,
@@ -114,21 +104,21 @@ func NewCommand() *cli.Command { //nolint:funlen
 				EnvVars: []string{env.ThreadsCount.String()},
 			},
 			&cli.UintFlag{
-				Name:    maxErrorsToStopFlagName,
-				Usage:   "maximum errors count to stop the process (set 0 to disable)",
-				Value:   10,         //nolint:gomnd
-				EnvVars: []string{}, // TODO implement
+				Name:  maxErrorsToStopFlagName,
+				Usage: "maximum errors count to stop the process (set 0 to disable)",
+				Value: 10, //nolint:gomnd
+				// EnvVars: []string{}, // TODO implement
 			},
 			&cli.BoolFlag{
 				Name:    recursiveFlagName,
 				Aliases: []string{"r"},
 				Usage:   "search for files in listed directories recursively",
-				EnvVars: []string{}, // TODO implement
+				// EnvVars: []string{}, // TODO implement
 			},
 			&cli.BoolFlag{
-				Name:    updateFileModDateFlagName,
-				Usage:   "update file modification date/time (otherwise previous modification date/time will be kept)",
-				EnvVars: []string{}, // TODO implement
+				Name:  updateFileModDateFlagName,
+				Usage: "update file modification date/time (otherwise previous modification date/time will be kept)",
+				// EnvVars: []string{}, // TODO implement
 			},
 		},
 	}
@@ -175,22 +165,8 @@ func (cmd *command) Run( //nolint:funlen
 	var (
 		errorsWatcher                = make(ErrorsWatcher, 1)
 		stats         StatsCollector = NewStatsStorage(len(filesList))
+		pw                           = newProgressBar(len(filesList), true)
 	)
-
-	var pw = progress.NewWriter()
-
-	pw.SetNumTrackersExpected(len(filesList))
-	pw.SetTrackerPosition(progress.PositionRight)
-	pw.SetStyle(progressStyleDefault)
-	pw.SetUpdateFrequency(time.Millisecond * 100) //nolint:gomnd
-
-	pw.Style().Visibility.Value = false
-	pw.Style().Visibility.Percentage = false
-	pw.Style().Visibility.Pinned = true
-	pw.Style().Visibility.ETA = true
-	pw.Style().Visibility.TrackerOverall = true
-	pw.Style().Options.TimeInProgressPrecision = time.Millisecond
-	pw.Style().Options.TimeDonePrecision = time.Millisecond
 
 	go pw.Render()
 
@@ -200,6 +176,7 @@ func (cmd *command) Run( //nolint:funlen
 		}),
 		WithLimitExceededHandler(func() {
 			pw.Log("Maximum errors count reached, stopping...")
+
 			cancel()
 		}),
 	)
@@ -241,19 +218,15 @@ workersLoop:
 	}
 
 	wg.Wait()
+
+	pw.Style().Visibility.TrackerOverall = false // fix abandoned tracker on CTRL+C pressing
 	pw.Stop()
 
 	{ // wait until the progress bar rendering is uncompleted
 		var ticker = time.NewTicker(time.Millisecond * 50) //nolint:gomnd
 
-	progressBarWait:
 		for pw.IsRenderInProgress() {
-			select {
-			case <-ctx.Done():
-				break progressBarWait
-
-			case <-ticker.C: // do nothing
-			}
+			<-ticker.C
 		}
 
 		ticker.Stop()
@@ -541,10 +514,8 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 		return []string{}, nil
 	}
 
-	var pw, tracker = progress.NewWriter(), progress.Tracker{Total: 0, Units: unitsAsIs}
+	var pw, tracker = newProgressBar(1, false), progress.Tracker{Total: 0, Units: unitsAsIs}
 
-	pw.SetStyle(progressStyleDefault)
-	pw.SetUpdateFrequency(time.Millisecond * 100) //nolint:gomnd
 	pw.AppendTracker(&tracker)
 
 	go pw.Render()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/urfave/cli/v2"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
@@ -46,7 +47,17 @@ func NewCommand() *cli.Command {
 			if count, err := tinypng.NewClient(apiKey).UsedQuota(ctx); err != nil {
 				return err
 			} else {
-				_, _ = fmt.Fprintf(os.Stdout, "Used quota is: %d\n", count)
+				var color = text.FgRed
+
+				switch {
+				case count <= 300: //nolint:gomnd
+					color = text.FgGreen
+
+				case count <= 400: //nolint:gomnd
+					color = text.FgYellow
+				}
+
+				_, _ = fmt.Fprintf(os.Stdout, "Used quota is: %s\n", text.Colors{color, text.Bold}.Sprintf("%d", count))
 			}
 
 			return nil

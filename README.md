@@ -13,14 +13,14 @@
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-    <a href="https://asciinema.org/a/381354?autoplay=1" target="_blank"><img src="https://asciinema.org/a/381354.svg" width="900"></a>
+  <img src="./art/demo.gif">
 </p>
 
 > API key can be set using environment variable named `TINYPNG_API_KEY`
 
 ## Installing
 
-Download latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
+Download the latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
 
 ### Go package
 

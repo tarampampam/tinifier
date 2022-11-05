@@ -43,6 +43,10 @@ func (w ErrorsWatcher) Watch(ctx context.Context, errorsLimit uint, options ...E
 				return
 			}
 
+			if err == nil {
+				continue
+			}
+
 			if opt.onError != nil {
 				opt.onError(err)
 			}

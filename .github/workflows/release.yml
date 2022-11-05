@@ -97,8 +97,7 @@ jobs:
         uses: actions/setup-go@v3
         with: {go-version: 1.19}
 
-      - uses: gacts/github-slug@v1
-        id: slug
+      - {uses: gacts/github-slug@v1, id: slug}
 
       - name: Get the module using proxy
         env:

@@ -2,7 +2,6 @@ package files
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -119,7 +118,7 @@ func FindFiles(ctx context.Context, where []string, fn func(absPath string), opt
 					return err
 				}
 			} else { // flat directory search
-				files, readDirErr := ioutil.ReadDir(location)
+				files, readDirErr := os.ReadDir(location)
 				if readDirErr != nil {
 					return readDirErr
 				}
@@ -129,7 +128,7 @@ func FindFiles(ctx context.Context, where []string, fn func(absPath string), opt
 						return err
 					}
 
-					if file.Mode().IsRegular() {
+					if file.Type().IsRegular() {
 						var path = filepath.Join(location, file.Name())
 
 						if ext := filepath.Ext(file.Name()); len(ext) > 0 && options.ExtIsAllowed(ext[1:]) {

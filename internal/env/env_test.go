@@ -9,6 +9,8 @@ import (
 )
 
 func TestConstants(t *testing.T) {
+	require.Equal(t, "FORCE_COLOR", string(ForceColors))
+	require.Equal(t, "NO_COLOR", string(NoColors))
 	require.Equal(t, "THREADS_COUNT", string(ThreadsCount))
 	require.Equal(t, "TINYPNG_API_KEY", string(TinyPngAPIKey))
 }
