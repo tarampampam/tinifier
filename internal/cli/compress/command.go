@@ -39,6 +39,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 		maxErrorsToStopFlagName   = "max-errors"
 		recursiveFlagName         = "recursive"
 		updateFileModDateFlagName = "update-mod-date"
+		keepOriginalFileFlagName  = "keep-original-file"
 	)
 
 	var cmd = command{}
@@ -56,6 +57,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 				maxErrorsToStop   = c.Uint(maxErrorsToStopFlagName)
 				recursive         = c.Bool(recursiveFlagName)
 				updateFileModDate = c.Bool(updateFileModDateFlagName)
+				keepOriginalFile  = c.Bool(keepOriginalFileFlagName)
 				paths             = c.Args().Slice()
 			)
 
@@ -78,6 +80,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 				fileExtensions,
 				recursive,
 				updateFileModDate,
+				keepOriginalFile,
 				maxErrorsToStop,
 				threadsCount,
 			)
@@ -115,6 +118,11 @@ func NewCommand() *cli.Command { //nolint:funlen
 				Usage: "change file modification date/time (otherwise, the original file modification date/time will be kept)",
 				// EnvVars: []string{}, // TODO implement
 			},
+			&cli.BoolFlag{
+				Name:  keepOriginalFileFlagName,
+				Usage: "leave the original (uncompressed) file near the compressed one (with the .orig extension)",
+				// EnvVars: []string{}, // TODO implement
+			},
 		},
 	}
 
@@ -129,6 +137,7 @@ func (cmd *command) Run( //nolint:funlen
 	fileExt []string,
 	recursive bool,
 	updateFileModDate bool,
+	keepOriginalFile bool,
 	maxErrorsToStop uint,
 	threadsCount uint,
 ) error {
@@ -197,7 +206,7 @@ workersLoop:
 		go func(filePath string) {
 			defer func() { wg.Done(); <-guard /* release the guard */ }()
 
-			if err := cmd.ProcessFile(ctx, pw, pool, stats, filePath, !updateFileModDate); err != nil {
+			if err := cmd.ProcessFile(ctx, pw, pool, stats, filePath, !updateFileModDate, keepOriginalFile); err != nil {
 				switch {
 				case errors.Is(err, errNoClients):
 					pw.Log("No one valid API key, working canceled")
@@ -269,7 +278,7 @@ func (cmd *command) ProcessFile( //nolint:funlen
 	pool *clientsPool,
 	stats StatsCollector,
 	filePath string,
-	keepOriginalFileModTime bool,
+	keepOriginalFileModTime, keepOriginalFile bool,
 ) error {
 	if err := ctx.Err(); err != nil { // check the context
 		return err
@@ -349,7 +358,7 @@ func (cmd *command) ProcessFile( //nolint:funlen
 	// STEP 3. Replace original file content with compressed
 	tracker.SetValue(stepReplace)
 
-	if err := cmd.Replace(filePath, tmpFilePath, keepOriginalFileModTime); err != nil {
+	if err := cmd.Replace(filePath, tmpFilePath, keepOriginalFileModTime, keepOriginalFile); err != nil {
 		return errors.Wrapf(err, "content copying (%s -> %s) failed", tmpFilePath, filePath)
 	}
 
@@ -454,8 +463,8 @@ func (*command) Download(ctx context.Context, comp *tinypng.Compressed, filePath
 }
 
 // Replace replaces the original file content with the compressed one (from temporary file).
-func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTime bool) error {
-	origFile, origFileErr := os.OpenFile(origFilePath, os.O_WRONLY, 0)
+func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTime, keepOriginalFile bool) error {
+	origFile, origFileErr := os.OpenFile(origFilePath, os.O_RDWR, 0)
 	if origFileErr != nil {
 		return origFileErr
 	}
@@ -473,6 +482,25 @@ func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTim
 	}
 
 	defer func() { _ = tmpFile.Close() }()
+
+	if keepOriginalFile { // make a copy of original file before overwriting
+		origCopyFile, origCopyFileErr := os.OpenFile(
+			origFilePath+".orig",
+			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
+			origFileStat.Mode().Perm(),
+		)
+		if origCopyFileErr != nil {
+			return origCopyFileErr
+		}
+
+		if _, err := io.Copy(origCopyFile, origFile); err != nil {
+			return err
+		}
+
+		if _, err := origFile.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+	}
 
 	if err := origFile.Truncate(0); err != nil {
 		return err

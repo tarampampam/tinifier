@@ -19,12 +19,15 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 - `.env` file support
 - Global `--version` flag
 - `--update-mod-date` flag for `compress` sub-command (since this release, the original file modification date will be preserved by default)
+- `--keep-original-file` flag for `compress` sub-command [#103]
 
 ### Removed
 
 - Sub-command `version` (you can use `--version` flag instead)
 - Global `--debug` flag
 - Global `--verbose` flag
+
+[#103]:https://github.com/tarampampam/tinifier/issues/103
 
 ## v3.5.0
 
