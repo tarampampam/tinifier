@@ -28,7 +28,7 @@ jobs:
 
       - name: Generate builder values
         id: values
-        run: echo "binary-name=tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`" >> $GITHUB_STATE
+        run: echo "binary-name=tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`" >> $GITHUB_OUTPUT
 
       - name: Build application
         env:
@@ -92,11 +92,12 @@ jobs:
           - https://goproxy.cn
           - https://goproxy.dev
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v3
+      - uses: actions/setup-go@v3
         with: {go-version: 1.19}
 
       - {uses: gacts/github-slug@v1, id: slug}
+
+      - run: go mod init example
 
       - name: Get the module using proxy
         env:

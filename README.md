@@ -13,7 +13,7 @@
 This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
 
 <p align="center">
-  <img src="./art/demo.gif">
+  <img src="https://user-images.githubusercontent.com/7326800/200132039-7a4fed2f-d2dc-4a71-a67d-27dadaaef8b4.gif">
 </p>
 
 > API key can be set using environment variable named `TINYPNG_API_KEY`; multiple keys are allowed - use `,` as a separator
