@@ -63,7 +63,7 @@ jobs:
           fail_ci_if_error: false
 
   build:
-    name: Build for ${{ matrix.os }}
+    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
@@ -129,4 +129,4 @@ jobs:
         with:
           image: tinifier:local
           fail-build: true
-          severity-cutoff: low # negligible, low, medium, high or critical
+          severity-cutoff: medium # negligible, low, medium, high or critical
