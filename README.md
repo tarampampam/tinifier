@@ -16,7 +16,7 @@ This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your loca
   <img src="./art/demo.gif">
 </p>
 
-> API key can be set using environment variable named `TINYPNG_API_KEY`; multiple keys are allowed - ise `,` as a separator
+> API key can be set using environment variable named `TINYPNG_API_KEY`; multiple keys are allowed - use `,` as a separator
 
 ## Installing
 
