@@ -38,12 +38,14 @@ func TestErrorsWatcher(t *testing.T) {
 	require.False(t, onLimitHandled.Load().(bool))
 
 	watcher <- testErr
+
 	runtime.Gosched()
 
 	require.True(t, onErrorHandled.Load().(bool))
 	require.False(t, onLimitHandled.Load().(bool))
 
 	watcher <- testErr
+
 	runtime.Gosched()
 
 	require.True(t, onErrorHandled.Load().(bool))

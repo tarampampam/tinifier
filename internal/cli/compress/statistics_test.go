@@ -48,6 +48,6 @@ func TestStatsStorage(t *testing.T) {
 	stats.Close()
 	stats.Close()
 	stats.Close()
-	
+
 	require.EqualValues(t, 500, stats.TotalOriginalSize())
 }
