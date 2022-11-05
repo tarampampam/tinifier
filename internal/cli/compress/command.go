@@ -19,6 +19,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
+	"github.com/tarampampam/tinifier/v4/internal/cli/shared"
 	"github.com/tarampampam/tinifier/v4/internal/env"
 	"github.com/tarampampam/tinifier/v4/internal/files"
 	"github.com/tarampampam/tinifier/v4/internal/retry"
@@ -33,7 +34,6 @@ type command struct {
 // NewCommand creates `compress` command.
 func NewCommand() *cli.Command { //nolint:funlen
 	const (
-		apiKeyFlagName            = "api-key"
 		fileExtensionsFlagName    = "ext"
 		threadsCountFlagName      = "threads"
 		maxErrorsToStopFlagName   = "max-errors"
@@ -50,7 +50,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 		Usage:     "Compress images",
 		Action: func(c *cli.Context) error {
 			var (
-				apiKeys           = c.StringSlice(apiKeyFlagName)
+				apiKeys           = c.StringSlice(shared.APIKeyFlag.Name)
 				fileExtensions    = c.StringSlice(fileExtensionsFlagName)
 				threadsCount      = c.Uint(threadsCountFlagName)
 				maxErrorsToStop   = c.Uint(maxErrorsToStopFlagName)
@@ -83,12 +83,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 			)
 		},
 		Flags: []cli.Flag{
-			&cli.StringSliceFlag{
-				Name:    apiKeyFlagName,
-				Aliases: []string{"k"},
-				Usage:   "TinyPNG API key <https://tinypng.com/dashboard/api>",
-				EnvVars: []string{env.TinyPngAPIKey.String()},
-			},
+			shared.APIKeyFlag,
 			&cli.StringSliceFlag{
 				Name:    fileExtensionsFlagName,
 				Aliases: []string{"e"},
@@ -117,7 +112,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 			},
 			&cli.BoolFlag{
 				Name:  updateFileModDateFlagName,
-				Usage: "update file modification date/time (otherwise previous modification date/time will be kept)",
+				Usage: "change file modification date/time (otherwise, the original file modification date/time will be kept)",
 				// EnvVars: []string{}, // TODO implement
 			},
 		},
@@ -184,15 +179,15 @@ func (cmd *command) Run( //nolint:funlen
 	go stats.Watch(ctx) // start the stats watcher
 
 	var (
-		pool         = newClientsPool(apiKeys)
-		uploadsGuard = make(chan struct{}, threadsCount)
-		wg           sync.WaitGroup
+		pool  = newClientsPool(apiKeys)
+		guard = make(chan struct{}, threadsCount)
+		wg    sync.WaitGroup
 	)
 
 workersLoop:
 	for _, filePath := range filesList {
 		select {
-		case uploadsGuard <- struct{}{}: // would block if guard channel is already filled
+		case guard <- struct{}{}: // would block if guard channel is already filled
 			wg.Add(1)
 
 		case <-ctx.Done():
@@ -200,7 +195,7 @@ workersLoop:
 		}
 
 		go func(filePath string) {
-			defer func() { wg.Done(); <-uploadsGuard /* release the guard */ }()
+			defer func() { wg.Done(); <-guard /* release the guard */ }()
 
 			if err := cmd.ProcessFile(ctx, pw, pool, stats, filePath, !updateFileModDate); err != nil {
 				switch {
@@ -222,17 +217,7 @@ workersLoop:
 	pw.Style().Visibility.TrackerOverall = false // fix abandoned tracker on CTRL+C pressing
 	pw.Stop()
 
-	{ // wait until the progress bar rendering is uncompleted
-		var ticker = time.NewTicker(time.Millisecond * 50) //nolint:gomnd
-
-		for pw.IsRenderInProgress() {
-			<-ticker.C
-		}
-
-		ticker.Stop()
-	}
-
-	close(uploadsGuard)
+	close(guard)
 	close(errorsWatcher)
 	stats.Close()
 

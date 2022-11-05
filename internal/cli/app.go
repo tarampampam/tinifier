@@ -20,6 +20,8 @@ func NewApp() *cli.App {
 				text.EnableColors()
 			} else if _, exists = env.NoColors.Lookup(); exists {
 				text.DisableColors()
+			} else if v, ok := env.Term.Lookup(); ok && v == "dumb" {
+				text.DisableColors()
 			}
 
 			return nil

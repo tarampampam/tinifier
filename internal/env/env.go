@@ -8,6 +8,7 @@ type envVariable string
 const (
 	ForceColors envVariable = "FORCE_COLOR"
 	NoColors    envVariable = "NO_COLOR" // docs: <https://no-color.org/>
+	Term        envVariable = "TERM"
 
 	ThreadsCount envVariable = "THREADS_COUNT" // Threads count
 

@@ -5,19 +5,22 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
+	"unicode/utf8"
 
 	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
 	"github.com/tarampampam/tinifier/v4/internal/breaker"
-	"github.com/tarampampam/tinifier/v4/internal/env"
+	"github.com/tarampampam/tinifier/v4/internal/cli/shared"
 	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
 )
 
 // NewCommand creates `quota` command.
 func NewCommand() *cli.Command {
 	const (
-		apiKeyFlagName  = "api-key"
 		apiKeyMinLength = 8
 	)
 
@@ -26,10 +29,10 @@ func NewCommand() *cli.Command {
 		Aliases: []string{"q"},
 		Usage:   "Get currently used quota",
 		Action: func(c *cli.Context) error {
-			var apiKey = c.String(apiKeyFlagName)
+			var apiKeys = c.StringSlice(shared.APIKeyFlag.Name)
 
-			if len(apiKey) <= apiKeyMinLength {
-				return fmt.Errorf("API key (%s) is too short", apiKey)
+			if len(apiKeys) == 0 {
+				return errors.New("API key(s) was not provided")
 			}
 
 			var (
@@ -44,31 +47,68 @@ func NewCommand() *cli.Command {
 				oss.Stop() // stop system signals listening
 			}()
 
-			if count, err := tinypng.NewClient(apiKey).UsedQuota(ctx); err != nil {
-				return err
-			} else {
-				var color = text.FgRed
+			var (
+				wg       sync.WaitGroup
+				errColor = text.Colors{text.FgRed, text.Bold}
+			)
 
-				switch {
-				case count <= 300: //nolint:gomnd
-					color = text.FgGreen
+			for _, key := range apiKeys {
+				if len(key) <= apiKeyMinLength {
+					fmt.Printf("API key (%s) is too short\n", key)
 
-				case count <= 400: //nolint:gomnd
-					color = text.FgYellow
+					continue
 				}
 
-				_, _ = fmt.Fprintf(os.Stdout, "Used quota is: %s\n", text.Colors{color, text.Bold}.Sprintf("%d", count))
+				wg.Add(1)
+
+				go func(key string) {
+					defer wg.Done()
+
+					if ctx.Err() != nil { // check if context was cancelled
+						return
+					}
+
+					if count, err := tinypng.NewClient(key).UsedQuota(ctx); err != nil {
+						_, _ = fmt.Fprint(os.Stderr, errColor.Sprintf("Key %s error: %s\n", maskString(key), err))
+
+						return
+					} else {
+						var color = text.FgRed
+
+						switch {
+						case count <= 300: //nolint:gomnd
+							color = text.FgGreen
+
+						case count <= 400: //nolint:gomnd
+							color = text.FgYellow
+						}
+
+						_, _ = fmt.Fprintf(os.Stdout,
+							"Used quota (key %s) is: %s\n",
+							text.Colors{text.FgHiBlue}.Sprint(maskString(key)),
+							text.Colors{color, text.Bold}.Sprintf("%d", count),
+						)
+					}
+				}(key)
 			}
+
+			wg.Wait()
 
 			return nil
 		},
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    apiKeyFlagName,
-				Aliases: []string{"k"},
-				Usage:   "TinyPNG API key <https://tinypng.com/dashboard/api>",
-				EnvVars: []string{env.TinyPngAPIKey.String()},
-			},
+			shared.APIKeyFlag,
 		},
 	}
+}
+
+// maskString returns masked string with same length as input string.
+func maskString(s string) string {
+	var length = utf8.RuneCountInString(s)
+
+	if length <= 8 {
+		return s
+	}
+
+	return s[:4] + strings.Repeat("*", length-8) + s[length-4:]
 }

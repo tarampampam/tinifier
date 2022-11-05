@@ -28,7 +28,7 @@ jobs:
 
       - name: Generate builder values
         id: values
-        run: echo "::set-output name=binary-name::tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`"
+        run: echo "binary-name=tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`" >> $GITHUB_STATE
 
       - name: Build application
         env:
@@ -36,7 +36,7 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
           LDFLAGS: -s -w -X github.com/tarampampam/tinifier/v4/internal/version.version=${{ steps.slug.outputs.version }}
-        run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.binary-name }}" ./cmd/tinifier/main.go
+        run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.binary-name }}" ./cmd/tinifier/
 
       - uses: svenstaro/upload-release-action@v2
         with:
@@ -89,7 +89,6 @@ jobs:
       matrix:
         proxy:
           - https://proxy.golang.org
-          #- https://gocenter.io
           - https://goproxy.cn
           - https://goproxy.dev
     steps:

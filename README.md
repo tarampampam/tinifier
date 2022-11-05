@@ -16,7 +16,7 @@ This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your loca
   <img src="./art/demo.gif">
 </p>
 
-> API key can be set using environment variable named `TINYPNG_API_KEY`
+> API key can be set using environment variable named `TINYPNG_API_KEY`; multiple keys are allowed - ise `,` as a separator
 
 ## Installing
 
@@ -64,8 +64,6 @@ $ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 2
 
 ### Using docker
 
-[![image stats](https://dockeri.co/image/tarampampam/tinifier)][link_docker_hub]
-
 > All supported image tags [can be found here][link_docker_hub] and [here][link_ghcr].
 
 Compress all images in **current** directory:
@@ -75,7 +73,7 @@ $ docker run --rm -ti \
     -u "$(id -u):$(id -g)" \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
-    tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -r .
+      tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -r .
 ```
 
 or
@@ -86,7 +84,7 @@ $ docker run --rm -ti \
     -v "$(pwd):/rootfs:rw" \
     -w /rootfs \
     -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
-    tarampampam/tinifier compress -r .
+      tarampampam/tinifier compress -r .
 ```
 
 ## Testing
