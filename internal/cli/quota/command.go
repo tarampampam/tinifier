@@ -19,7 +19,7 @@ import (
 )
 
 // NewCommand creates `quota` command.
-func NewCommand() *cli.Command {
+func NewCommand() *cli.Command { //nolint:funlen
 	const (
 		apiKeyMinLength = 8
 	)
@@ -54,7 +54,7 @@ func NewCommand() *cli.Command {
 
 			for _, key := range apiKeys {
 				if len(key) <= apiKeyMinLength {
-					fmt.Printf("API key (%s) is too short\n", key)
+					_, _ = fmt.Fprint(os.Stderr, errColor.Sprintf("API key (%s) is too short\n", key))
 
 					continue
 				}
@@ -64,7 +64,7 @@ func NewCommand() *cli.Command {
 				go func(key string) {
 					defer wg.Done()
 
-					if ctx.Err() != nil { // check if context was cancelled
+					if ctx.Err() != nil { // check if context was canceled
 						return
 					}
 
@@ -106,9 +106,9 @@ func NewCommand() *cli.Command {
 func maskString(s string) string {
 	var length = utf8.RuneCountInString(s)
 
-	if length <= 8 {
+	if length <= 8 { //nolint:gomnd
 		return s
 	}
 
-	return s[:4] + strings.Repeat("*", length-8) + s[length-4:]
+	return s[:4] + strings.Repeat("*", length-8) + s[length-4:] //nolint:gomnd
 }
