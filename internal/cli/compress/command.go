@@ -493,6 +493,8 @@ func (*command) Replace(origFilePath, tmpFilePath string, keepOriginalFileModTim
 			return origCopyFileErr
 		}
 
+		defer func() { _ = origCopyFile.Close() }()
+
 		if _, err := io.Copy(origCopyFile, origFile); err != nil {
 			return err
 		}
