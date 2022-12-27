@@ -127,7 +127,7 @@ If you find any package errors, please, [make an issue][link_create_issue] in cu
 
 This is open-sourced software licensed under the [MIT License][link_license].
 
-[badge_build]:https://img.shields.io/github/workflow/status/tarampampam/tinifier/tests/master
+[badge_build]:https://img.shields.io/github/actions/workflow/status/tarampampam/tinifier/tests.yml?branch=master
 [badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
 [badge_size_latest]:https://img.shields.io/docker/image-size/tarampampam/tinifier/latest?maxAge=30
