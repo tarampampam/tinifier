@@ -28,20 +28,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v3
+      - uses: gacts/setup-go-with-cache@v1
         with: {go-version: 1.19}
 
       - uses: golangci/golangci-lint-action@v3
+        with: {skip-pkg-cache: true, skip-build-cache: true}
 
   go-test:
     name: Unit tests
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/setup-go@v3
-        with: {go-version: 1.19}
-
       - uses: actions/checkout@v3
         with: {fetch-depth: 2} # Fixes codecov error 'Issue detecting commit SHA'
+
+      - uses: gacts/setup-go-with-cache@v1
+        with: {go-version-file: go.mod}
 
       - uses: actions/cache@v3
         with:
@@ -75,10 +76,10 @@ jobs:
             arch: 386
     needs: [golangci-lint, go-test]
     steps:
-      - uses: actions/setup-go@v3
-        with: {go-version: 1.19}
-
       - uses: actions/checkout@v3
+
+      - uses: gacts/setup-go-with-cache@v1
+        with: {go-version-file: go.mod}
 
       - {uses: gacts/github-slug@v1, id: slug}
 
