@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
+	"gh.tarampamp.am/tinifier/v4/pkg/tinypng"
 )
 
 var errNoClients = errors.New("no clients")

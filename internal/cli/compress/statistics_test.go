@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarampampam/tinifier/v4/internal/cli/compress"
+	"gh.tarampamp.am/tinifier/v4/internal/cli/compress"
 )
 
 func TestStatsStorage(t *testing.T) {

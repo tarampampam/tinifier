@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     name: Build for ${{ matrix.os }} (${{ matrix.arch }})
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -19,10 +19,10 @@ jobs:
           - os: windows
             arch: 386
     steps:
-      - uses: actions/setup-go@v3
-        with: {go-version: 1.19}
-
       - uses: actions/checkout@v3
+
+      - uses: gacts/setup-go-with-cache@v1
+        with: {go-version-file: go.mod}
 
       - {uses: gacts/github-slug@v1, id: slug}
 
@@ -35,7 +35,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
-          LDFLAGS: -s -w -X github.com/tarampampam/tinifier/v4/internal/version.version=${{ steps.slug.outputs.version }}
+          LDFLAGS: -s -w -X gh.tarampamp.am/tinifier/v4/internal/version.version=${{ steps.slug.outputs.version }}
         run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.binary-name }}" ./cmd/tinifier/
 
       - uses: svenstaro/upload-release-action@v2
@@ -47,7 +47,7 @@ jobs:
 
   docker:
     name: Build docker image
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -83,7 +83,7 @@ jobs:
 
   godocs:
     name: Renew docs and cache (${{ matrix.proxy }})
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -93,14 +93,11 @@ jobs:
           - https://goproxy.dev
     steps:
       - uses: actions/setup-go@v3
-        with: {go-version: 1.19}
 
       - {uses: gacts/github-slug@v1, id: slug}
 
       - run: go mod init example
 
       - name: Get the module using proxy
-        env:
-          GO111MODULE: on
-          GOPROXY: ${{ matrix.proxy }}
-        run: go get -v -x -u "github.com/tarampampam/tinifier/v4@${{ steps.slug.outputs.tag-name }}"
+        env: {GOPROXY: '${{ matrix.proxy }}'}
+        run: go get -v -x -u "gh.tarampamp.am/tinifier/v4@${{ steps.slug.outputs.tag-name }}"

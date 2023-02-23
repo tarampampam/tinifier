@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarampampam/tinifier/v4/internal/retry"
+	"gh.tarampamp.am/tinifier/v4/internal/retry"
 )
 
 func ExampleDo() {

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][keepachangelog] and this project adheres to [Semantic Versioning][semver].
 
+## v4.1.0
+
+### Changed
+
+- Go dependencies updated
+- Go version updated from `1.19` up to `1.20`
+- Module name changed from `github.com/tarampampam/tinifier/v4` to `gh.tarampamp.am/tinifier/v4`
+
 ## v4.0.1
 
 ### Fixed

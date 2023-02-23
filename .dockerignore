@@ -1,10 +1,8 @@
-.editorconfig
-.git
-.github
-.idea
-.vscode
-temp
-tmp
-LICENSE
-Makefile
-tinifier
+## Ignore everything
+*
+
+## Except the following files and directories
+!/cmd
+!/internal
+!/pkg
+!/go.*

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarampampam/tinifier/v4/internal/cli"
+	"gh.tarampamp.am/tinifier/v4/internal/cli"
 )
 
 func TestNewApp(t *testing.T) {

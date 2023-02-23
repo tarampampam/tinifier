@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarampampam/tinifier/v4/internal/validate"
+	"gh.tarampamp.am/tinifier/v4/internal/validate"
 )
 
 type brokenReader struct{}

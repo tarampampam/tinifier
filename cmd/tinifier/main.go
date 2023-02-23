@@ -9,7 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 
-	"github.com/tarampampam/tinifier/v4/internal/cli"
+	"gh.tarampamp.am/tinifier/v4/internal/cli"
 )
 
 // exitFn is a function for application exiting.

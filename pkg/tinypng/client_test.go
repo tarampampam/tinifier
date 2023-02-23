@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
+	"gh.tarampamp.am/tinifier/v4/pkg/tinypng"
 )
 
 func ExampleClient_Compress_and_Download() {

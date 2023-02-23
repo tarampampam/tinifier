@@ -12,19 +12,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dustin/go-humanize"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
-	"github.com/tarampampam/tinifier/v4/internal/breaker"
-	"github.com/tarampampam/tinifier/v4/internal/cli/shared"
-	"github.com/tarampampam/tinifier/v4/internal/env"
-	"github.com/tarampampam/tinifier/v4/internal/files"
-	"github.com/tarampampam/tinifier/v4/internal/retry"
-	"github.com/tarampampam/tinifier/v4/internal/validate"
-	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
+	"gh.tarampamp.am/tinifier/v4/internal/breaker"
+	"gh.tarampamp.am/tinifier/v4/internal/cli/shared"
+	"gh.tarampamp.am/tinifier/v4/internal/env"
+	"gh.tarampamp.am/tinifier/v4/internal/files"
+	"gh.tarampamp.am/tinifier/v4/internal/retry"
+	"gh.tarampamp.am/tinifier/v4/internal/validate"
+	"gh.tarampamp.am/tinifier/v4/pkg/tinypng"
 )
 
 type command struct {

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarampampam/tinifier/v4/internal/files"
+	"gh.tarampamp.am/tinifier/v4/internal/files"
 )
 
 func TestFindFiles(t *testing.T) {

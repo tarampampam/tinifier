@@ -13,9 +13,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
-	"github.com/tarampampam/tinifier/v4/internal/breaker"
-	"github.com/tarampampam/tinifier/v4/internal/cli/shared"
-	"github.com/tarampampam/tinifier/v4/pkg/tinypng"
+	"gh.tarampamp.am/tinifier/v4/internal/breaker"
+	"gh.tarampamp.am/tinifier/v4/internal/cli/shared"
+	"gh.tarampamp.am/tinifier/v4/pkg/tinypng"
 )
 
 // NewCommand creates `quota` command.

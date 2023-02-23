@@ -7,7 +7,7 @@ volumes:
 
 services:
   app:
-    image: golang:1.19-buster # Image page: <https://hub.docker.com/_/golang>
+    image: golang:1.20-buster # Image page: <https://hub.docker.com/_/golang>
     working_dir: /src
     environment:
       HOME: /tmp
@@ -17,6 +17,7 @@ services:
       - /etc/group:/etc/group:ro
       - .:/src:cached
       - tmp-data:/tmp:cached
+    security_opt: [no-new-privileges:true]
 
   golint:
     image: golangci/golangci-lint:v1.51-alpine # Image page: <https://hub.docker.com/r/golangci/golangci-lint>
@@ -27,3 +28,4 @@ services:
       - golint-go:/go:rw # go dependencies will be downloaded on each run without this
       - golint-cache:/tmp/golint:rw
     working_dir: /src
+    security_opt: [no-new-privileges:true]

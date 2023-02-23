@@ -5,10 +5,10 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/urfave/cli/v2"
 
-	"github.com/tarampampam/tinifier/v4/internal/cli/compress"
-	"github.com/tarampampam/tinifier/v4/internal/cli/quota"
-	"github.com/tarampampam/tinifier/v4/internal/env"
-	"github.com/tarampampam/tinifier/v4/internal/version"
+	"gh.tarampamp.am/tinifier/v4/internal/cli/compress"
+	"gh.tarampamp.am/tinifier/v4/internal/cli/quota"
+	"gh.tarampamp.am/tinifier/v4/internal/env"
+	"gh.tarampamp.am/tinifier/v4/internal/version"
 )
 
 // NewApp creates new console application.

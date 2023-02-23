@@ -31,7 +31,7 @@ Download the latest binary file for your os/arch from [releases page][link_relea
 Install the API client with `go get`:
 
 ```bash
-$ go get -u github.com/tarampampam/tinifier/v4
+$ go get -u gh.tarampamp.am/tinifier/v4
 ```
 
 Client sources and usage examples can be found in [`pkg/tinypng`](pkg/tinypng) directory.
@@ -143,7 +143,7 @@ This is open-sourced software licensed under the [MIT License][link_license].
 [link_golang]:https://golang.org/
 [link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
 [link_coverage]:https://codecov.io/gh/tarampampam/tinifier
-[link_gopkg]:https://pkg.go.dev/github.com/tarampampam/tinifier/v4
+[link_gopkg]:https://pkg.go.dev/gh.tarampamp.am/tinifier/v4
 [link_actions]:https://github.com/tarampampam/tinifier/actions
 [link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
 [link_ghcr]:https://github.com/users/tarampampam/packages/container/package/tinifier

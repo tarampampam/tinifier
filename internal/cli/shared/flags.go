@@ -3,7 +3,7 @@ package shared
 import (
 	"github.com/urfave/cli/v2"
 
-	"github.com/tarampampam/tinifier/v4/internal/env"
+	"gh.tarampamp.am/tinifier/v4/internal/env"
 )
 
 var APIKeyFlag = &cli.StringSliceFlag{ //nolint:gochecknoglobals
