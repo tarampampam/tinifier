@@ -92,7 +92,7 @@ jobs:
           - https://goproxy.cn
           - https://goproxy.dev
     steps:
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
 
       - {uses: gacts/github-slug@v1, id: slug}
 
