@@ -85,7 +85,7 @@ jobs:
         if: matrix.os == 'linux'
         run: /tmp/tinifier --version && /tmp/tinifier -h
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
           path: /tmp/tinifier
