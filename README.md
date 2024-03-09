@@ -50,7 +50,7 @@ Compress single image:
 $ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./img.png
 ```
 
-Compress all `png` images in some directory and 2 another images:
+Compress all `png` images in some directory and 2 other images:
 
 ```bash
 $ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./img-1.png ./img-2.png
