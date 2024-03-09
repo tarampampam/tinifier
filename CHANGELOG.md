@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog][keepachangelog] and this project adher
 ### Changed
 
 - Go version updated from `1.20` up to `1.21`
+- fixed typo in README.md
 
 ## v4.1.0
 
