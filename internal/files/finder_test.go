@@ -105,6 +105,7 @@ func TestFindFiles(t *testing.T) {
 			for i := 0; i < len(tt.giveWhere); i++ {
 				tt.giveWhere[i] = filepath.Join(tmpDir, tt.giveWhere[i])
 			}
+
 			for i := 0; i < len(tt.wantResult); i++ {
 				tt.wantResult[i] = filepath.Join(tmpDir, tt.wantResult[i])
 			}
