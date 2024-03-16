@@ -103,6 +103,7 @@ func TestWithContextCancellation(t *testing.T) {
 		assert.Equal(t, uint(1), attemptNum)
 
 		execCounter++
+
 		cancel() // <-- important
 
 		return errors.New("foo error")
