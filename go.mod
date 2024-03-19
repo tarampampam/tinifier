@@ -4,11 +4,11 @@ go 1.21
 
 require (
 	github.com/dustin/go-humanize v1.0.1
-	github.com/jedib0t/go-pretty/v6 v6.5.4
+	github.com/jedib0t/go-pretty/v6 v6.5.5
 	github.com/joho/godotenv v1.5.1
 	github.com/kami-zh/go-capturer v0.0.0-20171211120116-e492ea43421d
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v2 v2.27.1
 )
 
