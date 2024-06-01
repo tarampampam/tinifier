@@ -30,7 +30,7 @@ jobs:
 
       - uses: gacts/setup-go-with-cache@v1
 
-      - uses: golangci/golangci-lint-action@v5 # Action page: <https://github.com/golangci/golangci-lint-action>
+      - uses: golangci/golangci-lint-action@v6 # Action page: <https://github.com/golangci/golangci-lint-action>
         with: {skip-pkg-cache: true, skip-build-cache: true}
 
   go-test:
