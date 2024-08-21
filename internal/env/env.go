@@ -12,7 +12,7 @@ const (
 
 	ThreadsCount envVariable = "THREADS_COUNT" // Threads count
 
-	TinyPngAPIKey envVariable = "TINYPNG_API_KEY" //nolint:gosec // TinyPNG API key
+	TinyPngAPIKey envVariable = "TINYPNG_API_KEY" // TinyPNG API key
 )
 
 // String returns environment variable name in the string representation.

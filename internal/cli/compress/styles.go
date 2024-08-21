@@ -49,7 +49,7 @@ func newProgressBar(expectedTrackersNum int, withOverall bool) progress.Writer {
 	pw.SetNumTrackersExpected(expectedTrackersNum)
 	pw.SetTrackerPosition(progress.PositionRight)
 	pw.SetStyle(progressStyleDefault)
-	pw.SetUpdateFrequency(time.Millisecond * 100) //nolint:gomnd
+	pw.SetUpdateFrequency(time.Millisecond * 100) //nolint:mnd
 
 	pw.Style().Visibility.Value = false
 	pw.Style().Visibility.Percentage = false

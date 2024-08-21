@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,7 @@ func TestIsImage(t *testing.T) {
 	fromFile := func(path string) io.Reader {
 		t.Helper()
 
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		assert.NoError(t, err)
 
 		return bytes.NewReader(data)

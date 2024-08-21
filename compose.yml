@@ -1,13 +1,8 @@
-version: '3.2'
-
-volumes:
-  tmp-data: {}
-  golint-go: {}
-  golint-cache: {}
+# yaml-language-server: $schema=https://cdn.jsdelivr.net/gh/compose-spec/compose-spec@master/schema/compose-spec.json
 
 services:
   app:
-    image: golang:1.21-buster # Image page: <https://hub.docker.com/_/golang>
+    image: golang:1.22-buster # Image page: <https://hub.docker.com/_/golang>
     working_dir: /src
     environment:
       HOME: /tmp
@@ -29,3 +24,8 @@ services:
       - golint-cache:/tmp/golint:rw
     working_dir: /src
     security_opt: [no-new-privileges:true]
+
+volumes:
+  tmp-data: {}
+  golint-go: {}
+  golint-cache: {}

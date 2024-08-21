@@ -85,7 +85,7 @@ func (s *StatsStorage) TotalSavedBytes() (total int64) {
 
 func (s *StatsStorage) TotalFiles() (total uint32) {
 	s.mu.Lock()
-	total = uint32(len(s.history))
+	total = uint32(len(s.history)) //nolint:gosec
 	s.mu.Unlock()
 
 	return
@@ -109,7 +109,7 @@ func (s *StatsStorage) Watch(ctx context.Context) {
 			s.history = append(s.history, stat)
 			s.totalOriginalSize += stat.OriginalSize
 			s.totalCompressedSize += stat.CompressedSize
-			s.totalSavedBytes += int64(stat.OriginalSize) - int64(stat.CompressedSize)
+			s.totalSavedBytes += int64(stat.OriginalSize) - int64(stat.CompressedSize) //nolint:gosec
 			s.mu.Unlock()
 		}
 	}
