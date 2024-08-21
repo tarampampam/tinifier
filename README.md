@@ -6,7 +6,6 @@
 
 [![Release version][badge_release_version]][link_gopkg]
 [![Build Status][badge_build]][link_actions]
-[![Coverage][badge_coverage]][link_coverage]
 [![Image size][badge_size_latest]][link_docker_hub]
 [![License][badge_license]][link_license]
 
@@ -128,7 +127,6 @@ If you find any package errors, please, [make an issue][link_create_issue] in cu
 This is open-sourced software licensed under the [MIT License][link_license].
 
 [badge_build]:https://img.shields.io/github/actions/workflow/status/tarampampam/tinifier/tests.yml?branch=master
-[badge_coverage]:https://img.shields.io/codecov/c/github/tarampampam/tinifier/master.svg?maxAge=30
 [badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
 [badge_size_latest]:https://img.shields.io/docker/image-size/tarampampam/tinifier/latest?maxAge=30
 [badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
@@ -142,7 +140,6 @@ This is open-sourced software licensed under the [MIT License][link_license].
 
 [link_golang]:https://golang.org/
 [link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
-[link_coverage]:https://codecov.io/gh/tarampampam/tinifier
 [link_gopkg]:https://pkg.go.dev/gh.tarampamp.am/tinifier/v4
 [link_actions]:https://github.com/tarampampam/tinifier/actions
 [link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
