@@ -76,10 +76,10 @@ func NewCommand() *cli.Command { //nolint:funlen
 						var color = text.FgRed
 
 						switch {
-						case count <= 300: //nolint:gomnd
+						case count <= 300: //nolint:mnd
 							color = text.FgGreen
 
-						case count <= 400: //nolint:gomnd
+						case count <= 400: //nolint:mnd
 							color = text.FgYellow
 						}
 
@@ -106,9 +106,9 @@ func NewCommand() *cli.Command { //nolint:funlen
 func maskString(s string) string {
 	var length = utf8.RuneCountInString(s)
 
-	if length <= 8 { //nolint:gomnd
+	if length <= 8 { //nolint:mnd
 		return s
 	}
 
-	return s[:4] + strings.Repeat("*", length-8) + s[length-4:] //nolint:gomnd
+	return s[:4] + strings.Repeat("*", length-8) + s[length-4:] //nolint:mnd
 }

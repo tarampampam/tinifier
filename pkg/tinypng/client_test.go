@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"testing"
@@ -66,7 +65,7 @@ func TestClient_UsedQuota_Success(t *testing.T) {
 			Header: http.Header{
 				"Compression-Count": {"123454321", "any", "values"},
 			},
-			Body: ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body: io.NopCloser(bytes.NewReader([]byte{})),
 		}, nil
 	}
 
@@ -85,7 +84,7 @@ func TestClient_UsedQuota_WrongHeaderValue(t *testing.T) {
 			Header: http.Header{
 				"Compression-Count": {"foo bar"}, // <-- wrong value
 			},
-			Body: ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body: io.NopCloser(bytes.NewReader([]byte{})),
 		}, nil
 	}
 
@@ -102,7 +101,7 @@ func TestClient_UsedQuota_MissingHeader(t *testing.T) {
 			Header: http.Header{
 				// "Compression-Count": {"123454321", "any", "values"}, // <-- nothing is here
 			},
-			Body: ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body: io.NopCloser(bytes.NewReader([]byte{})),
 		}, nil
 	}
 
@@ -129,7 +128,7 @@ func TestClient_UsedQuota_Unauthorized(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body:       io.NopCloser(bytes.NewReader([]byte{})),
 			StatusCode: http.StatusUnauthorized, // <-- important
 		}, nil
 	}
@@ -159,13 +158,13 @@ func TestClient_Compress_Successful(t *testing.T) {
 		require.Equal(t, "https://api.tinify.com/shrink", req.URL.String())
 		require.Equal(t, authHeaderValue(t, "bar-key"), req.Header.Get("Authorization"))
 
-		body, _ := ioutil.ReadAll(req.Body)
+		body, _ := io.ReadAll(req.Body)
 		assert.Equal(t, srcImage, body)
 
 		return &http.Response{
 			StatusCode: http.StatusCreated,
 			Header:     http.Header{"Compression-Count": {"123454321"}},
-			Body: ioutil.NopCloser(bytes.NewReader([]byte(`{
+			Body: io.NopCloser(bytes.NewReader([]byte(`{
 				"input":{
 					"size":4633,
 					"type":"image/png"
@@ -201,7 +200,7 @@ func TestClient_Compress_WrongJsonResponse(t *testing.T) {
 		return &http.Response{
 			StatusCode: http.StatusCreated,
 			Header:     http.Header{"Compression-Count": {"123454321"}},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte(`{"broken json']`))),
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"broken json']`))),
 		}, nil
 	}
 
@@ -217,7 +216,7 @@ func TestClient_Compress_Unauthorized(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body:       io.NopCloser(bytes.NewReader([]byte{})),
 			StatusCode: http.StatusUnauthorized, // <-- important
 		}, nil
 	}
@@ -233,7 +232,7 @@ func TestClient_Compress_TooManyRequests(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body:       io.NopCloser(bytes.NewReader([]byte{})),
 			StatusCode: http.StatusTooManyRequests, // <-- important
 		}, nil
 	}
@@ -249,7 +248,7 @@ func TestClient_Compress_BadRequests(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body:       io.NopCloser(bytes.NewReader([]byte{})),
 			StatusCode: http.StatusBadRequest, // <-- important
 		}, nil
 	}
@@ -265,7 +264,7 @@ func TestClient_Compress_HTTPErrorAbove599(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body:       io.NopCloser(bytes.NewReader([]byte{})),
 			StatusCode: 600, // <-- important
 		}, nil
 	}
@@ -282,7 +281,7 @@ func TestClient_Compress_4xxError(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{"Compression-Count": {"123"}},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte(`{"error":"Foo","message":"bar baz."}`))),
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"Foo","message":"bar baz."}`))),
 			StatusCode: http.StatusTeapot, // <-- can be any (instead 401, 429 and 400)
 		}, nil
 	}
@@ -299,7 +298,7 @@ func TestClient_Compress_4xxErrorWithWrongJson(t *testing.T) {
 	var httpMock httpClientFunc = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			Header:     http.Header{"Compression-Count": {"123"}},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte(`{"error":"broken json']`))),
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"broken json']`))),
 			StatusCode: http.StatusLocked, // <-- can be any (instead 401, 429 and 400)
 		}, nil
 	}
@@ -335,7 +334,7 @@ func TestClient_Compressed_Download_Success(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusCreated,
 				Header:     http.Header{"Compression-Count": {"123454321"}},
-				Body: ioutil.NopCloser(bytes.NewReader([]byte(`{
+				Body: io.NopCloser(bytes.NewReader([]byte(`{
 				"input":{
 					"size":4633,
 					"type":"image/png"
@@ -383,7 +382,7 @@ func TestClient_Compressed_Download_Unauthorized(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusCreated,
 				Header:     http.Header{"Compression-Count": {"123454321"}},
-				Body: ioutil.NopCloser(bytes.NewReader([]byte(`{
+				Body: io.NopCloser(bytes.NewReader([]byte(`{
 				"output":{
 					"url":"https://api.tinify.com/output/someRandomResultImageHash123"
 				}
@@ -421,7 +420,7 @@ func TestClient_Compressed_Download_TooManyRequests(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusCreated,
 				Header:     http.Header{"Compression-Count": {"123454321"}},
-				Body: ioutil.NopCloser(bytes.NewReader([]byte(`{
+				Body: io.NopCloser(bytes.NewReader([]byte(`{
 				"output":{
 					"url":"https://api.tinify.com/output/someRandomResultImageHash321"
 				}
@@ -459,7 +458,7 @@ func TestClient_DownloadImage4xxError(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusCreated,
 				Header:     http.Header{"Compression-Count": {"123454321"}},
-				Body: ioutil.NopCloser(bytes.NewReader([]byte(`{
+				Body: io.NopCloser(bytes.NewReader([]byte(`{
 				"output":{
 					"url":"https://api.tinify.com/output/someRandomResultImageHash111"
 				}
@@ -468,7 +467,7 @@ func TestClient_DownloadImage4xxError(t *testing.T) {
 
 		case "https://api.tinify.com/output/someRandomResultImageHash111":
 			return &http.Response{
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte(`{"error":"Foo","message":"bar baz."}`))),
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":"Foo","message":"bar baz."}`))),
 				StatusCode: http.StatusTeapot, // <-- can be any 4xx error
 			}, nil
 

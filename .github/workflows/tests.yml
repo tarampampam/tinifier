@@ -1,4 +1,7 @@
-name: tests
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# docs: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+
+name: 🧪 Tests
 
 on:
   push:
@@ -14,43 +17,27 @@ concurrency:
 
 jobs:
   gitleaks:
-    name: Gitleaks
+    name: Check for GitLeaks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-
+      - {uses: actions/checkout@v4, with: {fetch-depth: 0}}
       - uses: gacts/gitleaks@v1
 
   golangci-lint:
-    name: Golang-CI (lint)
+    name: Run golangci-lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: gacts/setup-go-with-cache@v1
-
-      - uses: golangci/golangci-lint-action@v6 # Action page: <https://github.com/golangci/golangci-lint-action>
-        with: {skip-pkg-cache: true, skip-build-cache: true}
+      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
+      - uses: golangci/golangci-lint-action@v6
 
   go-test:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 2} # Fixes codecov error 'Issue detecting commit SHA'
-
-      - uses: gacts/setup-go-with-cache@v1
-        with: {go-version-file: go.mod}
-
-      - run: go test -race -covermode=atomic -coverprofile /tmp/coverage.txt ./...
-
-      - continue-on-error: true
-        uses: codecov/codecov-action@v4 # https://github.com/codecov/codecov-action
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: /tmp/coverage.txt
-          fail_ci_if_error: false
+      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
+      - run: go test -race ./...
 
   build:
     name: Build for ${{ matrix.os }} (${{ matrix.arch }})
@@ -66,24 +53,17 @@ jobs:
     needs: [golangci-lint, go-test]
     steps:
       - uses: actions/checkout@v4
-
-      - uses: gacts/setup-go-with-cache@v1
-        with: {go-version-file: go.mod}
-
+      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
       - {uses: gacts/github-slug@v1, id: slug}
-
-      - name: Build application
-        env:
+      - env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
           LDFLAGS: -s -w -X gh.tarampamp.am/tinifier/v4/internal/version.version=${{ steps.slug.outputs.branch-name-slug }}@${{ steps.slug.outputs.commit-hash-short }}
         run: go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/
-
       - name: Try to execute
         if: matrix.os == 'linux'
         run: /tmp/tinifier --version && /tmp/tinifier -h
-
       - uses: actions/upload-artifact@v4
         with:
           name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
@@ -97,14 +77,10 @@ jobs:
     needs: [golangci-lint, go-test]
     steps:
       - uses: actions/checkout@v4
-
       - {uses: gacts/github-slug@v1, id: slug}
-
-      - name: Build image
+      - name: Build the image
         run: docker build -t tinifier:local --build-arg "APP_VERSION=${{ steps.slug.outputs.branch-name-slug }}@${{ steps.slug.outputs.commit-hash-short }}" -f ./Dockerfile .
-
       - run: docker run --rm tinifier:local --version
-
       - uses: anchore/scan-action@v4 # action page: <https://github.com/anchore/scan-action>
         with:
           image: tinifier:local

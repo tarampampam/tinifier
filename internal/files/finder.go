@@ -48,7 +48,7 @@ func WithFilesExt(filesExt ...string) FinderOption {
 
 // FindFiles finds all files in the given locations (without duplicates).
 // Important note - for the direct files' extension checking will be ignored.
-// TODO fn should returns bool (shouldStop)
+// TODO fn should returns bool (shouldStop).
 func FindFiles(ctx context.Context, where []string, fn func(absPath string), opts ...FinderOption) error { //nolint:funlen,gocognit,gocyclo,lll
 	if len(where) == 0 { // fast terminator
 		return nil

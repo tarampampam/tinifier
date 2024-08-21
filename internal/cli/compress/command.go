@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/pkg/errors"
@@ -98,13 +98,13 @@ func NewCommand() *cli.Command { //nolint:funlen
 				Name:    threadsCountFlagName,
 				Aliases: []string{"t"},
 				Usage:   "threads count",
-				Value:   uint(runtime.NumCPU() * 6), //nolint:gomnd
+				Value:   uint(runtime.NumCPU() * 6), //nolint:mnd
 				EnvVars: []string{env.ThreadsCount.String()},
 			},
 			&cli.UintFlag{
 				Name:  maxErrorsToStopFlagName,
 				Usage: "maximum errors count to stop the process (set 0 to disable)",
-				Value: 10, //nolint:gomnd
+				Value: 10, //nolint:mnd
 				// EnvVars: []string{}, // TODO implement
 			},
 			&cli.BoolFlag{
@@ -559,5 +559,5 @@ func (*command) FindFiles(ctx context.Context, where, filesExt []string, recursi
 
 // percentageDiff calculates difference between passed values in percentage representation.
 func (*command) percentageDiff(from, to float64) string {
-	return fmt.Sprintf("%0.2f%%", math.Abs(((from-to)/to)*100)) //nolint:gomnd
+	return fmt.Sprintf("%0.2f%%", math.Abs(((from-to)/to)*100)) //nolint:mnd
 }

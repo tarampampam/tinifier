@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -39,6 +40,7 @@ func TestErrorsWatcher(t *testing.T) {
 
 	watcher <- testErr
 
+	<-time.After(10 * time.Millisecond)
 	runtime.Gosched()
 
 	require.True(t, onErrorHandled.Load().(bool))
@@ -46,6 +48,7 @@ func TestErrorsWatcher(t *testing.T) {
 
 	watcher <- testErr
 
+	<-time.After(10 * time.Millisecond)
 	runtime.Gosched()
 
 	require.True(t, onErrorHandled.Load().(bool))

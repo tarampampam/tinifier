@@ -45,9 +45,7 @@ func (err Error) Error() string {
 	return buf.String()
 }
 
-func newError(message string) error {
-	return fmt.Errorf(errorsPrefix + " " + message)
-}
+func newError(message string) error { return fmt.Errorf(errorsPrefix + " " + message) } //nolint:govet
 
 func newErrorf(format string, args ...any) error {
 	return errors.New(errorsPrefix + " " + fmt.Errorf(format, args...).Error())

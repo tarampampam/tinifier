@@ -76,7 +76,7 @@ func Do(fn func(attemptNum uint) error, options ...Option) (limitExceeded bool, 
 		if err := cfg.ctx.Err(); err != nil {
 			lastErr = err
 
-			return //nolint:nakedret
+			return
 		}
 
 		// execute passed function
@@ -84,14 +84,14 @@ func Do(fn func(attemptNum uint) error, options ...Option) (limitExceeded bool, 
 
 		// if function executed without any error - stop the loop
 		if lastErr == nil {
-			return //nolint:nakedret
+			return
 		}
 
 		// otherwise, if "errors to stop" is defined and one of them is occurred - stop the loop
 		if len(cfg.stopOnErrors) > 0 {
 			for i := 0; i < len(cfg.stopOnErrors); i++ {
 				if errors.Is(lastErr, cfg.stopOnErrors[i]) { // checking using errors.Is(...) is important
-					return //nolint:nakedret
+					return
 				}
 			}
 		}
@@ -109,7 +109,7 @@ func Do(fn func(attemptNum uint) error, options ...Option) (limitExceeded bool, 
 			case <-cfg.ctx.Done():
 				lastErr = cfg.ctx.Err()
 
-				return //nolint:nakedret
+				return
 
 			case <-timer.C:
 			}

@@ -2,7 +2,6 @@ package files_test
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -83,7 +82,7 @@ func TestFindFiles(t *testing.T) {
 
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
-			tmpDir, tmpDirErr := ioutil.TempDir("", "test-")
+			tmpDir, tmpDirErr := os.MkdirTemp("", "test-")
 			require.NoError(t, tmpDirErr)
 
 			defer func(d string) { require.NoError(t, os.RemoveAll(d)) }(tmpDir)
