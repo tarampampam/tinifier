@@ -98,7 +98,7 @@ func NewCommand() *cli.Command { //nolint:funlen
 				Name:    threadsCountFlagName,
 				Aliases: []string{"t"},
 				Usage:   "threads count",
-				Value:   uint(runtime.NumCPU() * 6), //nolint:mnd
+				Value:   uint(runtime.NumCPU() * 6), //nolint:mnd,gosec
 				EnvVars: []string{env.ThreadsCount.String()},
 			},
 			&cli.UintFlag{
@@ -260,7 +260,7 @@ workersLoop:
 	tbl.AppendFooter(table.Row{"", "",
 		fmt.Sprintf("Total saved (%d files)", stats.TotalFiles()),
 		fmt.Sprintf("%s (%s)", // Saved
-			humanize.IBytes(uint64(stats.TotalSavedBytes())),
+			humanize.IBytes(uint64(stats.TotalSavedBytes())), //nolint:gosec
 			cmd.percentageDiff(float64(stats.TotalCompressedSize()), float64(stats.TotalOriginalSize())),
 		),
 	})
@@ -311,7 +311,7 @@ func (cmd *command) ProcessFile( //nolint:funlen
 
 	// STEP 1. Upload the file to TinyPNG server
 	tracker.SetValue(stepUpload)
-	tracker.UpdateMessage(fmt.Sprintf("%s uploading (%s)", fileName, humanize.IBytes(uint64(origFileStat.Size()))))
+	tracker.UpdateMessage(fmt.Sprintf("%s uploading (%s)", fileName, humanize.IBytes(uint64(origFileStat.Size())))) //nolint:gosec,lll
 
 	compressed, compErr := cmd.Upload(ctx, pool, filePath)
 	if compErr != nil {
@@ -322,7 +322,7 @@ func (cmd *command) ProcessFile( //nolint:funlen
 		return err
 	}
 
-	if size := uint64(origFileStat.Size()); size <= compressed.Size() {
+	if size := uint64(origFileStat.Size()); size <= compressed.Size() { //nolint:gosec
 		tracker.UpdateMessage(fmt.Sprintf("%s skipped (original size less than compressed)", fileName))
 
 		return nil
@@ -365,15 +365,15 @@ func (cmd *command) ProcessFile( //nolint:funlen
 	tracker.UpdateMessage(fmt.Sprintf(
 		"%s compressed (%s → %s)",
 		fileName,
-		humanize.IBytes(uint64(origFileStat.Size())),
-		humanize.IBytes(uint64(tmpFileStat.Size())),
+		humanize.IBytes(uint64(origFileStat.Size())), //nolint:gosec
+		humanize.IBytes(uint64(tmpFileStat.Size())),  //nolint:gosec
 	))
 
 	stats.Push(ctx, CompressionStat{
 		FilePath:       filePath,
 		FileType:       compressed.Type(),
-		OriginalSize:   uint64(origFileStat.Size()),
-		CompressedSize: uint64(tmpFileStat.Size()),
+		OriginalSize:   uint64(origFileStat.Size()), //nolint:gosec
+		CompressedSize: uint64(tmpFileStat.Size()),  //nolint:gosec
 	})
 
 	tracker.MarkAsDone()
