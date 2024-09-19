@@ -1,6 +1,6 @@
 module gh.tarampamp.am/tinifier/v4
 
-go 1.22
+go 1.23
 
 require (
 	github.com/dustin/go-humanize v1.0.1
