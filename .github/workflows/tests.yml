@@ -81,7 +81,7 @@ jobs:
       - name: Build the image
         run: docker build -t tinifier:local --build-arg "APP_VERSION=${{ steps.slug.outputs.branch-name-slug }}@${{ steps.slug.outputs.commit-hash-short }}" -f ./Dockerfile .
       - run: docker run --rm tinifier:local --version
-      - uses: anchore/scan-action@v5 # action page: <https://github.com/anchore/scan-action>
+      - uses: anchore/scan-action@v6 # action page: <https://github.com/anchore/scan-action>
         with:
           image: tinifier:local
           fail-build: true
