@@ -79,7 +79,7 @@ func (c *Client) UsedQuota(ctx context.Context) (uint64, error) {
 // is done, the compression result (just information, not compressed image content) will be returned. If the provided
 // source is also an io.Closer - it will be closed automatically by the HTTP client (if the default HTTP client is
 // used).
-func (c *Client) Compress(ctx context.Context, src io.Reader) (*Compressed, error) { //nolint:funlen
+func (c *Client) Compress(ctx context.Context, src io.Reader) (*Compressed, error) {
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, shrinkEndpoint, src)
 	if reqErr != nil {
 		return nil, reqErr

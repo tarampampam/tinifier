@@ -44,7 +44,7 @@ const (
 // exceeded, attempts counter starts from 1.
 //
 // The default attempts count is 3 (without delay between attempts).
-func Do(fn func(attemptNum uint) error, options ...Option) (limitExceeded bool, lastErr error) { //nolint:funlen
+func Do(fn func(attemptNum uint) error, options ...Option) (limitExceeded bool, lastErr error) {
 	cfg := config{
 		ctx:         context.Background(),
 		delay:       defaultAttemptDelay,
