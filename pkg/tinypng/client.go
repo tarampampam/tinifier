@@ -1,4 +1,4 @@
-// Package tinypng is `tinypng.com` API client implementation.
+// Package tinypng provides a client implementation for the `tinypng.com` API.
 package tinypng
 
 import (
@@ -10,60 +10,71 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
-	ErrUnauthorized    = errors.New("unauthorized (invalid credentials)")
-	ErrTooManyRequests = errors.New("too many requests (limit has been exceeded)")
-	ErrBadRequest      = errors.New("bad request (empty file or wrong format)")
+	// ErrUnauthorized indicates that the provided API credentials are invalid.
+	ErrUnauthorized = errors.New("unauthorized (invalid credentials)")
+
+	// ErrTooManyRequests indicates that the API request limit has been exceeded.
+	ErrTooManyRequests = errors.New("too many requests (limit exceeded)")
+
+	// ErrBadRequest indicates an issue with the request, such as an empty file or an unsupported format.
+	ErrBadRequest = errors.New("bad request (empty file or unsupported format)")
 )
 
-const shrinkEndpoint = "https://api.tinify.com/shrink" // API endpoint for images shrinking
+const shrinkEndpoint = "https://api.tinify.com/shrink" // API endpoint for image compression requests
 
-// httpClient is an HTTP client used for requests.
+// httpClient defines an interface for making HTTP requests.
 type httpClient interface {
-	// Do sends an HTTP request and returns an HTTP response.
+	// Do send an HTTP request and returns the corresponding HTTP response.
 	Do(*http.Request) (*http.Response, error)
 }
 
-// ClientOption allows to set up some internal client properties from outside.
+// ClientOption is a functional option used to configure the Client instance.
 type ClientOption func(*Client)
 
-// WithHTTPClient setups allows to pass custom HTTP client implementation.
+// WithHTTPClient allows the use of a custom HTTP client implementation.
 func WithHTTPClient(httpClient httpClient) ClientOption {
 	return func(c *Client) { c.httpClient = httpClient }
 }
 
-// Client is a tinypng client implementation.
+// Client represents the TinyPNG API client.
 type Client struct {
-	httpClient httpClient // HTTP client for requests making
-	apiKey     string     // API key (string) for requests making (get own on <https://tinypng.com/developers>)
+	httpClient httpClient // HTTP client used for making API requests
+	apiKey     string     // API key for authentication (obtain from <https://tinypng.com/developers>)
 }
 
-// NewClient creates a new tinypng client instance. Options can be used to fine client tuning.
-func NewClient(apiKey string, options ...ClientOption) *Client {
-	c := &Client{
-		httpClient: new(http.Client),
-		apiKey:     apiKey,
+// NewClient creates a new TinyPNG client instance with the specified API key.
+// Additional options can be provided to customize the client.
+func NewClient(apiKey string, opts ...ClientOption) *Client {
+	var c = Client{apiKey: apiKey}
+
+	for _, opt := range opts {
+		opt(&c)
 	}
 
-	for _, opt := range options {
-		opt(c)
+	if c.httpClient == nil { // set default HTTP client
+		c.httpClient = &http.Client{
+			Timeout:   60 * time.Second,                         //nolint:mnd
+			Transport: &http.Transport{ForceAttemptHTTP2: true}, // use HTTP/2 (why not?)
+		}
 	}
 
-	return c
+	return &c
 }
 
-// UsedQuota returns compressions count for current API key (used quota value). By default, for free API keys quota
-// is equals to 500.
+// UsedQuota retrieves the number of compression requests made using the current API key.
+// Free-tier accounts are limited to 500 requests per month.
 func (c *Client) UsedQuota(ctx context.Context) (_ uint64, outErr error) {
-	defer func() { // wrap error with package-specific error
+	defer func() { // Wrap the error with a package-specific prefix.
 		if outErr != nil {
 			outErr = fmt.Errorf("tinypng: %w", outErr)
 		}
 	}()
 
-	// make a "fake" image uploading attempt for "Compression-Count" response header value reading
+	// Make a dummy image upload request to obtain the "Compression-Count" header from the response.
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, shrinkEndpoint, http.NoBody)
 	if reqErr != nil {
 		return 0, reqErr
@@ -76,12 +87,13 @@ func (c *Client) UsedQuota(ctx context.Context) (_ uint64, outErr error) {
 		return 0, respErr
 	}
 
-	_ = resp.Body.Close()
+	_ = resp.Body.Close() // We only need the headers, so we can safely discard the response body.
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return 0, ErrUnauthorized
 	}
 
+	// Extract the compression count from the response headers.
 	count, cErr := c.extractCompressionCount(resp.Header)
 	if cErr != nil {
 		return 0, cErr
@@ -90,12 +102,11 @@ func (c *Client) UsedQuota(ctx context.Context) (_ uint64, outErr error) {
 	return count, nil
 }
 
-// Compress uploads image content from the provided source to the tinypng server for compression. When the process
-// is done, the compression result (just information, not compressed image content) will be returned. If the provided
-// source is also an io.Closer - it will be closed automatically by the HTTP client (if the default HTTP client is
-// used).
+// Compress uploads an image to TinyPNG for compression.
+// The function returns metadata about the compressed image, but not the image content itself.
+// If the provided source implements io.Closer, it will be closed automatically by the HTTP client.
 func (c *Client) Compress(ctx context.Context, src io.Reader) (_ *Compressed, outErr error) {
-	defer func() { // wrap error with package-specific error
+	defer func() { // Wrap the error with a package-specific prefix.
 		if outErr != nil {
 			outErr = fmt.Errorf("tinypng: %w", outErr)
 		}
@@ -118,18 +129,19 @@ func (c *Client) Compress(ctx context.Context, src io.Reader) (_ *Compressed, ou
 
 	switch code := resp.StatusCode; {
 	case code == http.StatusCreated:
-		var p struct { // payload
+		// Response payload structure
+		var p struct {
 			Input struct {
-				Size uint64 `json:"size"` // eg.: 37745
-				Type string `json:"type"` // eg.: image/png
+				Size uint64 `json:"size"` // Example: 37745
+				Type string `json:"type"` // Example: image/png
 			} `json:"input"`
 			Output struct {
-				Size   uint64  `json:"size"`   // eg.: 35380
-				Type   string  `json:"type"`   // eg.: image/png
-				Width  uint32  `json:"width"`  // eg.: 512
-				Height uint32  `json:"height"` // eg.: 512
-				Ratio  float32 `json:"ratio"`  // eg.: 0.9373
-				URL    string  `json:"url"`    // eg.: https://api.tinify.com/output/foobar
+				Size   uint64  `json:"size"`   // Example: 35380
+				Type   string  `json:"type"`   // Example: image/png
+				Width  uint32  `json:"width"`  // Example: 512
+				Height uint32  `json:"height"` // Example: 512
+				Ratio  float32 `json:"ratio"`  // Example: 0.9373
+				URL    string  `json:"url"`    // Example: https://api.tinify.com/output/foobar
 			} `json:"output"`
 		}
 
@@ -137,7 +149,7 @@ func (c *Client) Compress(ctx context.Context, src io.Reader) (_ *Compressed, ou
 			return nil, fmt.Errorf("response decoding failed: %w", err)
 		}
 
-		var result = Compressed{
+		result := Compressed{
 			client: c,
 			Type:   p.Output.Type,
 			Size:   p.Output.Size,
@@ -167,23 +179,21 @@ func (c *Client) Compress(ctx context.Context, src io.Reader) (_ *Compressed, ou
 	}
 }
 
-// Compressed represents tinypng compression result.
+// Compressed represents the result of a TinyPNG compression operation.
 type Compressed struct {
-	client *Client // reference to the Client instance
+	client *Client // Reference to the client instance
 
-	UsedQuota     uint64 // used quota value, eg.: 123
-	Type          string // type of the compressed image, eg.: image/png
-	Size          uint64 // the size (in bytes) of the compressed image, eg.: 35380
-	URL           string // eg.: https://api.tinify.com/output/foobar
-	Width, Height uint32 // the size of result image, eg.: 512, 512
+	UsedQuota     uint64 // Number of compressions used in the current billing period.
+	Type          string // MIME type of the compressed image, e.g., "image/png".
+	Size          uint64 // Size of the compressed image in bytes.
+	URL           string // URL of the compressed image.
+	Width, Height uint32 // Dimensions of the compressed image.
 }
 
-// Download image from remote server and write to the passed destination.
-//
-// If the provided source is also an io.Closer - it will be closed automatically by the HTTP client (if the
-// default HTTP client is used).
+// Download retrieves the compressed image from the TinyPNG servers and writes it to the specified destination.
+// If the provided destination implements io.Closer, it will be closed automatically by the HTTP client.
 func (c Compressed) Download(ctx context.Context, to io.Writer) (outErr error) {
-	defer func() { // wrap error with package-specific error
+	defer func() { // Wrap the error with a package-specific prefix.
 		if outErr != nil {
 			outErr = fmt.Errorf("tinypng: %w", outErr)
 		}
@@ -205,11 +215,8 @@ func (c Compressed) Download(ctx context.Context, to io.Writer) (outErr error) {
 
 	switch code := resp.StatusCode; {
 	case code == http.StatusOK:
-		if _, err := io.Copy(to, resp.Body); err != nil {
-			return err
-		}
-
-		return nil
+		_, err := io.Copy(to, resp.Body)
+		return err
 	case code >= 400 && code < 599:
 		switch code {
 		case http.StatusUnauthorized:
@@ -219,15 +226,12 @@ func (c Compressed) Download(ctx context.Context, to io.Writer) (outErr error) {
 		default:
 			return parseRemoteError(resp.Body)
 		}
-
 	default:
 		return fmt.Errorf("unexpected HTTP response status code (%d)", code)
 	}
 }
 
-// parseRemoteError reads HTTP response content as a JSON-string, parse them and converts into go-error.
-//
-// This function should never return nil!
+// parseRemoteError decodes an error response from TinyPNG and converts it into a Go error.
 func parseRemoteError(content io.Reader) error {
 	var e struct {
 		Error   string `json:"error"`
