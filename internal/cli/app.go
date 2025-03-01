@@ -193,60 +193,65 @@ func cleanStrings(in, sep string) []string {
 // Run runs the application.
 func (a *App) Run(ctx context.Context, args []string) error { return a.cmd.Run(ctx, args) }
 
-// Help returns the help message.
+// Help returns the application's help message.
 func (a *App) Help() string { return a.cmd.Help() }
 
-// run in the main logic of the application.
+// run executes the main logic of the application.
 func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocognit,funlen,gocyclo
 	var ctx, cancel = context.WithCancel(pCtx)
-	defer cancel() // calling this function will cancel the context and stop the process
+	defer cancel() // canceling the context stops the process
 
 	var iterCtx, cancelIter = context.WithCancel(ctx)
-	defer cancelIter() // calling this one will stop the iterator
+	defer cancelIter() // stopping the iterator
 
 	var (
-		filesSeq       = finder.Files(iterCtx, paths, a.opt.Recursive, finder.FilterByExt(false, a.opt.FileExtensions...))
-		totalAmount    atomic.Uint64
-		progressString = func(current uint64) string {
-			if total := totalAmount.Load(); total > 0 {
-				width := len(strconv.FormatUint(total, 10))
-
-				return fmt.Sprintf("[%0*d/%d]", width, current, total)
-			}
-
-			return fmt.Sprintf("[%d/⏳]", current)
-		}
+		filesSeq    = finder.Files(iterCtx, paths, a.opt.Recursive, finder.FilterByExt(false, a.opt.FileExtensions...))
+		totalAmount atomic.Uint64
 	)
 
-	// calculate the total number of files to process in background to avoid blocking the main process
+	// count total files in the background to prevent blocking the main process
 	go func(count uint64) {
-		for range filesSeq { // due to iterator respect the context, we can iterate over it without any additional checks
+		for range filesSeq { // iterator respects the context, so no extra checks are needed
 			count++
 		}
 
 		totalAmount.Store(count)
 	}(0)
 
-	errs := make(chan error, max(1, a.opt.ThreadsCount))
-	defer close(errs) // close the errors channel on defer to exit the waiting loop
+	var (
+		errs       = make(chan error, max(1, a.opt.ThreadsCount))
+		errsClosed = make(chan struct{})
+	)
 
-	// run background goroutine to process errors and stop the process if needed
+	// process errors in the background and stop execution if necessary
 	go func() {
+		defer close(errsClosed)
+
 		var (
 			counter uint
 			once    sync.Once
 		)
 
-		for err := range errs { // wait for errors to come or exit if the channel is closed
+		for err := range errs {
 			counter++
 
 			if !errors.Is(err, context.Canceled) {
-				a.logf("[Error] %s\n", err)
+				a.errorf("[%d%s Error] %s",
+					counter,
+					func() string {
+						if maxErr := a.opt.MaxErrorsToStop; maxErr > 0 {
+							return fmt.Sprintf("/%d", maxErr)
+						}
+
+						return ""
+					}(),
+					err,
+				)
 			}
 
-			if a.opt.MaxErrorsToStop > 0 && counter >= a.opt.MaxErrorsToStop {
+			if maxErr := a.opt.MaxErrorsToStop; maxErr > 0 && counter >= maxErr {
 				once.Do(func() {
-					a.logf("Maximum number of errors reached, stopping the process\n")
+					a.errorf("Maximum number of errors reached, stopping the process")
 
 					cancelIter()
 				})
@@ -258,7 +263,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 		pool        = tinypng.NewClientsPool(a.opt.ApiKeys)
 		guard       = make(chan struct{}, max(1, a.opt.ThreadsCount))
 		stats       fileStats
-		wg          sync.WaitGroup // wait group to wait for all jobs to complete
+		wg          sync.WaitGroup // ensures all jobs are complete before exiting
 		fileCounter uint64
 
 		once sync.Once
@@ -267,7 +272,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 	for path := range filesSeq {
 		once.Do(func() {
 			a.logf(
-				"Compression process has started (%s). Please be patient...\n",
+				"Compression process has started (%s). Please be patient...",
 				strings.Join([]string{
 					fmt.Sprintf("keys = %d", len(a.opt.ApiKeys)),
 					fmt.Sprintf("threads = %d", a.opt.ThreadsCount),
@@ -299,7 +304,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 
 			var comp *tinypng.Compressed
 
-			for { // this loop is used to retry uploading the file if the client is revoked
+			for { // attempt file upload with retries if necessary
 				client, revoke, clientFound := pool.Get()
 				if !clientFound || client == nil { // no clients available in the pool
 					errs <- errors.New("no valid API keys available")
@@ -329,7 +334,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 			fStat.CompSize = comp.Size
 			fStat.Type = comp.Type
 
-			// continue the job only if all the following conditions are met:
+			// proceed only if compressed file meets criteria:
 			// - compressed file size is not 0
 			// - compressed file size is less than the original one
 			// - the difference between the original and compressed file sizes is greater than N%
@@ -364,8 +369,16 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 			}
 
 			a.logf(
-				"%s File %s compressed (%s → %s / %s, %s)\n",
-				progressString(fileCounter),
+				"%s File %s compressed (%s → %s / %s, %s)",
+				func() string {
+					if total := totalAmount.Load(); total > 0 {
+						width := len(strconv.FormatUint(total, 10))
+
+						return fmt.Sprintf("[%0*d/%d]", width, fileCounter, total)
+					}
+
+					return fmt.Sprintf("[%d/⏳]", fileCounter)
+				}(),
 				filename,
 				humanize.Bytes(stat.Size()),
 				humanize.Bytes(comp.Size),
@@ -379,9 +392,11 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 
 	wg.Wait()    // wait for all jobs to complete
 	close(guard) // close the guard channel
+	close(errs)  // close the errors channel to exit the waiting loop
+	<-errsClosed // wait for the errors channel to be closed
 
 	if table := stats.Table(); table != "" {
-		a.logf("\n%s\n", table)
+		a.logf("\n%s", table)
 	}
 
 	return ctx.Err()
@@ -490,5 +505,12 @@ func (a *App) logf(format string, args ...any) {
 	a.logMu.Lock()
 	defer a.logMu.Unlock()
 
-	_, _ = fmt.Fprintf(os.Stdout, format, args...)
+	_, _ = fmt.Fprintf(os.Stdout, format+"\n", args...)
+}
+
+func (a *App) errorf(format string, args ...any) {
+	a.logMu.Lock()
+	defer a.logMu.Unlock()
+
+	_, _ = fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
