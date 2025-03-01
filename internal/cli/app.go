@@ -1,35 +1,44 @@
-// Package cli contains CLI command handlers.
 package cli
 
 import (
-	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/urfave/cli/v2"
+	"context"
+	"errors"
 
-	"gh.tarampamp.am/tinifier/v4/internal/cli/compress"
-	"gh.tarampamp.am/tinifier/v4/internal/cli/quota"
-	"gh.tarampamp.am/tinifier/v4/internal/env"
-	"gh.tarampamp.am/tinifier/v4/internal/version"
+	"gh.tarampamp.am/tinifier/v5/internal/cli/cmd"
+	"gh.tarampamp.am/tinifier/v5/internal/version"
 )
 
-// NewApp creates new console application.
-func NewApp() *cli.App {
-	return &cli.App{
-		Usage: "CLI client for images compressing using tinypng.com API",
-		Before: func(context *cli.Context) error {
-			if _, exists := env.ForceColors.Lookup(); exists {
-				text.EnableColors()
-			} else if _, exists = env.NoColors.Lookup(); exists {
-				text.DisableColors()
-			} else if v, ok := env.Term.Lookup(); ok && v == "dumb" {
-				text.DisableColors()
-			}
+//go:generate go run ./generate/readme.go
 
-			return nil
+type App struct {
+	cmd cmd.Command
+	opt struct{}
+}
+
+func NewApp(name string) *App {
+	var app = App{
+		cmd: cmd.Command{
+			Name:        name,
+			Description: "CLI client for images compressing using tinypng.com API.",
+			Usage:       "[<options>] [<files-or-directories>]",
+			Version:     version.Version(),
 		},
-		Commands: []*cli.Command{
-			quota.NewCommand(),
-			compress.NewCommand(),
-		},
-		Version: version.Version(),
 	}
+
+	app.cmd.Action = func(ctx context.Context, c *cmd.Command, args []string) error {
+		return app.run(ctx)
+	}
+
+	return &app
+}
+
+// Run runs the application.
+func (a *App) Run(ctx context.Context, args []string) error { return a.cmd.Run(ctx, args) }
+
+// Help returns the help message.
+func (a *App) Help() string { return a.cmd.Help() }
+
+// run in the main logic of the application.
+func (a *App) run(ctx context.Context) error {
+	return errors.New("not implemented")
 }

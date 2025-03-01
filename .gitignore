@@ -1,17 +1,16 @@
-# IDEs
-/nbproject
+## IDEs
 /.idea
 /.vscode
 
-# ENV files
-.env
+## Binaries
+/tinifier
+/app
 
-# Temp dirs & trash
+## Temp dirs & trash
 /temp
 /tmp
-/cmd/test
+/__old__
 .DS_Store
 *.cache
 *.out
 /cover*.*
-/tinifier

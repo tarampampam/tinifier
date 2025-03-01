@@ -1,22 +1,23 @@
-# Docs: <https://docs.github.com/en/free-pro-team@latest/github/administering-a-repository/customizing-dependency-updates>
+# yaml-language-server: $schema=https://json.schemastore.org/dependabot-2.0.json
+# docs: https://docs.github.com/en/free-pro-team@latest/github/administering-a-repository/customizing-dependency-updates
 
 version: 2
 
 updates:
-  - package-ecosystem: gomod
-    directory: /
-    groups: {gomod: {patterns: ['*']}}
-    schedule: {interval: monthly}
-    assignees: [tarampampam]
-
   - package-ecosystem: github-actions
     directory: /
-    groups: {github-actions: {patterns: ['*']}}
     schedule: {interval: monthly}
+    groups: {github-actions: {patterns: ['*']}}
     assignees: [tarampampam]
 
   - package-ecosystem: docker
     directory: /
-    groups: {docker: {patterns: ['*']}}
     schedule: {interval: monthly}
+    groups: {docker: {patterns: ['*']}}
+    assignees: [tarampampam]
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule: {interval: monthly}
+    groups: {gomod: {patterns: ['*']}}
     assignees: [tarampampam]
