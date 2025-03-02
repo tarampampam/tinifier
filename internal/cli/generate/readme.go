@@ -6,13 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gh.tarampamp.am/tinifier/v5/internal/cli"
+	"gh.tarampamp.am/tinifier/v5/internal/config"
 )
 
 func main() {
 	const readmePath = "../../README.md"
+
+	_ = os.Setenv(config.DefaultDirPathEnvName, filepath.Join("depends", "on", "your-os"))
+	defer func() { _ = os.Unsetenv(config.DefaultDirPathEnvName) }()
 
 	if stat, statErr := os.Stat(readmePath); statErr == nil && stat.Mode().IsRegular() {
 		var help = cli.NewApp("tinifier").Help()
