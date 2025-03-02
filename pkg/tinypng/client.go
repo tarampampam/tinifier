@@ -105,7 +105,7 @@ func (c *Client) UsedQuota(ctx context.Context) (_ uint64, outErr error) {
 // Compress uploads an image to TinyPNG for compression.
 // The function returns metadata about the compressed image, but not the image content itself.
 // If the provided source implements io.Closer, it will be closed automatically by the HTTP client.
-func (c *Client) Compress(ctx context.Context, src io.Reader) (_ *Compressed, outErr error) {
+func (c *Client) Compress(ctx context.Context, src io.Reader) (_ *Compressed, outErr error) { //nolint:funlen
 	defer func() { // Wrap the error with a package-specific prefix.
 		if outErr != nil {
 			outErr = fmt.Errorf("tinypng: %w", outErr)
@@ -216,6 +216,7 @@ func (c Compressed) Download(ctx context.Context, to io.Writer) (outErr error) {
 	switch code := resp.StatusCode; {
 	case code == http.StatusOK:
 		_, err := io.Copy(to, resp.Body)
+
 		return err
 	case code >= 400 && code < 599:
 		switch code {
