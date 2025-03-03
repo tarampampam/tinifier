@@ -18,7 +18,7 @@ type options struct {
 
 func newOptionsWithDefaults() options {
 	return options{
-		FileExtensions:    []string{"png", "PNG", "jpeg", "JPEG", "jpg", "JPG"},
+		FileExtensions:    []string{"png", "jpeg", "jpg"},
 		ThreadsCount:      16, //nolint:mnd
 		MaxErrorsToStop:   10, //nolint:mnd
 		Recursive:         false,

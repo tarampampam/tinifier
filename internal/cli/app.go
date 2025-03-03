@@ -44,7 +44,7 @@ func NewApp(name string) *App { //nolint:funlen
 		}
 		fileExtensions = cmd.Flag[string]{
 			Names:   []string{"ext", "e"},
-			Usage:   "Extensions of files to compress (without leading dots, separated by commas)",
+			Usage:   "Extensions of files to compress (case insensitive, without leading dots, separated by commas)",
 			EnvVars: []string{"FILE_EXTENSIONS"},
 			Default: strings.Join(app.opt.FileExtensions, ","),
 			Validator: func(c *cmd.Command, v string) error {
@@ -160,6 +160,47 @@ func (a *App) Run(ctx context.Context, args []string) error { return a.cmd.Run(c
 
 // Help returns the help message.
 func (a *App) Help() string { return a.cmd.Help() }
+
+//func (a *App) findFiles(ctx context.Context, where []string) ([]string, error) {
+//	if len(where) == 0 {
+//		return nil, errors.New("no files or directories specified")
+//	}
+//
+//	extMap := make(map[string]struct{}, len(a.opt.FileExtensions))
+//	for _, ext := range a.opt.FileExtensions {
+//		extMap[ext] = struct{}{}
+//	}
+//
+//	var filter = func(path string) bool {
+//		if ext := filepath.Ext(path); ext != "" {
+//			if _, ok := extMap[ext[1:]]; ok {
+//				return true
+//			}
+//		}
+//
+//		return false
+//	}
+//
+//	var (
+//		out  = make([]string, 0, min(256, len(where)))
+//		dirs = make([]string, 0, len(where))
+//	)
+//
+//	maps.Keys()
+//
+//	for _, path := range where {
+//		if stat, err := os.Stat(path); err == nil {
+//			if stat.IsDir() {
+//			}
+//		}
+//	}
+//
+//	//if a.opt.Recursive {
+//	//	filepath.WalkDir()
+//	//}
+//
+//	return nil, nil
+//}
 
 // run in the main logic of the application.
 func (a *App) run(ctx context.Context) error {

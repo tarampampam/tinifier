@@ -141,46 +141,45 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 		wg.Wait() // wait for all jobs to complete
 	}()
 
-	// collect results and handle error tracking
-	return func() (_ []Result[T4], err error) {
-		var (
-			errCount uint
-			out      = make([]Result[T4], 0, len(inputs))
-		)
+	var (
+		err      error
+		errCount uint
+		out      = make([]Result[T4], 0, len(inputs))
+	)
 
-	loop:
-		for { //nolint:gosimple
-			select {
-			case result, channelOpen := <-jobResult:
-				if !channelOpen { // channel closed, all jobs completed
+	// collect results and handle error tracking
+loop:
+	for { //nolint:gosimple
+		select {
+		case result, channelOpen := <-jobResult:
+			if !channelOpen { // channel closed, all jobs completed
+				break loop
+			}
+
+			// track errors and check against maxErrorsToStop threshold
+			if opt.MaxErrorsToStop > 0 && result.Err != nil {
+				errCount++
+
+				if errCount >= opt.MaxErrorsToStop {
+					cancel() // cancel all ongoing jobs
+					err = ErrTooManyErrors
+
 					break loop
 				}
-
-				// track errors and check against maxErrorsToStop threshold
-				if opt.MaxErrorsToStop > 0 && result.Err != nil {
-					errCount++
-
-					if errCount >= opt.MaxErrorsToStop {
-						cancel() // cancel all ongoing jobs
-						err = ErrTooManyErrors
-
-						break loop
-					}
-				}
-
-				out = append(out, result)
 			}
-		}
 
-		// if the error is not set yet (avoid overwriting ErrTooManyErrors)
-		if err == nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				err = ctxErr
-			}
+			out = append(out, result)
 		}
+	}
 
-		return out, err
-	}()
+	// if the error is not set yet (avoid overwriting ErrTooManyErrors)
+	if err == nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = ctxErr
+		}
+	}
+
+	return out, err
 }
 
 // fromPtr safely dereferences a pointer, returning the zero value if the pointer is nil.
