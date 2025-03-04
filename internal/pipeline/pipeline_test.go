@@ -3,6 +3,8 @@ package pipeline_test
 import (
 	"context"
 	"errors"
+	"iter"
+	"reflect"
 	"runtime"
 	"slices"
 	"sync/atomic"
@@ -18,7 +20,7 @@ func TestThreeSteps(t *testing.T) {
 	t.Run("common case", func(t *testing.T) {
 		t.Parallel()
 
-		result, err := pipeline.ThreeSteps(
+		seq, errCh := pipeline.ThreeSteps(
 			t.Context(),
 			func(_ context.Context, in string) (*string, error) { return toPtr(in + " foo"), nil },
 			func(_ context.Context, in string) (*string, error) { return toPtr(in + " bar"), nil },
@@ -29,12 +31,19 @@ func TestThreeSteps(t *testing.T) {
 			pipeline.WithMaxErrorsToStop(1),
 		)
 
-		assertNoError(t, err)
+		resultMap := seq2ToMap(seq)
 
-		assertEqual(t, 3, len(result))
-		assertSliceContains(t, result, pipeline.Result[string]{Value: "uno foo bar baz"})
-		assertSliceContains(t, result, pipeline.Result[string]{Value: "dos foo bar baz"})
-		assertSliceContains(t, result, pipeline.Result[string]{Value: "tres foo bar baz"})
+		assertNoError(t, <-errCh)
+		assertEqual(t, 3, len(resultMap))
+
+		const uno, dos, tres = "uno foo bar baz", "dos foo bar baz", "tres foo bar baz"
+
+		assertMapHasKey(t, resultMap, uno)
+		assertNil(t, resultMap[uno])
+		assertMapHasKey(t, resultMap, dos)
+		assertNil(t, resultMap[dos])
+		assertMapHasKey(t, resultMap, tres)
+		assertNil(t, resultMap[tres])
 	})
 
 	t.Run("retry attempts", func(t *testing.T) {
@@ -44,7 +53,7 @@ func TestThreeSteps(t *testing.T) {
 
 		const failTimes = 50
 
-		result, err := pipeline.ThreeSteps(
+		seq, errCh := pipeline.ThreeSteps(
 			t.Context(),
 			func(_ context.Context, in int) (*int, error) {
 				if step1run.Add(1) > failTimes {
@@ -71,12 +80,17 @@ func TestThreeSteps(t *testing.T) {
 			pipeline.WithRetryAttempts(failTimes),
 		)
 
-		assertNoError(t, err)
+		resultMap := seq2ToMap(seq)
 
-		assertEqual(t, 3, len(result))
-		assertSliceContains(t, result, pipeline.Result[int]{Value: 4})
-		assertSliceContains(t, result, pipeline.Result[int]{Value: 5})
-		assertSliceContains(t, result, pipeline.Result[int]{Value: 6})
+		assertNoError(t, <-errCh)
+		assertEqual(t, 3, len(resultMap))
+
+		assertMapHasKey(t, resultMap, 4)
+		assertNil(t, resultMap[4])
+		assertMapHasKey(t, resultMap, 5)
+		assertNil(t, resultMap[5])
+		assertMapHasKey(t, resultMap, 6)
+		assertNil(t, resultMap[6])
 
 		assertEqual(t, failTimes, step1run.Load()-3)
 		assertEqual(t, failTimes, step2run.Load()-3)
@@ -91,7 +105,7 @@ func TestThreeSteps(t *testing.T) {
 			step3err = errors.New("step3 error")
 		)
 
-		result, err := pipeline.ThreeSteps(
+		seq, errCh := pipeline.ThreeSteps(
 			t.Context(),
 			func(_ context.Context, in int) (*int, error) {
 				return toPtr(in + 1), nil
@@ -108,9 +122,14 @@ func TestThreeSteps(t *testing.T) {
 			pipeline.WithMaxErrorsToStop(2),
 		)
 
-		assertErrorIs(t, pipeline.ErrTooManyErrors, err)
-		assertEqual(t, 1, len(result))
-		assertSliceContains(t, result, pipeline.Result[int]{Err: step3err})
+		resultMap := seq2ToMap(seq)
+
+		assertEqual(t, 1, len(resultMap))
+		assertErrorIs(t, pipeline.ErrTooManyErrors, <-errCh)
+
+		assertEqual(t, 1, len(resultMap))
+		assertMapHasKey(t, resultMap, 0)
+		assertEqual(t, step3err, resultMap[0])
 		assertBiggerOrEqual(t, 2, int(step3run.Load())) // 2 or 3
 	})
 
@@ -120,15 +139,13 @@ func TestThreeSteps(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
-		var ster1err = errors.New("step1 error")
-
 		go func() {
 			runtime.Gosched()
 			<-time.After(time.Millisecond)
 			cancel()
 		}()
 
-		result, err := pipeline.ThreeSteps(
+		seq, errCh := pipeline.ThreeSteps(
 			ctx,
 			func(ctx context.Context, in int) (*int, error) {
 				select {
@@ -136,7 +153,7 @@ func TestThreeSteps(t *testing.T) {
 				case <-time.After(time.Hour):
 				}
 
-				return nil, ster1err
+				return nil, errors.New("step1 error")
 			},
 			func(ctx context.Context, in int) (*int, error) {
 				select {
@@ -157,15 +174,16 @@ func TestThreeSteps(t *testing.T) {
 			slices.Values([]int{1, 2, 3}),
 		)
 
-		assertErrorIs(t, context.Canceled, err)
-		assertEqual(t, 1, len(result))
-		assertSliceContains(t, result, pipeline.Result[int]{Err: ster1err})
+		resultMap := seq2ToMap(seq)
+
+		assertErrorIs(t, context.Canceled, <-errCh)
+		assertEqual(t, 0, len(resultMap))
 	})
 
 	t.Run("empty input", func(t *testing.T) {
 		t.Parallel()
 
-		res, err := pipeline.ThreeSteps(
+		seq, errCh := pipeline.ThreeSteps(
 			t.Context(),
 			func(context.Context, int) (_ *int, _ error) { return },
 			func(context.Context, int) (_ *int, _ error) { return },
@@ -173,8 +191,10 @@ func TestThreeSteps(t *testing.T) {
 			slices.Values([]int{}), // <-- important
 		)
 
-		assertSlicesEqual(t, nil, res)
-		assertEqual(t, nil, err)
+		resultMap := seq2ToMap(seq)
+
+		assertEqual(t, 0, len(resultMap))
+		assertNil(t, <-errCh)
 	})
 
 	t.Run("args validation", func(t *testing.T) {
@@ -186,10 +206,25 @@ func TestThreeSteps(t *testing.T) {
 			step3 = func(context.Context, int) (_ *int, _ error) { return }
 		)
 
+		t.Run("nil input", func(t *testing.T) {
+			t.Parallel()
+
+			seq, errCh := pipeline.ThreeSteps(
+				t.Context(),
+				step1,
+				step2,
+				step3,
+				nil, // <-- important
+			)
+
+			assertNil(t, seq)
+			assertNil(t, <-errCh)
+		})
+
 		t.Run("nil context", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := pipeline.ThreeSteps(
+			_, errCh := pipeline.ThreeSteps(
 				nil, //nolint:staticcheck // <-- important
 				step1,
 				step2,
@@ -197,13 +232,13 @@ func TestThreeSteps(t *testing.T) {
 				slices.Values([]int{1}),
 			)
 
-			assertEqual(t, "ctx must not be nil", err.Error())
+			assertEqual(t, "ctx must not be nil", (<-errCh).Error())
 		})
 
 		t.Run("nil step1", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := pipeline.ThreeSteps(
+			_, errCh := pipeline.ThreeSteps(
 				t.Context(),
 				nil, // <-- important
 				step2,
@@ -211,13 +246,13 @@ func TestThreeSteps(t *testing.T) {
 				slices.Values([]int{1}),
 			)
 
-			assertEqual(t, "all steps must not be nil", err.Error())
+			assertEqual(t, "all steps must not be nil", (<-errCh).Error())
 		})
 
 		t.Run("nil step2", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := pipeline.ThreeSteps(
+			_, errCh := pipeline.ThreeSteps(
 				t.Context(),
 				step1,
 				nil, // <-- important
@@ -225,13 +260,13 @@ func TestThreeSteps(t *testing.T) {
 				slices.Values([]int{1}),
 			)
 
-			assertEqual(t, "all steps must not be nil", err.Error())
+			assertEqual(t, "all steps must not be nil", (<-errCh).Error())
 		})
 
 		t.Run("nil step3", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := pipeline.ThreeSteps[int, int, int, int](
+			_, errCh := pipeline.ThreeSteps[int, int, int, int](
 				t.Context(),
 				step1,
 				step2,
@@ -239,12 +274,30 @@ func TestThreeSteps(t *testing.T) {
 				slices.Values([]int{1}),
 			)
 
-			assertEqual(t, "all steps must not be nil", err.Error())
+			assertEqual(t, "all steps must not be nil", (<-errCh).Error())
 		})
 	})
 }
 
 func toPtr[T any](v T) *T { return &v }
+
+func seq2ToMap[T comparable, U any](seq iter.Seq2[T, U]) map[T]U {
+	m := make(map[T]U)
+
+	for k, v := range seq {
+		m[k] = v
+	}
+
+	return m
+}
+
+func assertMapHasKey[T comparable, U any](t *testing.T, m map[T]U, key T) {
+	t.Helper()
+
+	if _, ok := m[key]; !ok {
+		t.Fatalf("map %v does not have key %v", m, key)
+	}
+}
 
 func assertEqual[T comparable](t *testing.T, expected, actual T) {
 	t.Helper()
@@ -278,28 +331,10 @@ func assertErrorIs(t *testing.T, expected, actual error) {
 	}
 }
 
-func assertSliceContains[T comparable](t *testing.T, slice []T, elem T) {
+func assertNil(t *testing.T, v any) {
 	t.Helper()
 
-	for _, e := range slice {
-		if e == elem {
-			return
-		}
-	}
-
-	t.Fatalf("slice %v does not contain %v", slice, elem)
-}
-
-func assertSlicesEqual[T comparable](t *testing.T, expected, actual []T) {
-	t.Helper()
-
-	if len(expected) != len(actual) {
-		t.Fatalf("expected %v, got %v", expected, actual)
-	}
-
-	for i := range expected {
-		if expected[i] != actual[i] {
-			t.Fatalf("expected %v, got %v", expected, actual)
-		}
+	if ref := reflect.ValueOf(v); ref.Kind() == reflect.Ptr && !ref.IsNil() {
+		t.Fatalf("expected nil, got %v", v)
 	}
 }

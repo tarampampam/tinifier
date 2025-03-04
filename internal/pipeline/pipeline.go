@@ -7,8 +7,10 @@ import (
 	"sync"
 )
 
+// ErrTooManyErrors is returned when the pipeline encounters too many errors, exceeding the configured threshold.
 var ErrTooManyErrors = errors.New("too many errors")
 
+// options holds configuration settings for the pipeline.
 type (
 	options struct {
 		MaxParallel     int  // maximum number of inputs to process concurrently
@@ -16,11 +18,11 @@ type (
 		MaxErrorsToStop uint // error threshold that triggers pipeline cancellation (0 means no limit)
 	}
 
-	// Option allows setting options for the pipeline.
+	// Option is a function type that modifies pipeline options.
 	Option func(*options)
 )
 
-// Apply the given options to the options struct and return a new options set.
+// Apply applies the given options to the options struct and returns a new options set.
 func (o options) Apply(opts []Option) options {
 	for _, opt := range opts {
 		opt(&o)
@@ -38,53 +40,47 @@ func WithRetryAttempts(v int) Option { return func(o *options) { o.RetryAttempts
 // WithMaxErrorsToStop sets the error threshold that triggers pipeline cancellation.
 func WithMaxErrorsToStop(v uint) Option { return func(o *options) { o.MaxErrorsToStop = v } }
 
-// Result represents the outcome of a pipeline step, containing either a value or an error.
-type Result[T any] struct {
-	Value T
-	Err   error
-}
-
-// ThreeSteps executes a three-step pipeline for processing a slice of inputs.
-//
-// The pipeline processes each input through three sequential steps, with steps running in parallel
-// across different inputs, up to maxParallel concurrent executions (zero means limit equal count of inputs).
-//
-// Each step can retry up to retryAttempts times in case of failure. If the total number of errors
-// exceeds maxErrorsToStop, the pipeline is canceled and returns ErrTooManyErrors.
-//
-// The function returns a slice of [Result], but the order of results is not guaranteed. In case of context
-// cancellation, the function returns immediately with the current results and [context.Canceled].
-//
-// Important note: each step should respect the context and return as soon as possible when the context is
-// canceled to avoid blocking the pipeline.
+// ThreeSteps executes a three-step pipeline for processing a sequence of inputs.
+// It takes a parent context, three processing steps, an input sequence, and optional configuration options.
+// Returns a sequence of results and an error channel.
 func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 	pCtx context.Context, // parent context for the pipeline
-	step1 func(context.Context, T1) (*T2, error),
-	step2 func(context.Context, T2) (*T3, error),
-	step3 func(context.Context, T3) (*T4, error),
+	step1 func(context.Context, T1) (*T2, error), // first processing step
+	step2 func(context.Context, T2) (*T3, error), // second processing step
+	step3 func(context.Context, T3) (*T4, error), // third processing step
 	inputs iter.Seq[T1], // slice of input values to process
 	opts ...Option, // optional pipeline configuration
-) ([]Result[T4], error) {
+) (iter.Seq2[T4, error], <-chan error) {
 	switch {
+	case inputs == nil:
+		errCh := make(chan error)
+		close(errCh)
+
+		return nil, errCh
 	case pCtx == nil:
-		return nil, errors.New("ctx must not be nil")
+		return nil, newErrChan(errors.New("ctx must not be nil"))
 	case step1 == nil || step2 == nil || step3 == nil:
-		return nil, errors.New("all steps must not be nil")
+		return nil, newErrChan(errors.New("all steps must not be nil"))
 	}
 
-	// create a new context for the pipeline that can be canceled
+	// create a new context that allows pipeline cancellation
 	ctx, cancel := context.WithCancel(pCtx)
-	defer cancel()
+
+	// result struct holds processed values or errors
+	type result[T any] struct {
+		Value T
+		Err   error
+	}
 
 	var (
-		opt       = options{}.Apply(opts)
-		jobResult = make(chan Result[T4]) // channel for collecting pipeline results
+		opt     = options{}.Apply(opts) // apply pipeline options
+		results = make(chan result[T4]) // channel for collecting processed results
 	)
 
 	go func() {
-		defer close(jobResult)
+		defer close(results)
 
-		// limit concurrency to either maxParallel or number of inputs, whichever is smaller
+		// limit concurrency based on configuration
 		guard := make(chan struct{}, max(1, opt.MaxParallel))
 		defer close(guard)
 
@@ -112,7 +108,7 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 				// execute step 1 with retries
 				s1, s1err := retry(ctx, input, opt.RetryAttempts, step1)
 				if s1err != nil {
-					jobResult <- Result[T4]{Err: s1err}
+					results <- result[T4]{Err: s1err}
 
 					return
 				}
@@ -120,7 +116,7 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 				// execute step 2 with retries
 				s2, s2err := retry(ctx, fromPtr(s1), opt.RetryAttempts, step2)
 				if s2err != nil {
-					jobResult <- Result[T4]{Err: s2err}
+					results <- result[T4]{Err: s2err}
 
 					return
 				}
@@ -128,57 +124,66 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 				// execute step 3 with retries
 				s3, s3err := retry(ctx, fromPtr(s2), opt.RetryAttempts, step3)
 				if s3err != nil {
-					jobResult <- Result[T4]{Err: s3err}
+					results <- result[T4]{Err: s3err}
 
 					return
 				}
 
-				jobResult <- Result[T4]{Value: fromPtr(s3)}
+				results <- result[T4]{Value: fromPtr(s3)}
 			}(input)
 		}
 
 		wg.Wait() // wait for all jobs to complete
 	}()
 
-	var (
-		err      error
-		errCount uint
-		out      = make([]Result[T4], 0)
-	)
+	var errCh = make(chan error, 1)
 
-	// collect results and handle error tracking
-loop:
-	for { //nolint:gosimple
-		select {
-		case result, channelOpen := <-jobResult:
-			if !channelOpen { // channel closed, all jobs completed
-				break loop
-			}
+	// return a sequence of results and an error channel
+	return func(yield func(T4, error) bool) {
+		defer cancel()
+		defer close(errCh)
 
-			// track errors and check against maxErrorsToStop threshold
-			if opt.MaxErrorsToStop > 0 && result.Err != nil {
-				errCount++
+		var errCount uint
 
-				if errCount >= opt.MaxErrorsToStop {
-					cancel() // cancel all ongoing jobs
-					err = ErrTooManyErrors
+		for {
+			select {
+			case <-ctx.Done():
+				errCh <- ctx.Err()
 
-					break loop
+				return
+			case res, channelOpen := <-results:
+				if !channelOpen { // stop if all results are processed
+					return
+				}
+
+				// track errors and check against maxErrorsToStop threshold
+				if opt.MaxErrorsToStop > 0 && res.Err != nil {
+					errCount++
+
+					if errCount >= opt.MaxErrorsToStop {
+						cancel() // cancel all ongoing jobs
+						errCh <- ErrTooManyErrors
+
+						return
+					}
+				}
+
+				// yield processed results
+				if !yield(res.Value, res.Err) {
+					return
 				}
 			}
-
-			out = append(out, result)
 		}
-	}
+	}, errCh
+}
 
-	// if the error is not set yet (avoid overwriting ErrTooManyErrors)
-	if err == nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			err = ctxErr
-		}
-	}
+// newErrChan creates a new error channel with the given error. The channel is closed immediately.
+func newErrChan(err error) <-chan error {
+	ch := make(chan error, 1)
+	ch <- err
+	close(ch)
 
-	return out, err
+	return ch
 }
 
 // fromPtr safely dereferences a pointer, returning the zero value if the pointer is nil.
