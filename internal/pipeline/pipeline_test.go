@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestThreeSteps(t *testing.T) {
 			func(_ context.Context, in string) (*string, error) { return toPtr(in + " foo"), nil },
 			func(_ context.Context, in string) (*string, error) { return toPtr(in + " bar"), nil },
 			func(_ context.Context, in string) (*string, error) { return toPtr(in + " baz"), nil },
-			[]string{"uno", "dos", "tres"},
+			slices.Values([]string{"uno", "dos", "tres"}),
 			pipeline.WithMaxParallel(2),
 			pipeline.WithRetryAttempts(0),
 			pipeline.WithMaxErrorsToStop(1),
@@ -66,7 +67,7 @@ func TestThreeSteps(t *testing.T) {
 
 				return nil, errors.New("step3 error")
 			},
-			[]int{1, 2, 3},
+			slices.Values([]int{1, 2, 3}),
 			pipeline.WithRetryAttempts(failTimes),
 		)
 
@@ -103,7 +104,7 @@ func TestThreeSteps(t *testing.T) {
 
 				return nil, step3err
 			},
-			[]int{1, 2, 3},
+			slices.Values([]int{1, 2, 3}),
 			pipeline.WithMaxErrorsToStop(2),
 		)
 
@@ -153,7 +154,7 @@ func TestThreeSteps(t *testing.T) {
 
 				return nil, errors.New("step3 error")
 			},
-			[]int{1, 2, 3},
+			slices.Values([]int{1, 2, 3}),
 		)
 
 		assertErrorIs(t, context.Canceled, err)
@@ -169,7 +170,7 @@ func TestThreeSteps(t *testing.T) {
 			func(context.Context, int) (_ *int, _ error) { return },
 			func(context.Context, int) (_ *int, _ error) { return },
 			func(context.Context, int) (_ *int, _ error) { return },
-			[]int{}, // <-- important
+			slices.Values([]int{}), // <-- important
 		)
 
 		assertSlicesEqual(t, nil, res)
@@ -193,7 +194,7 @@ func TestThreeSteps(t *testing.T) {
 				step1,
 				step2,
 				step3,
-				[]int{1},
+				slices.Values([]int{1}),
 			)
 
 			assertEqual(t, "ctx must not be nil", err.Error())
@@ -207,7 +208,7 @@ func TestThreeSteps(t *testing.T) {
 				nil, // <-- important
 				step2,
 				step3,
-				[]int{1},
+				slices.Values([]int{1}),
 			)
 
 			assertEqual(t, "all steps must not be nil", err.Error())
@@ -221,7 +222,7 @@ func TestThreeSteps(t *testing.T) {
 				step1,
 				nil, // <-- important
 				step3,
-				[]int{1},
+				slices.Values([]int{1}),
 			)
 
 			assertEqual(t, "all steps must not be nil", err.Error())
@@ -235,7 +236,7 @@ func TestThreeSteps(t *testing.T) {
 				step1,
 				step2,
 				nil, // <-- important
-				[]int{1},
+				slices.Values([]int{1}),
 			)
 
 			assertEqual(t, "all steps must not be nil", err.Error())

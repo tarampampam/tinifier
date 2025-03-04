@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync"
 )
 
@@ -61,12 +62,10 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 	step1 func(context.Context, T1) (*T2, error),
 	step2 func(context.Context, T2) (*T3, error),
 	step3 func(context.Context, T3) (*T4, error),
-	inputs []T1, // slice of input values to process
+	inputs iter.Seq[T1], // slice of input values to process
 	opts ...Option, // optional pipeline configuration
 ) ([]Result[T4], error) {
 	switch {
-	case len(inputs) == 0:
-		return nil, nil
 	case pCtx == nil:
 		return nil, errors.New("ctx must not be nil")
 	case step1 == nil || step2 == nil || step3 == nil:
@@ -86,13 +85,13 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 		defer close(jobResult)
 
 		// limit concurrency to either maxParallel or number of inputs, whichever is smaller
-		guard := make(chan struct{}, min(max(1, opt.MaxParallel), len(inputs)))
+		guard := make(chan struct{}, max(1, opt.MaxParallel))
 		defer close(guard)
 
 		var wg sync.WaitGroup
 
 	loop:
-		for _, input := range inputs {
+		for input := range inputs {
 			select {
 			case <-ctx.Done(): // stop processing new inputs if context is canceled
 				break loop
@@ -144,7 +143,7 @@ func ThreeSteps[T1, T2, T3, T4 any]( //nolint:gocognit,gocyclo,funlen
 	var (
 		err      error
 		errCount uint
-		out      = make([]Result[T4], 0, len(inputs))
+		out      = make([]Result[T4], 0)
 	)
 
 	// collect results and handle error tracking
