@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -20,11 +19,10 @@ func TestFiles(t *testing.T) {
 	for name, tc := range map[string]struct {
 		makeDirs      []string
 		makeFiles     []string
-		givePath      string
+		givePath      []string
 		giveRecursive bool
 		giveFilter    []finder.FileFilterFn
 		want          []string
-		wantErrSubstr string
 	}{
 		"common, recursive": {
 			makeDirs: []string{
@@ -40,7 +38,7 @@ func TestFiles(t *testing.T) {
 				join("dir1", "dir4", "file5"),
 				join("dir5", "file6"), // <-- should be skipped
 			},
-			givePath:      "dir1",
+			givePath:      []string{"dir1"},
 			giveRecursive: true,
 			want: []string{
 				join("dir1", "dir2", "dir3", "file4"),
@@ -62,7 +60,7 @@ func TestFiles(t *testing.T) {
 				join("dir1", "dir2", "dir3", "file4"), // <-- should be skipped
 				join("dir1", "dir4", "file5"),         // <-- should be skipped
 			},
-			givePath:      "dir1",
+			givePath:      []string{"dir1"},
 			giveRecursive: false,
 			want: []string{
 				join("dir1", "file1"),
@@ -77,8 +75,9 @@ func TestFiles(t *testing.T) {
 				"foobar",
 			},
 			giveFilter: []finder.FileFilterFn{
-				finder.FilterByExt(false, "txt", "jpg"),
+				finder.FilterByExt(false, "TXT", "jpg"),
 			},
+			givePath: []string{""},
 			want: []string{
 				"file.jpg",
 				"file.txt",
@@ -102,10 +101,48 @@ func TestFiles(t *testing.T) {
 
 				return isTxtFile || isJpgFile
 			}},
+			givePath:      []string{""},
 			giveRecursive: true,
 			want: []string{
 				join("dir1", "file.jpg"),
 				"file.txt",
+			},
+		},
+		"single file": {
+			makeFiles: []string{
+				"file.txt",
+			},
+			givePath: []string{"file.txt"},
+			want:     []string{"file.txt"},
+		},
+		"complex": {
+			makeDirs: []string{
+				"dir1",
+				"dir2",
+				join("dir2", "dir3"),
+			},
+			makeFiles: []string{
+				"file1",
+				join("dir1", "file2"),
+				join("dir1", "file3.TXT"),
+				join("dir2", "file4"),
+				join("dir2", "dir3", "file5.txt"),
+			},
+			givePath: []string{
+				"foobar",
+				"dir1",
+				"dir2",
+				"file1",
+				join("bar", "baz"),
+			},
+			giveRecursive: true,
+			giveFilter: []finder.FileFilterFn{
+				finder.FilterByExt(false, "txt"),
+			},
+			want: []string{
+				join("dir1", "file3.TXT"),
+				join("dir2", "dir3", "file5.txt"),
+				"file1",
 			},
 		},
 	} {
@@ -122,15 +159,12 @@ func TestFiles(t *testing.T) {
 				assertNoError(t, os.WriteFile(join(tmpDir, file), nil, 0o600))
 			}
 
-			res, err := finder.Files(t.Context(), join(tmpDir, tc.givePath), tc.giveRecursive, tc.giveFilter...)
-
-			if tc.wantErrSubstr != "" {
-				assertNil(t, res)
-				assertError(t, err)
-				assertErrorContains(t, err, tc.wantErrSubstr)
-
-				return
+			givePaths := make([]string, len(tc.givePath))
+			for i, path := range tc.givePath {
+				givePaths[i] = join(tmpDir, path)
 			}
+
+			res := finder.Files(t.Context(), givePaths, tc.giveRecursive, tc.giveFilter...)
 
 			var slice = slices.Collect(res)
 
@@ -139,7 +173,6 @@ func TestFiles(t *testing.T) {
 				slice[i] = strings.TrimPrefix(path, tmpDir+string(filepath.Separator))
 			}
 
-			assertNoError(t, err)
 			assertSlicesEqual(t, tc.want, slice)
 		})
 	}
@@ -159,42 +192,10 @@ func assertSlicesEqual[T comparable](t *testing.T, expected, actual []T) {
 	}
 }
 
-func assertError(t *testing.T, err error) {
-	t.Helper()
-
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func assertErrorContains(t *testing.T, err error, substr ...string) {
-	t.Helper()
-
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-
-	for _, s := range substr {
-		var got = err.Error()
-
-		if !strings.Contains(got, s) {
-			t.Fatalf("expected error to contain %q, got %q", s, got)
-		}
-	}
-}
-
 func assertNoError(t *testing.T, err error) {
 	t.Helper()
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func assertNil(t *testing.T, v any) {
-	t.Helper()
-
-	if ref := reflect.ValueOf(v); ref.Kind() == reflect.Ptr && !ref.IsNil() {
-		t.Fatalf("expected nil, got %v", v)
 	}
 }

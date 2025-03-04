@@ -2,7 +2,6 @@ package finder
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"iter"
 	"os"
@@ -10,14 +9,18 @@ import (
 	"strings"
 )
 
-// FileFilterFn is a function that filters files.
+// FileFilterFn is a function type used to filter files.
+// It takes a fs.FileInfo object and returns a boolean indicating
+// whether the file should be included (true) or filtered out (false).
 type FileFilterFn = func(fs.FileInfo) bool
 
-// FilterByExt returns a filter function that filters files by their extensions. If caseSensitive is false, the
-// extension will be compared in a case-insensitive manner.
+// FilterByExt creates a file filter function that filters files based on their extensions.
+// If caseSensitive is false, the extensions will be compared in a case-insensitive manner.
+// The function returns a FileFilterFn that checks if a file's extension matches any of the provided exts.
 func FilterByExt(caseSensitive bool, exts ...string) FileFilterFn {
 	var m = make(map[string]struct{}, len(exts))
 
+	// store the extensions in a map for quick lookup
 	for _, ext := range exts {
 		if !caseSensitive {
 			ext = strings.ToLower(ext)
@@ -26,16 +29,20 @@ func FilterByExt(caseSensitive bool, exts ...string) FileFilterFn {
 		m[ext] = struct{}{}
 	}
 
+	// return the filter function
 	return func(info fs.FileInfo) bool {
+		// skip directories
 		if info.IsDir() {
 			return false
 		}
 
+		// extract and normalize the file extension
 		if ext := filepath.Ext(info.Name()); ext != "" {
 			if !caseSensitive {
 				ext = strings.ToLower(ext)
 			}
 
+			// remove the leading dot (.) before checking the map
 			if _, ok := m[ext[1:]]; ok {
 				return true
 			}
@@ -45,33 +52,88 @@ func FilterByExt(caseSensitive bool, exts ...string) FileFilterFn {
 	}
 }
 
-// Files returns a sequence of absolute paths to files in the specified directory. If recursive is true, it will
-// walk the directory recursively. The filter functions are used to filter the files. If any of the filter functions
-// return false, the file will be skipped.
+// Files returns a sequence of absolute paths to files found in the specified paths (`where`).
+// If a path in `where` is a directory, it will be scanned for files.
+// If `recursive` is true, directories will be searched recursively.
+//
+// The `filter` functions are applied only to files inside directories (not to the given file paths).
+// If any filter function returns false, the file is skipped. If any filesystem error occurs,
+// the file or directory is ignored.
+//
+// Example usage:
+//
+//	for path := range Files(ctx, []string{"/path/to/dir", "/path/to/file.txt"}, true) {
+//	    fmt.Println(path)
+//	}
 func Files(
 	ctx context.Context,
-	where string,
+	where []string,
 	recursive bool,
 	filter ...FileFilterFn,
-) (iter.Seq[string], error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+) iter.Seq[string] {
+	var seq = make([]iter.Seq[string], 0, len(where))
+
+	for _, path := range where {
+		stat, err := os.Stat(path)
+		if err != nil {
+			continue // Ignore paths that cannot be accessed
+		}
+
+		if stat.IsDir() {
+			if recursive {
+				seq = append(seq, iterateFilesRecursive(ctx, path, filter...))
+			} else {
+				seq = append(seq, iterateFiles(ctx, path, filter...))
+			}
+		} else {
+			seq = append(seq, singleFile(ctx, path))
+		}
 	}
 
-	if stat, err := os.Stat(where); err != nil {
-		return nil, err
-	} else if !stat.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", where)
+	// Combine all sequences into a single sequence
+	return func(yield func(string) bool) {
+		for _, s := range seq {
+			for path := range s {
+				select {
+				case <-ctx.Done():
+					return // Stop processing if the context is canceled
+				default:
+					if !yield(path) {
+						return // Stop yielding if the receiver stops accepting values
+					}
+				}
+			}
+		}
 	}
-
-	if recursive {
-		return iterateFilesRecursive(ctx, where, filter...), nil
-	}
-
-	return iterateFiles(ctx, where, filter...), nil
 }
 
-// iterateFiles returns a sequence of absolute paths to files in the specified directory.
+// singleFile returns a sequence containing a single file's absolute path.
+// This is used when the input path is a single file instead of a directory.
+func singleFile(
+	ctx context.Context,
+	where string,
+) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		select {
+		case <-ctx.Done():
+			return // stop processing if the context is canceled
+		default:
+			// convert to absolute path if needed
+			if !filepath.IsAbs(where) {
+				var absErr error
+				if where, absErr = filepath.Abs(where); absErr != nil {
+					return // ignore files that can't be resolved to absolute paths
+				}
+			}
+
+			// yield the absolute file path
+			yield(where)
+		}
+	}
+}
+
+// iterateFiles returns a sequence of absolute file paths inside the specified directory (non-recursively).
+// The function applies the provided filter functions to determine which files should be included.
 func iterateFiles( //nolint:gocognit
 	ctx context.Context,
 	where string,
@@ -80,29 +142,31 @@ func iterateFiles( //nolint:gocognit
 	return func(yield func(string) bool) {
 		f, openErr := os.Open(where)
 		if openErr != nil {
-			return
+			return // ignore directories that can't be opened
 		}
 
-		names, readErr := f.Readdirnames(-1)
+		names, readErr := f.Readdirnames(-1) // read all file names in the directory
 		if readErr != nil {
 			return
 		}
 
-		_ = f.Close()
+		_ = f.Close() // close the directory after reading
 
 	loop:
 		for _, path := range names {
 			select {
 			case <-ctx.Done():
-				return
+				return // stop processing if the context is canceled
 			default:
 			}
 
+			// construct the full file path
 			path = filepath.Join(where, path)
 
-			if !filepath.IsAbs(path) { // make path absolute
+			// Convert to absolute path if needed
+			if !filepath.IsAbs(path) {
 				if abs, err := filepath.Abs(path); err != nil {
-					return
+					return // ignore files that can't be resolved to absolute paths
 				} else {
 					path = abs
 				}
@@ -110,23 +174,26 @@ func iterateFiles( //nolint:gocognit
 
 			stat, err := os.Stat(path)
 			if err != nil || stat.IsDir() {
-				continue // skip directories and stat errors
+				continue // skip directories and files with stat errors
 			}
 
+			// apply all filter functions
 			for _, fn := range filter {
 				if !fn(stat) {
-					continue loop
+					continue loop // skip the file if it doesn't pass the filters
 				}
 			}
 
+			// yield the file path
 			if !yield(path) {
-				return
+				return // stop yielding if the receiver stops accepting values
 			}
 		}
 	}
 }
 
-// iterateFilesRecursive returns a sequence of absolute paths to files in the specified directory recursively.
+// iterateFilesRecursive returns a sequence of absolute file paths inside the specified directory recursively.
+// The function walks the directory tree and applies the provided filter functions.
 func iterateFilesRecursive(
 	ctx context.Context,
 	where string,
@@ -136,7 +203,7 @@ func iterateFilesRecursive(
 		_ = filepath.WalkDir(where, func(path string, d fs.DirEntry, walkErr error) error {
 			select {
 			case <-ctx.Done():
-				return filepath.SkipAll
+				return filepath.SkipAll // stop processing if the context is canceled
 			default:
 			}
 
@@ -146,23 +213,26 @@ func iterateFilesRecursive(
 
 			info, err := d.Info()
 			if err != nil {
-				return nil
+				return nil // ignore files that can't be accessed
 			}
 
+			// apply all filter functions
 			for _, fn := range filter {
 				if !fn(info) {
-					return nil
+					return nil // skip the file if it doesn't pass the filters
 				}
 			}
 
-			if !filepath.IsAbs(path) { // make path absolute
+			// convert to absolute path if needed
+			if !filepath.IsAbs(path) {
 				if path, err = filepath.Abs(path); err != nil {
-					return nil
+					return nil // ignore files that can't be resolved to absolute paths
 				}
 			}
 
+			// yield the file path
 			if !yield(path) {
-				return filepath.SkipAll
+				return filepath.SkipAll // stop traversal if the receiver stops accepting values
 			}
 
 			return nil
