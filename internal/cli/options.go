@@ -18,7 +18,7 @@ type options struct {
 
 func newOptionsWithDefaults() options {
 	return options{
-		FileExtensions:    []string{"png", "jpeg", "jpg"},
+		FileExtensions:    []string{"png", "jpeg", "jpg", "webp", "avif"},
 		ThreadsCount:      16, //nolint:mnd
 		MaxErrorsToStop:   10, //nolint:mnd
 		Recursive:         false,
@@ -43,6 +43,7 @@ func (o *options) UpdateFromConfigFile(filePath string) error {
 	}
 
 	setIfSourceNotNil(&o.ApiKeys, cfg.ApiKeys)
+	// add other fields here
 
 	return nil
 }

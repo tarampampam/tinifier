@@ -94,13 +94,12 @@ func Files(
 	return func(yield func(string) bool) {
 		for _, s := range seq {
 			for path := range s {
-				select {
-				case <-ctx.Done():
-					return // Stop processing if the context is canceled
-				default:
-					if !yield(path) {
-						return // Stop yielding if the receiver stops accepting values
-					}
+				if err := ctx.Err(); err != nil {
+					return // stop processing if the context is canceled
+				}
+
+				if !yield(path) {
+					return // Stop yielding if the receiver stops accepting values
 				}
 			}
 		}
@@ -114,21 +113,20 @@ func singleFile(
 	where string,
 ) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		select {
-		case <-ctx.Done():
-			return // stop processing if the context is canceled
-		default:
-			// convert to absolute path if needed
-			if !filepath.IsAbs(where) {
-				var absErr error
-				if where, absErr = filepath.Abs(where); absErr != nil {
-					return // ignore files that can't be resolved to absolute paths
-				}
+		// convert to absolute path if needed
+		if !filepath.IsAbs(where) {
+			var absErr error
+			if where, absErr = filepath.Abs(where); absErr != nil {
+				return // ignore files that can't be resolved to absolute paths
 			}
-
-			// yield the absolute file path
-			yield(where)
 		}
+
+		if err := ctx.Err(); err != nil {
+			return // stop processing if the context is canceled
+		}
+
+		// yield the absolute file path
+		yield(where)
 	}
 }
 
@@ -140,6 +138,10 @@ func iterateFiles( //nolint:gocognit
 	filter ...FileFilterFn,
 ) iter.Seq[string] {
 	return func(yield func(string) bool) {
+		if err := ctx.Err(); err != nil {
+			return // stop processing if the context is canceled
+		}
+
 		f, openErr := os.Open(where)
 		if openErr != nil {
 			return // ignore directories that can't be opened
@@ -154,12 +156,6 @@ func iterateFiles( //nolint:gocognit
 
 	loop:
 		for _, path := range names {
-			select {
-			case <-ctx.Done():
-				return // stop processing if the context is canceled
-			default:
-			}
-
 			// construct the full file path
 			path = filepath.Join(where, path)
 
@@ -172,8 +168,8 @@ func iterateFiles( //nolint:gocognit
 				}
 			}
 
-			stat, err := os.Stat(path)
-			if err != nil || stat.IsDir() {
+			stat, statErr := os.Stat(path)
+			if statErr != nil || stat.IsDir() {
 				continue // skip directories and files with stat errors
 			}
 
@@ -182,6 +178,10 @@ func iterateFiles( //nolint:gocognit
 				if !fn(stat) {
 					continue loop // skip the file if it doesn't pass the filters
 				}
+			}
+
+			if err := ctx.Err(); err != nil {
+				return // stop processing if the context is canceled
 			}
 
 			// yield the file path
@@ -201,12 +201,6 @@ func iterateFilesRecursive(
 ) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		_ = filepath.WalkDir(where, func(path string, d fs.DirEntry, walkErr error) error {
-			select {
-			case <-ctx.Done():
-				return filepath.SkipAll // stop processing if the context is canceled
-			default:
-			}
-
 			if walkErr != nil || d.IsDir() {
 				return nil // skip directories and walking errors
 			}
@@ -228,6 +222,10 @@ func iterateFilesRecursive(
 				if path, err = filepath.Abs(path); err != nil {
 					return nil // ignore files that can't be resolved to absolute paths
 				}
+			}
+
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return filepath.SkipAll // stop processing if the context is canceled
 			}
 
 			// yield the file path

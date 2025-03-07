@@ -2,6 +2,7 @@
 package tinypng
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,6 +65,9 @@ func NewClient(apiKey string, opts ...ClientOption) *Client {
 
 	return &c
 }
+
+// ApiKey returns the API key used by the client.
+func (c *Client) ApiKey() string { return c.apiKey }
 
 // UsedQuota retrieves the number of compression requests made using the current API key.
 // Free-tier accounts are limited to 500 requests per month.
@@ -190,18 +194,74 @@ type Compressed struct {
 	Width, Height uint32 // Dimensions of the compressed image.
 }
 
+type (
+	downloadOptions struct {
+		// specific metadata will be copied from the uploaded image to the compressed version. the following values
+		// are supported:
+		//	- `copyright` - copyright information
+		//	- `location` - GPS location
+		//	- `creation` - creation date
+		Preserve []string
+	}
+
+	DownloadOption func(*downloadOptions)
+)
+
+// WithDownloadPreserveCopyright specifies that the copyright information should be preserved.
+func WithDownloadPreserveCopyright() DownloadOption {
+	return func(o *downloadOptions) { o.Preserve = append(o.Preserve, "copyright") }
+}
+
+// WithDownloadPreserveLocation specifies that the GPS location should be preserved.
+func WithDownloadPreserveLocation() DownloadOption {
+	return func(o *downloadOptions) { o.Preserve = append(o.Preserve, "location") }
+}
+
+// WithDownloadPreserveCreation specifies that the creation date should be preserved.
+func WithDownloadPreserveCreation() DownloadOption {
+	return func(o *downloadOptions) { o.Preserve = append(o.Preserve, "creation") }
+}
+
 // Download retrieves the compressed image from the TinyPNG servers and writes it to the specified destination.
 // If the provided destination implements io.Closer, it will be closed automatically by the HTTP client.
-func (c Compressed) Download(ctx context.Context, to io.Writer) (outErr error) {
+func (c Compressed) Download(ctx context.Context, to io.Writer, opt ...DownloadOption) (outErr error) { //nolint:funlen
 	defer func() { // Wrap the error with a package-specific prefix.
 		if outErr != nil {
 			outErr = fmt.Errorf("tinypng: %w", outErr)
 		}
 	}()
 
-	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, http.NoBody)
-	if reqErr != nil {
-		return reqErr
+	var opts downloadOptions
+	for _, o := range opt {
+		o(&opts)
+	}
+
+	var req *http.Request
+
+	switch {
+	case len(opts.Preserve) > 0:
+		j, err := json.Marshal(struct {
+			Preserve []string `json:"preserve"`
+		}{
+			Preserve: opts.Preserve,
+		})
+		if err != nil {
+			return err
+		}
+
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(j))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+	default:
+		var err error
+
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, c.URL, http.NoBody)
+		if err != nil {
+			return err
+		}
 	}
 
 	req.SetBasicAuth("api", c.client.apiKey)

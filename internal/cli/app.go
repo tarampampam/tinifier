@@ -4,19 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"gh.tarampamp.am/tinifier/v5/internal/cli/cmd"
 	"gh.tarampamp.am/tinifier/v5/internal/config"
+	"gh.tarampamp.am/tinifier/v5/internal/finder"
+	"gh.tarampamp.am/tinifier/v5/internal/retry"
 	"gh.tarampamp.am/tinifier/v5/internal/version"
+	"gh.tarampamp.am/tinifier/v5/pkg/tinypng"
 )
 
 //go:generate go run ./generate/readme.go
 
 type App struct {
-	cmd cmd.Command
-	opt options
+	cmd   cmd.Command
+	opt   options
+	logMu sync.Mutex
 }
 
 func NewApp(name string) *App { //nolint:funlen
@@ -162,8 +171,240 @@ func (a *App) Run(ctx context.Context, args []string) error { return a.cmd.Run(c
 func (a *App) Help() string { return a.cmd.Help() }
 
 // run in the main logic of the application.
-func (a *App) run(ctx context.Context, paths []string) error {
-	fmt.Println(paths)
+func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocognit,funlen,gocyclo
+	var ctx, cancel = context.WithCancel(pCtx)
+	defer cancel() // calling this function will cancel the context and stop the process
 
-	return errors.New("not implemented")
+	var iterCtx, cancelIter = context.WithCancel(ctx)
+	defer cancelIter() // calling this one will stop the iterator
+
+	var (
+		filesSeq    = finder.Files(iterCtx, paths, a.opt.Recursive, finder.FilterByExt(false, a.opt.FileExtensions...))
+		totalAmount atomic.Uint64
+	)
+
+	// calculate the total number of files to process in background to avoid blocking the main process
+	go func() {
+		for range filesSeq { // due to iterator respect the context, we can iterate over it without any additional checks
+			totalAmount.Add(1)
+		}
+	}()
+
+	var (
+		pool  = tinypng.NewClientsPool(a.opt.ApiKeys)
+		guard = make(chan struct{}, max(1, a.opt.ThreadsCount))
+		errs  = make(chan error, cap(guard))
+	)
+
+	// run background goroutine to process errors and stop the process if needed
+	go func() {
+		var counter uint
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-errs:
+				if !ok {
+					return
+				}
+
+				counter++
+
+				if a.opt.MaxErrorsToStop > 0 && counter >= a.opt.MaxErrorsToStop {
+					a.logf("Maximum number of errors reached, stopping the process\n")
+
+					cancelIter()
+				}
+			}
+		}
+	}()
+
+	var wg sync.WaitGroup // wait group to wait for all jobs to complete
+
+	for path := range filesSeq {
+		func() { guard <- struct{}{}; wg.Add(1) }() // acquire a concurrency slot
+
+		go func(path string) {
+			defer func() { <-guard; wg.Done() }()
+
+			a.logf("Processing %s\n", path)
+
+			var comp *tinypng.Compressed
+
+			for { // this loop is used to retry uploading the file if the client is revoked
+				client, revoke, clientFound := pool.Get()
+				if !clientFound || client == nil { // no clients available in the pool
+					cancelIter()
+					a.logf("No API keys available, stopping the process\n")
+
+					return
+				}
+
+				var cErr error
+
+				comp, cErr = a.uploadFile(ctx, path, client)
+				if cErr != nil {
+					if errors.Is(cErr, tinypng.ErrUnauthorized) || errors.Is(cErr, tinypng.ErrTooManyRequests) {
+						revoke() // revoke the client if it's unauthorized or rate-limited
+
+						continue // try to get a new client and retry uploading the file
+					}
+
+					a.logf("Failed to upload %s: %s\n", path, cErr)
+					errs <- cErr
+
+					return
+				}
+
+				break // exit the loop if the file was uploaded successfully
+			}
+
+			// check if the compressed file is not larger than the original one
+			if compSize := int64(comp.Size); compSize != 0 { //nolint:gosec
+				if stat, err := os.Stat(path); err == nil {
+					if compSize > stat.Size() {
+						a.logf("Compressed file is larger than the original one: %s\n", path)
+
+						return
+					}
+				}
+			}
+
+			var tmpFilePath = path + ".tiny"
+
+			defer func() { // remove the temporary file if it exists
+				if _, err := os.Stat(tmpFilePath); err == nil {
+					_ = os.Remove(tmpFilePath)
+				}
+			}()
+
+			// download the compressed file and save it to the temporary file
+			if err := a.downloadCompressed(ctx, comp, tmpFilePath); err != nil {
+				a.logf("Failed to download the compressed file for %s: %s\n", path, err)
+				errs <- err
+
+				return
+			}
+
+			if err := a.replaceFiles(ctx, path, tmpFilePath); err != nil {
+				a.logf("Failed to replace the original file with the compressed one: %s\n", err)
+				errs <- err
+
+				return
+			}
+		}(path)
+	}
+
+	wg.Wait()    // wait for all jobs to complete
+	close(guard) // close the guard channel
+	close(errs)  // close the errors channel
+
+	return ctx.Err()
+}
+
+const (
+	retryAttempts        uint = 3           // TODO: make it configurable?
+	delayBetweenAttempts      = time.Second // TODO: make it configurable?
+)
+
+// Step 1 is uploadFile - it uploads the file to the tinypng.com.
+func (a *App) uploadFile(ctx context.Context, path string, c *tinypng.Client) (res *tinypng.Compressed, _ error) {
+	return res, retry.Try(
+		ctx,
+		retryAttempts,
+		func(context.Context, uint) error {
+			f, err := os.OpenFile(path, os.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
+
+			defer func() { _ = f.Close() }()
+
+			res, err = c.Compress(ctx, f)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+		retry.WithDelayBetweenAttempts(delayBetweenAttempts),
+		retry.WithStopOnError(tinypng.ErrUnauthorized, tinypng.ErrTooManyRequests),
+	)
+}
+
+// Step 2 is downloadCompressed - it downloads the compressed file from the tinypng.com and saves it the provided path.
+func (a *App) downloadCompressed(
+	ctx context.Context,
+	comp *tinypng.Compressed,
+	path string,
+) error {
+	return retry.Try(
+		ctx,
+		retryAttempts,
+		func(context.Context, uint) error {
+			f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644) //nolint:mnd
+			if err != nil {
+				return err
+			}
+
+			defer func() { _ = f.Close() }()
+
+			var opts []tinypng.DownloadOption
+
+			if !a.opt.UpdateFileModDate {
+				opts = append(opts, tinypng.WithDownloadPreserveCreation())
+			}
+
+			return comp.Download(ctx, f, opts...)
+		},
+		retry.WithDelayBetweenAttempts(delayBetweenAttempts),
+		retry.WithStopOnError(tinypng.ErrUnauthorized, tinypng.ErrTooManyRequests),
+	)
+}
+
+// Step 3 is replaceFiles - it replaces the original file content with the compressed one.
+func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error {
+	return retry.Try(ctx, retryAttempts, func(context.Context, uint) error {
+		origStat, err := os.Stat(origPath)
+		if err != nil {
+			return err
+		}
+
+		comp, err := os.OpenFile(compPath, os.O_RDONLY, 0)
+		if err != nil {
+			return err
+		}
+
+		defer func() { _ = comp.Close() }()
+
+		orig, err := os.OpenFile(origPath, os.O_WRONLY|os.O_TRUNC, 0)
+		if err != nil {
+			return err
+		}
+
+		defer func() { _ = orig.Close() }()
+
+		if _, copyErr := io.Copy(orig, comp); copyErr != nil {
+			return copyErr
+		}
+
+		_, _ = comp.Close(), orig.Close()
+
+		if !a.opt.UpdateFileModDate {
+			// restore original file modification date
+			// atime: time of last access (ls -lu)
+			// mtime: time of last modification (ls -l)
+			_ = os.Chtimes(origPath, origStat.ModTime(), origStat.ModTime())
+		}
+
+		return nil
+	}, retry.WithDelayBetweenAttempts(delayBetweenAttempts))
+}
+
+func (a *App) logf(format string, args ...any) {
+	a.logMu.Lock()
+	defer a.logMu.Unlock()
+
+	_, _ = fmt.Fprintf(os.Stdout, format, args...)
 }

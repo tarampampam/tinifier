@@ -50,10 +50,11 @@ func TestClient_UsedQuota(t *testing.T) {
 			}, nil
 		}
 
-		count, err := tinypng.
-			NewClient("foo-key", tinypng.WithHTTPClient(httpMock)).
-			UsedQuota(t.Context())
+		var client = tinypng.NewClient("foo-key", tinypng.WithHTTPClient(httpMock))
 
+		count, err := client.UsedQuota(t.Context())
+
+		assertEqual(t, "foo-key", client.ApiKey())
 		assertEqual(t, uint64(123454321), count)
 		assertNoError(t, err)
 	})
@@ -389,6 +390,13 @@ func TestCompressed_Download(t *testing.T) {
 				}, nil
 
 			case "https://api.tinify.com/output/someRandomResultImageHash":
+				assertEqual(t, http.MethodPost, req.Method)
+
+				body, _ := io.ReadAll(req.Body)
+
+				assertEqual(t, "application/json", req.Header.Get("Content-Type"))
+				assertEqual(t, `{"preserve":["copyright","location","creation"]}`, string(body))
+
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body:       io.NopCloser(bytes.NewBuffer(compressedImage)),
@@ -405,7 +413,13 @@ func TestCompressed_Download(t *testing.T) {
 		assertNoError(t, err)
 
 		out := bytes.NewBuffer(nil)
-		err = info.Download(t.Context(), out)
+		err = info.Download(
+			t.Context(),
+			out,
+			tinypng.WithDownloadPreserveCopyright(),
+			tinypng.WithDownloadPreserveLocation(),
+			tinypng.WithDownloadPreserveCreation(),
+		)
 
 		assertNoError(t, err)
 		assertNotEmpty(t, out)
@@ -429,6 +443,7 @@ func TestCompressed_Download(t *testing.T) {
 				}, nil
 
 			case "https://api.tinify.com/output/someRandomResultImageHash123":
+				assertEqual(t, http.MethodGet, req.Method)
 				return &http.Response{
 					StatusCode: http.StatusUnauthorized, // <-- important
 					Body:       io.NopCloser(bytes.NewReader([]byte{})),
