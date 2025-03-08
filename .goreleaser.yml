@@ -55,7 +55,6 @@ nfpms: # https://goreleaser.com/customization/nfpm/
     description: CLI tool for compressing images using the TinyPNG
     bindir: /usr/local/bin
     formats: [apk, deb, rpm, archlinux]
-    dependencies: [git]
 
 aurs: # https://goreleaser.com/customization/aur/
   - name: tinifier-bin
@@ -69,7 +68,6 @@ aurs: # https://goreleaser.com/customization/aur/
     git_url: ssh://aur@aur.archlinux.org/tinifier-bin.git
     provides: [tinifier]
     conflicts: [tinifier]
-    depends: [git]
     commit_author:
       name: '{{ .Env.AUR_GIT_USERNAME }}'
       email: '{{ .Env.AUR_GIT_EMAIL }}'
@@ -88,7 +86,6 @@ aur_sources: # https://goreleaser.com/customization/aursources/
     license: MIT
     private_key: '{{ .Env.AUR_SSH_PRIVATE }}'
     git_url: ssh://aur@aur.archlinux.org/tinifier.git
-    depends: [git]
     makedepends:
       - go
     prepare: |-

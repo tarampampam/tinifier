@@ -34,7 +34,7 @@ func NewApp(name string) *App { //nolint:funlen
 	var app = App{
 		cmd: cmd.Command{
 			Name:        name,
-			Description: "CLI client for images compressing using tinypng.com API.",
+			Description: "CLI tool for compressing images using the TinyPNG.",
 			Usage:       "[<options>] [<files-or-directories>]",
 			Version:     version.Version(),
 		},

@@ -26,7 +26,146 @@ processing to speed up the workflow.
 
 ## 🧩 Installation
 
-> TODO
+### 📦 Debian/Ubuntu-based (.deb) systems
+
+Execute the following commands in order:
+
+```shell
+# setup the repository automatically
+curl -1sLf https://dl.cloudsmith.io/public/tarampampam/tinifier/setup.deb.sh | sudo -E bash
+
+# install the package
+sudo apt install tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+sudo apt remove tinifier
+rm /etc/apt/sources.list.d/tarampampam-tinifier.list
+```
+
+</details>
+
+### 📦 RedHat (.rpm) systems
+
+```shell
+# setup the repository automatically
+curl -1sLf https://dl.cloudsmith.io/public/tarampampam/tinifier/setup.rpm.sh | sudo -E bash
+
+# install the package
+sudo dnf install tinifier # RedHat, CentOS, etc.
+sudo yum install tinifier # Fedora, etc.
+sudo zypper install tinifier # OpenSUSE, etc.
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+# RedHat, CentOS, Fedora, etc.
+sudo dnf remove tinifier
+rm /etc/yum.repos.d/tarampampam-tinifier.repo
+rm /etc/yum.repos.d/tarampampam-tinifier-source.repo
+
+# OpenSUSE, etc.
+sudo zypper remove tinifier
+zypper rr tarampampam-tinifier
+zypper rr tarampampam-tinifier-source
+```
+
+</details>
+
+### 📦 Alpine Linux
+
+```shell
+# bash is required for the setup script
+sudo apk add --no-cache bash
+
+# setup the repository automatically
+curl -1sLf https://dl.cloudsmith.io/public/tarampampam/tinifier/setup.alpine.sh | sudo -E bash
+
+# install the package
+sudo apk add tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+sudo apk del tinifier
+$EDITOR /etc/apk/repositories # remove the line with the repository
+```
+
+</details>
+
+### 📦 AUR (Arch Linux)
+
+There are three packages available in the AUR:
+
+- Build from source: [tinifier](https://aur.archlinux.org/packages/tinifier)
+- Precompiled: [tinifier-bin](https://aur.archlinux.org/packages/tinifier-bin)
+
+```shell
+pamac build tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+pacman -Rs tinifier
+```
+
+</details>
+
+### 📦 Binary (Linux, macOS, Windows)
+
+Download the latest binary for your architecture/OS from the [releases page][link_releases]. For example, to install
+the latest version to the `/usr/local/bin` directory on an **amd64** system (e.g., Debian, Ubuntu), you can run:
+
+```shell
+# download and install the binary
+curl -SsL \
+  https://github.com/tarampampam/tinifier/releases/latest/download/tinifier-linux-amd64.gz | \
+  gunzip -c | sudo tee /usr/local/bin/tinifier > /dev/null
+
+# make the binary executable
+sudo chmod +x /usr/local/bin/tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+sudo rm /usr/local/bin/tinifier
+```
+
+</details>
+
+> [!TIP]
+> Each release includes binaries for **linux**, **darwin** (macOS) and **windows** (`amd64` and `arm64` architectures).
+> You can download the binary for your system from the [releases page][link_releases] (section `Assets`). And - yes,
+> all what you need is just download and run single binary file.
+
+[link_releases]:https://github.com/tarampampam/tinifier/releases
+
+### 📦 Docker image
+
+Also, you can use the Docker image:
+
+| Registry                               | Image                          |
+|----------------------------------------|--------------------------------|
+| [GitHub Container Registry][link_ghcr] | `ghcr.io/tarampampam/tinifier` |
+| [Docker Hub][link_docker_hub] (mirror) | `tarampampam/tinifier`         |
+
+> [!NOTE]
+> It’s recommended to avoid using the `latest` tag, as **major** upgrades may include breaking changes.
+> Instead, use specific tags in `:X.Y.Z` or only `:X` format for version consistency.
+
+[link_ghcr]:https://github.com/tarampampam/tinifier/pkgs/container/tinifier
+[link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
 
 ## ⚙ Configuration
 
@@ -78,7 +217,7 @@ tinifier -k 'YOUR-API-KEY-GOES-HERE' --ext png,jpg --threads 20 -r ./some-dir
 
 ```
 Description:
-   CLI client for images compressing using tinypng.com API.
+   CLI tool for compressing images using the TinyPNG.
 
 Usage:
    tinifier [<options>] [<files-or-directories>]
