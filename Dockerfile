@@ -1,34 +1,27 @@
-# syntax=docker/dockerfile:1.2
+# syntax=docker/dockerfile:1
 
-# Image page: <https://hub.docker.com/_/golang>
-FROM golang:1.23-alpine as builder
+# -✂- this stage is used to compile the application -------------------------------------------------------------------
+FROM docker.io/library/golang:1.24-alpine AS compile
 
-# can be passed with any prefix (like `v1.2.3@GITHASH`)
-# e.g.: `docker build --build-arg "APP_VERSION=v1.2.3@GITHASH" .`
+# can be passed with any prefix (like `v1.2.3@FOO`), e.g.: `docker build --build-arg "APP_VERSION=v1.2.3@FOO" .`
 ARG APP_VERSION="undefined@docker"
 
-RUN set -x \
-    && mkdir /src \
-    && apk add --no-cache ca-certificates \
-    && update-ca-certificates
-
+# copy the source code
+COPY . /src
 WORKDIR /src
 
-COPY . .
-
-# arguments to pass on each go tool link invocation
-ENV LDFLAGS="-s -w -X gh.tarampamp.am/tinifier/v4/internal/version.version=$APP_VERSION"
-
 RUN set -x \
-    && go version \
-    && CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/ \
-    && /tmp/tinifier --version
+    # build the app itself
+    && go generate -skip readme ./... \
+    && CGO_ENABLED=0 go build \
+      -trimpath \
+      -ldflags "-s -w -X gh.tarampamp.am/tinifier/v5/internal/version.version=${APP_VERSION}" \
+      -o ./tinifier \
+      ./cmd/tinifier/ \
+    && ./tinifier --help
 
 # prepare rootfs for runtime
-RUN mkdir -p /tmp/rootfs
-
 WORKDIR /tmp/rootfs
-
 RUN set -x \
     && mkdir -p \
         ./etc/ssl \
@@ -36,26 +29,27 @@ RUN set -x \
     && cp -R /etc/ssl/certs ./etc/ssl/certs \
     && echo 'appuser:x:10001:10001::/nonexistent:/sbin/nologin' > ./etc/passwd \
     && echo 'appuser:x:10001:' > ./etc/group \
-    && mv /tmp/tinifier ./bin/tinifier
+    && mv /src/tinifier ./bin/tinifier
 
-# use empty filesystem
-FROM scratch as runtime
+# -✂- and this is the final stage -------------------------------------------------------------------------------------
+FROM scratch AS runtime
 
 ARG APP_VERSION="undefined@docker"
 
 LABEL \
+    # docs: <https://github.com/opencontainers/image-spec/blob/master/annotations.md>
     org.opencontainers.image.title="tinifier" \
     org.opencontainers.image.description="CLI client for images compressing using tinypng.com API" \
     org.opencontainers.image.url="https://github.com/tarampampam/tinifier" \
     org.opencontainers.image.source="https://github.com/tarampampam/tinifier" \
     org.opencontainers.image.vendor="tarampampam" \
-    org.opencontainers.image.version="$APP_VERSION" \
+    org.opencontainers.version="$APP_VERSION" \
     org.opencontainers.image.licenses="MIT"
 
-# Import from builder
-COPY --from=builder /tmp/rootfs /
+# import from builder
+COPY --from=compile /tmp/rootfs /
 
-# Use an unprivileged user
+# use an unprivileged user
 USER 10001:10001
 
 ENTRYPOINT ["/bin/tinifier"]

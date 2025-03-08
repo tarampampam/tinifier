@@ -2,8 +2,8 @@
 
 Output ./art/demo.gif
 
-Set FontSize 19
-Set Width 1200
+Set FontSize 16
+Set Width 1550
 Set Height 600
 
 Type "./tinifier --help"  Sleep 500ms  Enter
@@ -13,6 +13,6 @@ Hide
 Type "clear" Enter
 Show
 
-Type "./tinifier compress -r ./temp/playground/png/flowers"  Sleep 500ms  Enter
+Type "./tinifier -p ~/tmp/playground/png/flowers"  Sleep 500ms  Enter
 
 Sleep 15s

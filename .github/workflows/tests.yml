@@ -4,6 +4,7 @@
 name: 🧪 Tests
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [master, main]
     paths-ignore: ['**.md']
@@ -16,73 +17,65 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gitleaks:
+  git-leaks:
     name: Check for GitLeaks
     runs-on: ubuntu-latest
     steps:
       - {uses: actions/checkout@v4, with: {fetch-depth: 0}}
       - uses: gacts/gitleaks@v1
 
-  golangci-lint:
-    name: Run golangci-lint
+  lint-and-test:
+    name: Test and lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
+      - run: go generate -skip readme ./...
       - uses: golangci/golangci-lint-action@v6
+      - run: go test -race -covermode=atomic ./...
 
-  go-test:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
-      - run: go test -race ./...
-
-  build:
-    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
+  build-app:
+    name: Build the app
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: [linux, windows, darwin] # linux, freebsd, darwin, windows
-        arch: [amd64]                # amd64, 386
-        include:
-          - os: linux
-            arch: 386
-    needs: [golangci-lint, go-test]
+      matrix: # https://pkg.go.dev/internal/platform
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+    needs: [lint-and-test]
     steps:
       - uses: actions/checkout@v4
-      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
       - {uses: gacts/github-slug@v1, id: slug}
+      - id: values
+        run: |
+          echo "app-version=${{ steps.slug.outputs.version-semantic }}@${{ steps.slug.outputs.commit-hash-short }}" >> $GITHUB_OUTPUT
+          echo "bin-name=tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`" >> $GITHUB_OUTPUT
+      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
+      - run: go generate -skip readme ./...
       - env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
-          LDFLAGS: -s -w -X gh.tarampamp.am/tinifier/v4/internal/version.version=${{ steps.slug.outputs.branch-name-slug }}@${{ steps.slug.outputs.commit-hash-short }}
-        run: go build -trimpath -ldflags "$LDFLAGS" -o /tmp/tinifier ./cmd/tinifier/
-      - name: Try to execute
-        if: matrix.os == 'linux'
-        run: /tmp/tinifier --version && /tmp/tinifier -h
+          LDFLAGS: -s -w -X gh.tarampamp.am/tinifier/v5/internal/version.version=${{ steps.values.outputs.app-version }}
+        run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.bin-name }}" ./cmd/tinifier/
       - uses: actions/upload-artifact@v4
         with:
           name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
-          path: /tmp/tinifier
+          path: ./${{ steps.values.outputs.bin-name }}
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
-  image:
-    name: Build docker image
+  build-docker-image:
+    name: Build the docker image
     runs-on: ubuntu-latest
-    needs: [golangci-lint, go-test]
+    needs: [lint-and-test]
     steps:
       - uses: actions/checkout@v4
       - {uses: gacts/github-slug@v1, id: slug}
-      - name: Build the image
-        run: docker build -t tinifier:local --build-arg "APP_VERSION=${{ steps.slug.outputs.branch-name-slug }}@${{ steps.slug.outputs.commit-hash-short }}" -f ./Dockerfile .
-      - run: docker run --rm tinifier:local --version
-      - uses: anchore/scan-action@v6 # action page: <https://github.com/anchore/scan-action>
+      - uses: docker/build-push-action@v6
         with:
-          image: tinifier:local
-          fail-build: true
-          severity-cutoff: medium # negligible, low, medium, high or critical
+          context: .
+          file: ./Dockerfile
+          build-args: "APP_VERSION=${{ steps.slug.outputs.branch-name-slug }}@${{ steps.slug.outputs.commit-hash-short }}"
+          push: false
+          tags: app:local

@@ -1,155 +1,248 @@
 <p align="center">
-  <img src="https://tinypng.com/images/apng/panda-waving.png" alt="Logo" width="128" />
+  <a href="https://github.com/tarampampam/tinifier#readme">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://socialify.git.ci/tarampampam/tinifier/image?description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Ftinypng.com%2Fimages%2Fapng%2Fpanda-waving.png&owner=1&pulls=1&pattern=Solid&stargazers=1&theme=Dark">
+      <img align="center" src="https://socialify.git.ci/tarampampam/tinifier/image?description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Ftinypng.com%2Fimages%2Fapng%2Fpanda-waving.png&owner=1&pulls=1&pattern=Solid&stargazers=1&theme=Light">
+    </picture>
+  </a>
 </p>
 
-# CLI tool for images compressing
+# Tinifier
 
-[![Release version][badge_release_version]][link_gopkg]
-[![Build Status][badge_build]][link_actions]
-[![Image size][badge_size_latest]][link_docker_hub]
-[![License][badge_license]][link_license]
+`tinifier` is a CLI tool for compressing images using the [TinyPNG](https://tinypng.com) API, with parallel
+processing to speed up the workflow.
 
-This tool uses [tinypng.com][tinypng.com] API endpoint for compressing your local jpg/png images (it supports parallel jobs):
+![demo](art/demo.gif)
 
-<p align="center">
-  <img src="https://user-images.githubusercontent.com/7326800/200132039-7a4fed2f-d2dc-4a71-a67d-27dadaaef8b4.gif">
-</p>
+## 🔥 Features list
 
-> API key can be set using environment variable named `TINYPNG_API_KEY`; multiple keys are allowed - use `,` as a separator.
+- Compress images in **parallel** (configurable number of threads)
+- Support for **multiple API keys** (automatically switches if a key exceeds its quota)
+- Automatic **retries** for failed operations
+- **Recursive search** for images in directories (configurable file extensions)
+- Skip files if the difference between the original and compressed file sizes is below a specified percentage
+- **Preserve the original file modification date/time** (including EXIF metadata), ensuring correct photo
+  ordering (e.g., from smartphones) after compression
 
-## Installing
+## 🧩 Installation
 
-Download the latest binary file for your os/arch from [releases page][link_releases] or use our [docker image][link_docker_hub] ([ghcr.io][link_ghcr]).
+### 📦 Debian/Ubuntu-based (.deb) systems
 
-### Go package
-
-[![Project language][badge_language]][link_golang]
-[![Go Reference][badge_go_reference]][link_gopkg]
-[![Go Report][badge_goreport]][link_goreport]
-
-Install the API client with `go get`:
-
-```bash
-$ go get -u gh.tarampamp.am/tinifier/v4
-```
-
-Client sources and usage examples can be found in [`pkg/tinypng`](pkg/tinypng) directory.
-
-## Usage example
-
-> [tinypng.com][tinypng.com] API key is required. For API key getting you should:
-> - Open [tinypng.com/developers](https://tinypng.com/developers)
-> - Fill-up the form (enter your name and email address) and press "Get your API key" button
-> - Check for email in the mailbox from previous step (click on "verification link")
-> - In opened dashboard page - activate API key and save it somewhere
-
-Compress single image:
-
-```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' ./img.png
-```
-
-Compress all `png` images in some directory and 2 other images:
-
-```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./img-1.png ./img-2.png
-```
-
-Compress jpg/png images in some directory (recursively) using 20 threads:
-
-```bash
-$ tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -e png -e jpg -e PNG -e JPG -t 20 -r ./some-dir
-```
-
-### Using docker
-
-> All supported image tags [can be found here][link_docker_hub] and [here][link_ghcr].
-
-Compress all images in **current** directory:
-
-```bash
-$ docker run --rm -ti \
-    -u "$(id -u):$(id -g)" \
-    -v "$(pwd):/rootfs:rw" \
-    -w /rootfs \
-      tarampampam/tinifier compress -k 'YOUR-API-KEY-GOES-HERE' -r .
-```
-
-or
-
-```bash
-$ docker run --rm -ti \
-    -u "$(id -u):$(id -g)" \
-    -v "$(pwd):/rootfs:rw" \
-    -w /rootfs \
-    -e 'TINYPNG_API_KEY=YOUR-API-KEY-GOES-HERE' \
-      tarampampam/tinifier compress -r .
-```
-
-## Testing
-
-For application testing and building we use built-in golang testing feature and `docker-ce` + `docker-compose` as develop environment. So, just write into your terminal after repository cloning:
+Execute the following commands in order:
 
 ```shell
-$ make test
+# setup the repository automatically
+curl -1sLf https://dl.cloudsmith.io/public/tarampampam/tinifier/setup.deb.sh | sudo -E bash
+
+# install the package
+sudo apt install tinifier
 ```
 
-Or build the binary file:
+<details>
+  <summary>Uninstalling</summary>
 
 ```shell
-$ make build
+sudo apt remove tinifier
+rm /etc/apt/sources.list.d/tarampampam-tinifier.list
 ```
 
-## Releasing
+</details>
 
-New versions publishing is very simple - just make required changes in this repository, update [changelog file](CHANGELOG.md) and "publish" new release using repo releases page.
+### 📦 RedHat (.rpm) systems
 
-Binary files and docker images will be build and published automatically.
+```shell
+# setup the repository automatically
+curl -1sLf https://dl.cloudsmith.io/public/tarampampam/tinifier/setup.rpm.sh | sudo -E bash
 
-> New release will overwrite the `latest` docker image tag in both registers.
+# install the package
+sudo dnf install tinifier # RedHat, CentOS, etc.
+sudo yum install tinifier # Fedora, etc.
+sudo zypper install tinifier # OpenSUSE, etc.
+```
 
-## Changelog
+<details>
+  <summary>Uninstalling</summary>
 
-[![Release date][badge_release_date]][link_releases]
-[![Commits since latest release][badge_commits_since_release]][link_commits]
+```shell
+# RedHat, CentOS, Fedora, etc.
+sudo dnf remove tinifier
+rm /etc/yum.repos.d/tarampampam-tinifier.repo
+rm /etc/yum.repos.d/tarampampam-tinifier-source.repo
 
-Changes log can be [found here][link_changes_log].
+# OpenSUSE, etc.
+sudo zypper remove tinifier
+zypper rr tarampampam-tinifier
+zypper rr tarampampam-tinifier-source
+```
 
-## Support
+</details>
 
-[![Issues][badge_issues]][link_issues]
-[![Issues][badge_pulls]][link_pulls]
+### 📦 Alpine Linux
 
-If you find any package errors, please, [make an issue][link_create_issue] in current repository.
+```shell
+# bash is required for the setup script
+sudo apk add --no-cache bash
 
-## License
+# setup the repository automatically
+curl -1sLf https://dl.cloudsmith.io/public/tarampampam/tinifier/setup.alpine.sh | sudo -E bash
+
+# install the package
+sudo apk add tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+sudo apk del tinifier
+$EDITOR /etc/apk/repositories # remove the line with the repository
+```
+
+</details>
+
+### 📦 AUR (Arch Linux)
+
+There are three packages available in the AUR:
+
+- Build from source: [tinifier](https://aur.archlinux.org/packages/tinifier)
+- Precompiled: [tinifier-bin](https://aur.archlinux.org/packages/tinifier-bin)
+
+```shell
+pamac build tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+pacman -Rs tinifier
+```
+
+</details>
+
+### 📦 Binary (Linux, macOS, Windows)
+
+Download the latest binary for your architecture/OS from the [releases page][link_releases]. For example, to install
+the latest version to the `/usr/local/bin` directory on an **amd64** system (e.g., Debian, Ubuntu), you can run:
+
+```shell
+# download and install the binary
+curl -SsL \
+  https://github.com/tarampampam/tinifier/releases/latest/download/tinifier-linux-amd64.gz | \
+  gunzip -c | sudo tee /usr/local/bin/tinifier > /dev/null
+
+# make the binary executable
+sudo chmod +x /usr/local/bin/tinifier
+```
+
+<details>
+  <summary>Uninstalling</summary>
+
+```shell
+sudo rm /usr/local/bin/tinifier
+```
+
+</details>
+
+> [!TIP]
+> Each release includes binaries for **linux**, **darwin** (macOS) and **windows** (`amd64` and `arm64` architectures).
+> You can download the binary for your system from the [releases page][link_releases] (section `Assets`). And - yes,
+> all what you need is just download and run single binary file.
+
+[link_releases]:https://github.com/tarampampam/tinifier/releases
+
+### 📦 Docker image
+
+Also, you can use the Docker image:
+
+| Registry                               | Image                          |
+|----------------------------------------|--------------------------------|
+| [GitHub Container Registry][link_ghcr] | `ghcr.io/tarampampam/tinifier` |
+| [Docker Hub][link_docker_hub] (mirror) | `tarampampam/tinifier`         |
+
+> [!NOTE]
+> It’s recommended to avoid using the `latest` tag, as **major** upgrades may include breaking changes.
+> Instead, use specific tags in `:X.Y.Z` or only `:X` format for version consistency.
+
+[link_ghcr]:https://github.com/tarampampam/tinifier/pkgs/container/tinifier
+[link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
+
+## ⚙ Configuration
+
+You can configure `tinifier` using a YAML file. Refer to [this example](tinifier.example.yml) for
+available options.
+
+You can specify the configuration file's location using the `--config-file` option. By default, however, the
+tool searches for the file in the user's configuration directory:
+
+- **Linux**: `~/.configs/tinifier.yml`
+- **Windows**: `%APPDATA%\tinifier.yml`
+- **macOS**: `~/Library/Application Support/tinifier.yml`
+
+## 🚀 Use Cases (usage examples)
+
+> [!IMPORTANT]
+> A [TinyPNG](https://tinypng.com) API key is required. To obtain one:
+> - Visit [tinypng.com/developers](https://tinypng.com/developers)
+> - Fill out the form (enter your name and email address) and click "Get your API key"
+> - Check your email and click the verification link
+> - Activate your API key on the dashboard and save it
+
+> [!TIP]
+> If you need to process a large number of files and have a Gmail account, you can use the following
+> trick - register multiple accounts on tinypng.com using aliases such as `your_mailbox+key1@gmail.com`,
+> `your_mailbox+key2@gmail.com`, etc. This allows you to use a single mailbox to retrieve as many free API
+> keys as needed.
+
+#### ☝ Compress a Single Image
+
+```shell
+tinifier -k 'YOUR-API-KEY-GOES-HERE' ./img.png
+```
+
+#### ☝ Compress All PNG Images in a Directory and Two Other Images
+
+```shell
+tinifier -k 'API-KEY-1,API-KEY-2' -e png ./images-directory ./img-1.png ./img-2.png
+```
+
+#### ☝ Compress JPG and PNG Images in a Directory (Recursively) Using 20 Threads
+
+```shell
+tinifier -k 'YOUR-API-KEY-GOES-HERE' --ext png,jpg --threads 20 -r ./some-dir
+```
+
+<!--GENERATED:APP_README-->
+## 💻 Command line interface
+
+```
+Description:
+   CLI tool for compressing images using the TinyPNG.
+
+Usage:
+   tinifier [<options>] [<files-or-directories>]
+
+Version:
+   0.0.0@undefined
+
+Options:
+   --config-file="…", -c="…"    Path to the configuration file (default: depends/on/your-os/tinifier.yml) [$CONFIG_FILE]
+   --api-key="…", -k="…"        TinyPNG API keys <https://tinypng.com/dashboard/api> (separated by commas) [$API_KEYS]
+   --ext="…", -e="…"            Extensions of files to compress (separated by commas) (default: png,jpeg,jpg,webp,avif) [$FILE_EXTENSIONS]
+   --threads="…", -t="…"        Number of threads to use for compressing (default: 16) [$THREADS]
+   --max-errors="…"             Maximum number of errors to stop the process (set 0 to disable) (default: 10) [$MAX_ERRORS]
+   --retry-attempts="…"         Number of retry attempts for upload/download/replace operations (default: 3) [$RETRY_ATTEMPTS]
+   --delay-between-retries="…"  Delay between retry attempts (default: 1s) [$DELAY_BETWEEN_RETRIES]
+   --recursive, -r              Search for files in listed directories recursively [$RECURSIVE]
+   --skip-if-diff-less="…"      Skip files if the diff between the original and compressed file sizes < N% (default: 1) [$SKIP_IF_DIFF_LESS]
+   --preserve-time, -p          Preserve the original file modification date/time (including EXIF) [$PRESERVE_TIME]
+   --help, -h                   Show help
+   --version, -v                Print the version
+```
+<!--/GENERATED:APP_README-->
+
+## 📜 License
 
 This is open-sourced software licensed under the [MIT License][link_license].
 
-[badge_build]:https://img.shields.io/github/actions/workflow/status/tarampampam/tinifier/tests.yml?branch=master
-[badge_goreport]:https://goreportcard.com/badge/github.com/tarampampam/tinifier
-[badge_size_latest]:https://img.shields.io/docker/image-size/tarampampam/tinifier/latest?maxAge=30
-[badge_release_version]:https://img.shields.io/github/release/tarampampam/tinifier.svg?maxAge=30
-[badge_language]:https://img.shields.io/github/go-mod/go-version/tarampampam/tinifier?longCache=true
-[badge_license]:https://img.shields.io/github/license/tarampampam/tinifier.svg?longCache=true
-[badge_release_date]:https://img.shields.io/github/release-date/tarampampam/tinifier.svg?maxAge=180
-[badge_commits_since_release]:https://img.shields.io/github/commits-since/tarampampam/tinifier/latest.svg?maxAge=45
-[badge_issues]:https://img.shields.io/github/issues/tarampampam/tinifier.svg?maxAge=45
-[badge_pulls]:https://img.shields.io/github/issues-pr/tarampampam/tinifier.svg?maxAge=45
-[badge_go_reference]:https://img.shields.io/static/v1?label=go&message=reference&color=007d9c
-
-[link_golang]:https://golang.org/
-[link_goreport]:https://goreportcard.com/report/github.com/tarampampam/tinifier
-[link_gopkg]:https://pkg.go.dev/gh.tarampamp.am/tinifier/v4
-[link_actions]:https://github.com/tarampampam/tinifier/actions
-[link_docker_hub]:https://hub.docker.com/r/tarampampam/tinifier/
-[link_ghcr]:https://github.com/users/tarampampam/packages/container/package/tinifier
 [link_license]:https://github.com/tarampampam/tinifier/blob/master/LICENSE
-[link_releases]:https://github.com/tarampampam/tinifier/releases
-[link_commits]:https://github.com/tarampampam/tinifier/commits
-[link_changes_log]:https://github.com/tarampampam/tinifier/blob/master/CHANGELOG.md
-[link_issues]:https://github.com/tarampampam/tinifier/issues
-[link_create_issue]:https://github.com/tarampampam/tinifier/issues/new/choose
-[link_pulls]:https://github.com/tarampampam/tinifier/pulls
-
-[tinypng.com]:https://tinypng.com/

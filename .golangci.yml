@@ -107,11 +107,12 @@ issues:
   exclude-dirs:
     - .github
     - .git
+    - __old__
     - tmp
     - temp
     - testdata
+    - internal/yaml # copy/pasted from https://github.com/go-yaml/yaml
   exclude-rules:
-    - {path: env\.go, linters: [lll, gosec]}
     - path: _test\.go
       linters:
         - dupl

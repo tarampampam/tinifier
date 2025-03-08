@@ -1,48 +1,73 @@
-// Main CLI application entrypoint.
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"sync"
+	"syscall"
+	"time"
 
-	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/joho/godotenv"
-	"github.com/pkg/errors"
-
-	"gh.tarampamp.am/tinifier/v4/internal/cli"
+	"gh.tarampamp.am/tinifier/v5/internal/cli"
 )
 
-// exitFn is a function for application exiting.
-var exitFn = os.Exit //nolint:gochecknoglobals
-
-// main CLI application entrypoint.
 func main() {
-	code, err := run()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "%s%s\n",
-			text.Colors{text.BgHiRed, text.FgBlack, text.Bold}.Sprint("  Fatal error  "),
-			text.Colors{text.BgBlack, text.FgHiRed}.Sprintf("  %s  ", err.Error()),
-		)
-	}
+	if err := run(); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			_, _ = fmt.Fprintln(os.Stderr, "error: "+err.Error())
+		}
 
-	exitFn(code)
+		os.Exit(1)
+	}
 }
 
-// run this CLI application.
-// Exit codes documentation: <https://tldp.org/LDP/abs/html/exitcodes.html>
-func run() (int, error) {
-	const dotenvFileName = ".env" // dotenv (.env) file name
+func run() error {
+	// create a context that will be canceled on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// load .env file (if file exists; useful for the local app development)
-	if stat, dotenvErr := os.Stat(dotenvFileName); dotenvErr == nil && !stat.IsDir() {
-		if err := godotenv.Load(dotenvFileName); err != nil {
-			return 1, errors.Wrap(err, dotenvFileName+" file error")
+	// create a channel to receive signals and a channel to stop the signal handler
+	sigChan, stop := make(chan os.Signal, 1), make(chan struct{})
+	defer close(stop)
+
+	// subscribe to SIGINT and SIGTERM
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		var (
+			count uint
+			once  sync.Once
+		)
+
+		for {
+			select {
+			case <-stop:
+				return
+			case <-sigChan:
+				count++  // increase the signal counter
+				cancel() //nolint:wsl // cancel context on first signal, allowing graceful shutdown
+
+				if count >= 2 { //nolint:mnd // in case of repeated signals
+					once.Do(func() {
+						_, _ = fmt.Fprintln(os.Stderr, "forced shutdown")
+
+						runtime.Gosched()                    // increase the chance of graceful shutdown a bit
+						<-time.After(500 * time.Millisecond) // give the last chance to finish the work
+						os.Exit(1)                           // kill the process
+					})
+				}
+			}
 		}
+	}()
+
+	if len(os.Args) < 1 {
+		return errors.New("missing application name")
 	}
 
-	if err := (cli.NewApp()).Run(os.Args); err != nil {
-		return 1, err
-	}
-
-	return 0, nil
+	// run the CLI application
+	return cli.NewApp(filepath.Base(os.Args[0])).Run(ctx, os.Args[1:])
 }

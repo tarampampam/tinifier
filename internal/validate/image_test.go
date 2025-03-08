@@ -7,9 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"gh.tarampamp.am/tinifier/v4/internal/validate"
+	"gh.tarampamp.am/tinifier/v5/internal/validate"
 )
 
 type brokenReader struct{}
@@ -23,7 +21,7 @@ func TestIsImage(t *testing.T) {
 		t.Helper()
 
 		data, err := os.ReadFile(path)
-		assert.NoError(t, err)
+		assertNoError(t, err)
 
 		return bytes.NewReader(data)
 	}
@@ -101,12 +99,36 @@ func TestIsImage(t *testing.T) {
 			res, err := validate.IsImage(tt.giveReader())
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				assertError(t, err)
 			} else {
-				assert.NoError(t, err)
+				assertNoError(t, err)
 			}
 
-			assert.Equal(t, tt.wantResult, res)
+			assertEqual(t, tt.wantResult, res)
 		})
+	}
+}
+
+func assertEqual[T comparable](t *testing.T, expected, actual T) {
+	t.Helper()
+
+	if expected != actual {
+		t.Fatalf("expected %v, got %v", expected, actual)
+	}
+}
+
+func assertError(t *testing.T, err error) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
