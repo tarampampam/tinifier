@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,7 @@ import (
 	"gh.tarampamp.am/tinifier/v5/internal/cli/cmd"
 	"gh.tarampamp.am/tinifier/v5/internal/config"
 	"gh.tarampamp.am/tinifier/v5/internal/finder"
+	"gh.tarampamp.am/tinifier/v5/internal/humanize"
 	"gh.tarampamp.am/tinifier/v5/internal/retry"
 	"gh.tarampamp.am/tinifier/v5/internal/version"
 	"gh.tarampamp.am/tinifier/v5/pkg/tinypng"
@@ -53,7 +55,7 @@ func NewApp(name string) *App { //nolint:funlen
 		}
 		fileExtensions = cmd.Flag[string]{
 			Names:   []string{"ext", "e"},
-			Usage:   "Extensions of files to compress (case insensitive, without leading dots, separated by commas)",
+			Usage:   "Extensions of files to compress (separated by commas)",
 			EnvVars: []string{"FILE_EXTENSIONS"},
 			Default: strings.Join(app.opt.FileExtensions, ","),
 			Validator: func(c *cmd.Command, v string) error {
@@ -82,11 +84,17 @@ func NewApp(name string) *App { //nolint:funlen
 			EnvVars: []string{"RECURSIVE"},
 			Default: app.opt.Recursive,
 		}
-		updateFileModDate = cmd.Flag[bool]{
-			Names:   []string{"update-mod-date"},
-			Usage:   "Update the modification date of the compressed files (otherwise, the original date will be preserved)",
-			EnvVars: []string{"UPDATE_MOD_DATE"},
-			Default: app.opt.UpdateFileModDate,
+		skipIfDiffLessThan = cmd.Flag[float64]{
+			Names:   []string{"skip-if-diff-less"},
+			Usage:   "Skip files if the diff between the original and compressed file sizes < N%",
+			EnvVars: []string{"SKIP_IF_DIFF_LESS"},
+			Default: app.opt.SkipIfDiffLessThan,
+		}
+		preserveTime = cmd.Flag[bool]{
+			Names:   []string{"preserve-time", "p"},
+			Usage:   "Preserve the original file modification date/time (including EXIF)",
+			EnvVars: []string{"PRESERVE_TIME"},
+			Default: app.opt.PreserveTime,
 		}
 	)
 
@@ -97,7 +105,8 @@ func NewApp(name string) *App { //nolint:funlen
 		&threatsCount,
 		&maxErrorsToStop,
 		&recursive,
-		&updateFileModDate,
+		&skipIfDiffLessThan,
+		&preserveTime,
 	}
 
 	app.cmd.Action = func(ctx context.Context, c *cmd.Command, args []string) error {
@@ -125,7 +134,8 @@ func NewApp(name string) *App { //nolint:funlen
 			setIfFlagIsSet(&app.opt.ThreadsCount, threatsCount)
 			setIfFlagIsSet(&app.opt.MaxErrorsToStop, maxErrorsToStop)
 			setIfFlagIsSet(&app.opt.Recursive, recursive)
-			setIfFlagIsSet(&app.opt.UpdateFileModDate, updateFileModDate)
+			setIfFlagIsSet(&app.opt.SkipIfDiffLessThan, skipIfDiffLessThan)
+			setIfFlagIsSet(&app.opt.PreserveTime, preserveTime)
 		}
 
 		if err := app.opt.Validate(); err != nil {
@@ -179,64 +189,91 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 	defer cancelIter() // calling this one will stop the iterator
 
 	var (
-		filesSeq    = finder.Files(iterCtx, paths, a.opt.Recursive, finder.FilterByExt(false, a.opt.FileExtensions...))
-		totalAmount atomic.Uint64
+		filesSeq       = finder.Files(iterCtx, paths, a.opt.Recursive, finder.FilterByExt(false, a.opt.FileExtensions...))
+		totalAmount    atomic.Uint64
+		progressString = func(current uint64) string {
+			if total := totalAmount.Load(); total > 0 {
+				width := len(strconv.FormatUint(total, 10))
+
+				return fmt.Sprintf("[%0*d/%d]", width, current, total)
+			}
+
+			return fmt.Sprintf("[%d/⏳]", current)
+		}
 	)
 
 	// calculate the total number of files to process in background to avoid blocking the main process
-	go func() {
+	go func(count uint64) {
 		for range filesSeq { // due to iterator respect the context, we can iterate over it without any additional checks
-			totalAmount.Add(1)
+			count++
 		}
-	}()
 
-	var (
-		pool  = tinypng.NewClientsPool(a.opt.ApiKeys)
-		guard = make(chan struct{}, max(1, a.opt.ThreadsCount))
-		errs  = make(chan error, cap(guard))
-	)
+		totalAmount.Store(count)
+	}(0)
+
+	errs := make(chan error, max(1, a.opt.ThreadsCount))
+	defer close(errs) // close the errors channel on defer to exit the waiting loop
 
 	// run background goroutine to process errors and stop the process if needed
 	go func() {
 		var counter uint
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case _, ok := <-errs:
-				if !ok {
-					return
-				}
+		for err := range errs { // wait for errors to come or exit if the channel is closed
+			counter++
 
-				counter++
+			if !errors.Is(err, context.Canceled) {
+				a.logf("[Error] %s\n", err)
+			}
 
-				if a.opt.MaxErrorsToStop > 0 && counter >= a.opt.MaxErrorsToStop {
-					a.logf("Maximum number of errors reached, stopping the process\n")
+			if a.opt.MaxErrorsToStop > 0 && counter >= a.opt.MaxErrorsToStop {
+				a.logf("Maximum number of errors reached, stopping the process\n")
 
-					cancelIter()
-				}
+				cancelIter()
 			}
 		}
 	}()
 
-	var wg sync.WaitGroup // wait group to wait for all jobs to complete
+	var (
+		pool        = tinypng.NewClientsPool(a.opt.ApiKeys)
+		guard       = make(chan struct{}, max(1, a.opt.ThreadsCount))
+		stats       fileStats
+		wg          sync.WaitGroup // wait group to wait for all jobs to complete
+		fileCounter uint64
+
+		notifyOnce sync.Once
+	)
 
 	for path := range filesSeq {
+		notifyOnce.Do(func() { a.logf("Compression process has started. Please be patient...\n") })
+
 		func() { guard <- struct{}{}; wg.Add(1) }() // acquire a concurrency slot
 
-		go func(path string) {
+		fileCounter++
+
+		go func(fileCounter uint64, path string) {
 			defer func() { <-guard; wg.Done() }()
 
-			a.logf("Processing %s\n", path)
+			var filename = filepath.Base(path)
+
+			stat, statErr := os.Stat(path)
+			if statErr != nil {
+				errs <- fmt.Errorf("failed to get the file info (%s): %w", filename, statErr)
+
+				return
+			}
+
+			var fStat = fileStat{
+				Path:     path,
+				OrigSize: uint64(stat.Size()), //nolint:gosec
+			}
 
 			var comp *tinypng.Compressed
 
 			for { // this loop is used to retry uploading the file if the client is revoked
 				client, revoke, clientFound := pool.Get()
 				if !clientFound || client == nil { // no clients available in the pool
-					cancelIter()
-					a.logf("No API keys available, stopping the process\n")
+					errs <- errors.New("no API keys available")
+					cancelIter() //nolint:wsl
 
 					return
 				}
@@ -251,8 +288,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 						continue // try to get a new client and retry uploading the file
 					}
 
-					a.logf("Failed to upload %s: %s\n", path, cErr)
-					errs <- cErr
+					errs <- fmt.Errorf("failed to upload (%s): %w", filename, cErr)
 
 					return
 				}
@@ -260,45 +296,63 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 				break // exit the loop if the file was uploaded successfully
 			}
 
-			// check if the compressed file is not larger than the original one
-			if compSize := int64(comp.Size); compSize != 0 { //nolint:gosec
-				if stat, err := os.Stat(path); err == nil {
-					if compSize > stat.Size() {
-						a.logf("Compressed file is larger than the original one: %s\n", path)
+			fStat.CompSize = comp.Size
+			fStat.Type = comp.Type
 
-						return
-					}
-				}
+			// continue the job only if all the following conditions are met:
+			// - compressed file size is not 0
+			// - compressed file size is less than the original one
+			// - the difference between the original and compressed file sizes is greater than N%
+			if comp.Size == 0 ||
+				int64(comp.Size) >= stat.Size() || //nolint:gosec
+				((float64(stat.Size())-float64(comp.Size))/float64(comp.Size))*100 < a.opt.SkipIfDiffLessThan {
+				fStat.Skipped = true
+				stats.Add(fStat)
+
+				return
 			}
 
 			var tmpFilePath = path + ".tiny"
 
 			defer func() { // remove the temporary file if it exists
-				if _, err := os.Stat(tmpFilePath); err == nil {
+				if _, tmpStatErr := os.Stat(tmpFilePath); tmpStatErr == nil {
 					_ = os.Remove(tmpFilePath)
 				}
 			}()
 
 			// download the compressed file and save it to the temporary file
 			if err := a.downloadCompressed(ctx, comp, tmpFilePath); err != nil {
-				a.logf("Failed to download the compressed file for %s: %s\n", path, err)
-				errs <- err
+				errs <- fmt.Errorf("failed to download the compressed file (%s): %w", filename, err)
 
 				return
 			}
 
 			if err := a.replaceFiles(ctx, path, tmpFilePath); err != nil {
-				a.logf("Failed to replace the original file with the compressed one: %s\n", err)
-				errs <- err
+				errs <- fmt.Errorf("failed to replace (%s): %w", filename, err)
 
 				return
 			}
-		}(path)
+
+			a.logf(
+				"%s File %s compressed (%s → %s / %s, %s)\n",
+				progressString(fileCounter),
+				filename,
+				humanize.Bytes(stat.Size()),
+				humanize.Bytes(comp.Size),
+				humanize.BytesDiff(comp.Size, stat.Size()),
+				humanize.PercentageDiff(comp.Size, stat.Size()),
+			)
+
+			stats.Add(fStat)
+		}(fileCounter, path)
 	}
 
 	wg.Wait()    // wait for all jobs to complete
 	close(guard) // close the guard channel
-	close(errs)  // close the errors channel
+
+	if table := stats.Table(); table != "" {
+		a.logf("\n%s\n", table)
+	}
 
 	return ctx.Err()
 }
@@ -352,7 +406,7 @@ func (a *App) downloadCompressed(
 
 			var opts []tinypng.DownloadOption
 
-			if !a.opt.UpdateFileModDate {
+			if a.opt.PreserveTime {
 				opts = append(opts, tinypng.WithDownloadPreserveCreation())
 			}
 
@@ -365,41 +419,46 @@ func (a *App) downloadCompressed(
 
 // Step 3 is replaceFiles - it replaces the original file content with the compressed one.
 func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error {
-	return retry.Try(ctx, retryAttempts, func(context.Context, uint) error {
-		origStat, err := os.Stat(origPath)
-		if err != nil {
-			return err
-		}
+	return retry.Try(
+		ctx,
+		retryAttempts,
+		func(context.Context, uint) error {
+			origStat, err := os.Stat(origPath)
+			if err != nil {
+				return err
+			}
 
-		comp, err := os.OpenFile(compPath, os.O_RDONLY, 0)
-		if err != nil {
-			return err
-		}
+			comp, err := os.OpenFile(compPath, os.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
 
-		defer func() { _ = comp.Close() }()
+			defer func() { _ = comp.Close() }()
 
-		orig, err := os.OpenFile(origPath, os.O_WRONLY|os.O_TRUNC, 0)
-		if err != nil {
-			return err
-		}
+			orig, err := os.OpenFile(origPath, os.O_WRONLY|os.O_TRUNC, 0)
+			if err != nil {
+				return err
+			}
 
-		defer func() { _ = orig.Close() }()
+			defer func() { _ = orig.Close() }()
 
-		if _, copyErr := io.Copy(orig, comp); copyErr != nil {
-			return copyErr
-		}
+			if _, copyErr := io.Copy(orig, comp); copyErr != nil {
+				return copyErr
+			}
 
-		_, _ = comp.Close(), orig.Close()
+			_, _ = comp.Close(), orig.Close()
 
-		if !a.opt.UpdateFileModDate {
-			// restore original file modification date
-			// atime: time of last access (ls -lu)
-			// mtime: time of last modification (ls -l)
-			_ = os.Chtimes(origPath, origStat.ModTime(), origStat.ModTime())
-		}
+			if a.opt.PreserveTime {
+				// restore original file modification date
+				// atime: time of last access (ls -lu)
+				// mtime: time of last modification (ls -l)
+				_ = os.Chtimes(origPath, origStat.ModTime(), origStat.ModTime())
+			}
 
-		return nil
-	}, retry.WithDelayBetweenAttempts(delayBetweenAttempts))
+			return nil
+		},
+		retry.WithDelayBetweenAttempts(delayBetweenAttempts),
+	)
 }
 
 func (a *App) logf(format string, args ...any) {

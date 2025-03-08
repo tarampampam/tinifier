@@ -8,21 +8,23 @@ import (
 )
 
 type options struct {
-	ApiKeys           []string
-	FileExtensions    []string
-	ThreadsCount      uint
-	MaxErrorsToStop   uint
-	Recursive         bool
-	UpdateFileModDate bool
+	ApiKeys            []string
+	FileExtensions     []string
+	ThreadsCount       uint
+	MaxErrorsToStop    uint
+	Recursive          bool
+	SkipIfDiffLessThan float64 // in percents [0.00 - 100.00]
+	PreserveTime       bool
 }
 
 func newOptionsWithDefaults() options {
 	return options{
-		FileExtensions:    []string{"png", "jpeg", "jpg", "webp", "avif"},
-		ThreadsCount:      16, //nolint:mnd
-		MaxErrorsToStop:   10, //nolint:mnd
-		Recursive:         false,
-		UpdateFileModDate: false,
+		FileExtensions:     []string{"png", "jpeg", "jpg", "webp", "avif"},
+		ThreadsCount:       16, //nolint:mnd
+		MaxErrorsToStop:    10, //nolint:mnd
+		Recursive:          false,
+		SkipIfDiffLessThan: 1,
+		PreserveTime:       false,
 	}
 }
 
