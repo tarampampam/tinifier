@@ -14,7 +14,7 @@ linters-settings:
     sections:
       - standard
       - default
-      - prefix(gh.tarampamp.am/describe-commit)
+      - prefix(gh.tarampamp.am/tinifier)
   gofmt:
     simplify: false
     rewrite-rules:

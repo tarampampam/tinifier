@@ -6,6 +6,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -153,6 +154,8 @@ func iterateFiles( //nolint:gocognit
 		}
 
 		_ = f.Close() // close the directory after reading
+
+		slices.Sort(names)
 
 	loop:
 		for _, path := range names {
