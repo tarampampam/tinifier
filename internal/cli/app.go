@@ -232,7 +232,10 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 
 	// run background goroutine to process errors and stop the process if needed
 	go func() {
-		var counter uint
+		var (
+			counter uint
+			once    sync.Once
+		)
 
 		for err := range errs { // wait for errors to come or exit if the channel is closed
 			counter++
@@ -242,9 +245,11 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 			}
 
 			if a.opt.MaxErrorsToStop > 0 && counter >= a.opt.MaxErrorsToStop {
-				a.logf("Maximum number of errors reached, stopping the process\n")
+				once.Do(func() {
+					a.logf("Maximum number of errors reached, stopping the process\n")
 
-				cancelIter()
+					cancelIter()
+				})
 			}
 		}
 	}()
@@ -256,11 +261,11 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 		wg          sync.WaitGroup // wait group to wait for all jobs to complete
 		fileCounter uint64
 
-		notifyOnce sync.Once
+		once sync.Once
 	)
 
 	for path := range filesSeq {
-		notifyOnce.Do(func() {
+		once.Do(func() {
 			a.logf(
 				"Compression process has started (%s). Please be patient...\n",
 				strings.Join([]string{
@@ -297,7 +302,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 			for { // this loop is used to retry uploading the file if the client is revoked
 				client, revoke, clientFound := pool.Get()
 				if !clientFound || client == nil { // no clients available in the pool
-					errs <- errors.New("no API keys available")
+					errs <- errors.New("no valid API keys available")
 					cancelIter() //nolint:wsl
 
 					return

@@ -1,3 +1,21 @@
+# This is an example configuration file for tinifier.
+#
+# By default, this file is searched for in the user's configuration directory:
+# - For Linux: `~/.configs/tinifier.yml`
+# - For Windows: `%APPDATA%\tinifier.yml`
+# - For macOS: `~/Library/Application Support/tinifier.yml`
+#
+# You can override this behavior by specifying the path to the configuration file using the `--config-file`
+# flag or by setting the `CONFIG_FILE` environment variable.
+
+# The list of API keys to use, obtain your own at https://tinypng.com/dashboard/api.
+#
+# Note: If you need to process a large number of files and have a Gmail account, you can use the following
+# trick - register multiple accounts on tinypng.com using aliases such as `your_mailbox+key1@gmail.com`,
+# `your_mailbox+key2@gmail.com`, etc. This allows you to use a single mailbox to retrieve as many free API
+# keys as needed.
+#
+# @type {string[]}
 apiKeys:
   - wrMZxxxxxxxxxxxxxxxxxxxxxxxxx2RP
   - q1NCxxxxxxxxxxxxxxxxxxxxxxxx30q2
