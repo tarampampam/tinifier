@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: tinifier
+
+before:
+  hooks:
+    - go generate -skip readme ./...
+    - go build -o /dev/null ./cmd/tinifier
+
+builds: # https://goreleaser.com/customization/builds/go/
+  - main: ./cmd/tinifier
+    binary: tinifier
+    goos: [windows, darwin, linux]
+    goarch: [amd64, arm, arm64]
+    env: [CGO_ENABLED=0]
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags: [-trimpath]
+    ldflags: ['-s -w -X gh.tarampamp.am/tinifier/v5/internal/version.version={{ .Version }}']
+
+changelog: {disable: true} # https://goreleaser.com/customization/changelog/
+
+release: # https://goreleaser.com/customization/release/
+  draft: true # if true, will not auto-publish the release
+  mode: append
+  footer: |
+    {{ if isEnvSet "DOCKER_IMAGES" }}
+    ## 🐋 Docker image
+
+    ```cpp
+    {{ .Env.DOCKER_IMAGES }}
+    ```
+    {{ end }}
+
+archives: # https://goreleaser.com/customization/archive/
+  - id: default
+    name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}'
+    formats: [gz, binary]
+    files: [none*]
+    format_overrides: [{goos: windows, formats: [zip, binary]}]
+  - id: aur
+    name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}'
+    formats: [tar.gz]
+    files: [LICENSE]
+    format_overrides: [{goos: windows, formats: [none]}]
+
+checksum: # https://goreleaser.com/customization/checksum/
+  algorithm: sha256
+  split: false # if true, will create one checksum file for each artifact
+  name_template: checksums.txt
+
+nfpms: # https://goreleaser.com/customization/nfpm/
+  - file_name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}'
+    maintainer: '{{ envOrDefault "OWNER" "Tarampampam" }}'
+    description: CLI tool for compressing images using the TinyPNG
+    bindir: /usr/local/bin
+    formats: [apk, deb, rpm, archlinux]
+    dependencies: [git]
+
+aurs: # https://goreleaser.com/customization/aur/
+  - name: tinifier-bin
+    ids: [aur]
+    homepage: 'https://github.com/tarampampam/tinifier'
+    description: CLI tool for compressing images using the TinyPNG
+    maintainers:
+      - tarampampam <murmur at cats dot rulez>
+    license: MIT
+    private_key: '{{ .Env.AUR_SSH_PRIVATE }}'
+    git_url: ssh://aur@aur.archlinux.org/tinifier-bin.git
+    provides: [tinifier]
+    conflicts: [tinifier]
+    depends: [git]
+    commit_author:
+      name: '{{ .Env.AUR_GIT_USERNAME }}'
+      email: '{{ .Env.AUR_GIT_EMAIL }}'
+
+# Source archives for AUR sources package
+source: # https://goreleaser.com/customization/source/
+  enabled: true
+  name_template: '{{ .ProjectName }}_v{{ .Version }}_sources'
+
+aur_sources: # https://goreleaser.com/customization/aursources/
+  - name: tinifier
+    homepage: 'https://github.com/tarampampam/tinifier'
+    description: CLI tool for compressing images using the TinyPNG
+    maintainers:
+      - tarampampam <murmur at cats dot rulez>
+    license: MIT
+    private_key: '{{ .Env.AUR_SSH_PRIVATE }}'
+    git_url: ssh://aur@aur.archlinux.org/tinifier.git
+    depends: [git]
+    makedepends:
+      - go
+    prepare: |-
+      go mod download
+    build: |-
+      go generate -skip readme ./...
+
+      CGO_ENABLED=0 go build \
+        -trimpath \
+        -ldflags "-s -w -X gh.tarampamp.am/tinifier/v5/internal/version.version=${pkgver}" \
+        -o ./tinifier \
+        ./cmd/tinifier/
+    package: install -Dm755 "./{{ .ProjectName }}" "$pkgdir/usr/bin/{{ .ProjectName }}"
+    commit_author:
+      name: '{{ .Env.AUR_GIT_USERNAME }}'
+      email: '{{ .Env.AUR_GIT_EMAIL }}'

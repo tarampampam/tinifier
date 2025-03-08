@@ -64,7 +64,7 @@ tinifier -k 'YOUR-API-KEY-GOES-HERE' ./img.png
 #### ☝ Compress All PNG Images in a Directory and Two Other Images
 
 ```shell
-tinifier -k 'YOUR-API-KEY-GOES-HERE' -e png ./images-directory ./img-1.png ./img-2.png
+tinifier -k 'API-KEY-1,API-KEY-2' -e png ./images-directory ./img-1.png ./img-2.png
 ```
 
 #### ☝ Compress JPG and PNG Images in a Directory (Recursively) Using 20 Threads

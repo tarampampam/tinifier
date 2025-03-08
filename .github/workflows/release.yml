@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# docs: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+
+name: 🚀 Release
+
+on:
+  release: {types: [published]}
+  workflow_dispatch: {}
+
+jobs:
+  values:
+    name: Values
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.out }}
+      owner: ${{ steps.owner.outputs.out }}
+      repo: ${{ steps.repo.outputs.out }}
+      docker-images: ${{ steps.docker-images.outputs.out }}
+    steps:
+      - {uses: gacts/github-slug@v1, id: slug}
+      - {id: version, run: 'echo "out=${{ steps.slug.outputs.version-semantic }}" > "$GITHUB_OUTPUT"'}
+      - {id: owner,   run: 'echo "out=${{ github.repository_owner }}" > "$GITHUB_OUTPUT"'}
+      - {id: repo,    run: 'echo "out=${{ github.event.repository.name }}" > "$GITHUB_OUTPUT"'}
+      - id: docker-images
+        env:
+          GH_IMAGE: ghcr.io/${{ github.repository }}
+          DH_IMAGE: tarampampam/tinifier
+          VERSION: ${{ steps.version.outputs.out }}
+          MAJOR: ${{ steps.slug.outputs.version-major }}
+          MINOR: ${{ steps.slug.outputs.version-minor }}
+        run: |
+          echo 'out<<EOF' >> $GITHUB_OUTPUT
+          echo "$GH_IMAGE:latest" >> "$GITHUB_OUTPUT"
+          echo "$GH_IMAGE:$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "$GH_IMAGE:$MAJOR.$MINOR" >> "$GITHUB_OUTPUT"
+          echo "$GH_IMAGE:$VERSION" >> "$GITHUB_OUTPUT"
+          echo "$DH_IMAGE:latest" >> "$GITHUB_OUTPUT"
+          echo "$DH_IMAGE:$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "$DH_IMAGE:$MAJOR.$MINOR" >> "$GITHUB_OUTPUT"
+          echo "$DH_IMAGE:$VERSION" >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+  build-app:
+    name: Build the app
+    runs-on: ubuntu-latest
+    needs: [values]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - {uses: actions/checkout@v4, with: {fetch-depth: 0}}
+      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
+      - uses: goreleaser/goreleaser-action@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ needs.values.outputs.owner }}
+          DOCKER_IMAGES: ${{ needs.values.outputs.docker-images }}
+          AUR_GIT_USERNAME: ${{ secrets.AUR_GIT_USERNAME }}
+          AUR_GIT_EMAIL: ${{ secrets.AUR_GIT_EMAIL }}
+          AUR_SSH_PRIVATE: ${{ secrets.AUR_SSH_PRIVATE }}
+        with: {args: release --clean}
+      - uses: actions/attest-build-provenance@v2
+        with: {subject-checksums: ./dist/checksums.txt}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            dist/*.deb
+            dist/*.apk
+            dist/*.rpm
+
+  upload-packages:
+    name: Upload the packages
+    runs-on: ubuntu-latest
+    needs: [values, build-app]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {format: alpine, distro: alpine, file: tinifier-linux-amd64.apk}
+          - {format: alpine, distro: alpine, file: tinifier-linux-arm64.apk}
+          - {format: alpine, distro: alpine, file: tinifier-linux-arm.apk}
+          - {format: deb, distro: any-distro, file: tinifier-linux-amd64.deb}
+          - {format: deb, distro: any-distro, file: tinifier-linux-arm64.deb}
+          - {format: deb, distro: any-distro, file: tinifier-linux-arm.deb}
+          - {format: rpm, distro: any-distro, file: tinifier-linux-amd64.rpm}
+          - {format: rpm, distro: any-distro, file: tinifier-linux-arm64.rpm}
+          - {format: rpm, distro: any-distro, file: tinifier-linux-arm.rpm}
+    steps:
+      - {uses: actions/download-artifact@v4, with: {name: packages}}
+      - id: new-file-name
+        run: |
+          filename='${{ matrix.file }}'
+          suffix='${{ needs.values.outputs.version }}'
+          echo "out=${filename%.*}-${suffix}.${filename##*.}" > "$GITHUB_OUTPUT"
+      - run: mv ${{ matrix.file }} ${{ steps.new-file-name.outputs.out }} # to avoid collision
+      - uses: cloudsmith-io/action@v0.6.14
+        with:
+          skip-install-cli: 'true'
+          api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
+          command: push
+          format: ${{ matrix.format }}
+          distro: ${{ matrix.distro }}
+          release: any-version
+          owner: ${{ vars.CLOUDSMITH_OWNER }}
+          repo: ${{ vars.CLOUDSMITH_REPO }}
+          republish: 'true'
+          file: ${{ steps.new-file-name.outputs.out }}
+
+  build-docker-image:
+    name: Build the docker image
+    runs-on: ubuntu-latest
+    needs: [values]
+    permissions: {packages: write}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}'}
+      - uses: docker/login-action@v3
+        with: {username: '${{ secrets.DOCKER_LOGIN }}', password: '${{ secrets.DOCKER_PASSWORD }}'}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: "APP_VERSION=${{ needs.values.outputs.version }}"
+          tags: ${{ needs.values.outputs.docker-images }}

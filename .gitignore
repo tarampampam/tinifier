@@ -9,6 +9,7 @@
 ## Temp dirs & trash
 /temp
 /tmp
+/dist
 /__old__
 .DS_Store
 *.cache
