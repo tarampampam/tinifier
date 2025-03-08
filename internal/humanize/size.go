@@ -17,6 +17,10 @@ func Bytes[T integer](bytes T) string {
 		sign, bytes = "-", -bytes
 	}
 
+	if asInt < 0 {
+		asInt = -asInt
+	}
+
 	switch {
 	case asInt >= tb:
 		return fmt.Sprintf("%s%.2f TB", sign, float64(bytes)/float64(tb))

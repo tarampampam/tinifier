@@ -15,10 +15,10 @@ func TestPercentageDiff(t *testing.T) {
 	assertEqual(t, "2.35%", humanize.PercentageDiff(130.93, 127.92))
 	assertEqual(t, "-2.30%", humanize.PercentageDiff(127.92, 130.93))
 
-	assertEqual(t, "0.00%", humanize.PercentageDiff(1, 0))
-	assertEqual(t, "-100.00%", humanize.PercentageDiff(0, 1))
-	assertEqual(t, "99900.00%", humanize.PercentageDiff(1, 0.001))
-	assertEqual(t, "-50.00%", humanize.PercentageDiff(1, 2))
+	assertEqual(t, "0.00%", humanize.PercentageDiff(int16(1), byte(0)))
+	assertEqual(t, "-100.00%", humanize.PercentageDiff(0, int32(1)))
+	assertEqual(t, "99900.00%", humanize.PercentageDiff(1, float32(0.001)))
+	assertEqual(t, "-50.00%", humanize.PercentageDiff(uint(1), int32(2)))
 	assertEqual(t, "-90.00%", humanize.PercentageDiff(1, 10))
 	assertEqual(t, "-99.00%", humanize.PercentageDiff(1, 100))
 
@@ -35,7 +35,7 @@ func TestPercentageDiff(t *testing.T) {
 	assertEqual(t, "-223.00%", humanize.PercentageDiff(123, -100))
 
 	assertEqual(t, "-98.37%", humanize.PercentageDiff(-2, -123))
-	assertEqual(t, "-91.87%", humanize.PercentageDiff(-10, -123))
+	assertEqual(t, "-91.87%", humanize.PercentageDiff(int64(-10), int32(-123)))
 	assertEqual(t, "6050.00%", humanize.PercentageDiff(-123, -2))
 	assertEqual(t, "1130.00%", humanize.PercentageDiff(-123, -10))
 

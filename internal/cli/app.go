@@ -78,6 +78,18 @@ func NewApp(name string) *App { //nolint:funlen
 			EnvVars: []string{"MAX_ERRORS"},
 			Default: app.opt.MaxErrorsToStop,
 		}
+		retryAttempts = cmd.Flag[uint]{
+			Names:   []string{"retry-attempts"},
+			Usage:   "Number of retry attempts for upload/download/replace operations",
+			EnvVars: []string{"RETRY_ATTEMPTS"},
+			Default: app.opt.RetryAttempts,
+		}
+		delayBetweenRetries = cmd.Flag[time.Duration]{
+			Names:   []string{"delay-between-retries"},
+			Usage:   "Delay between retry attempts",
+			EnvVars: []string{"DELAY_BETWEEN_RETRIES"},
+			Default: app.opt.DelayBetweenRetries,
+		}
 		recursive = cmd.Flag[bool]{
 			Names:   []string{"recursive", "r"},
 			Usage:   "Search for files in listed directories recursively",
@@ -104,6 +116,8 @@ func NewApp(name string) *App { //nolint:funlen
 		&fileExtensions,
 		&threatsCount,
 		&maxErrorsToStop,
+		&retryAttempts,
+		&delayBetweenRetries,
 		&recursive,
 		&skipIfDiffLessThan,
 		&preserveTime,
@@ -133,6 +147,8 @@ func NewApp(name string) *App { //nolint:funlen
 
 			setIfFlagIsSet(&app.opt.ThreadsCount, threatsCount)
 			setIfFlagIsSet(&app.opt.MaxErrorsToStop, maxErrorsToStop)
+			setIfFlagIsSet(&app.opt.RetryAttempts, retryAttempts)
+			setIfFlagIsSet(&app.opt.DelayBetweenRetries, delayBetweenRetries)
 			setIfFlagIsSet(&app.opt.Recursive, recursive)
 			setIfFlagIsSet(&app.opt.SkipIfDiffLessThan, skipIfDiffLessThan)
 			setIfFlagIsSet(&app.opt.PreserveTime, preserveTime)
@@ -244,7 +260,16 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 	)
 
 	for path := range filesSeq {
-		notifyOnce.Do(func() { a.logf("Compression process has started. Please be patient...\n") })
+		notifyOnce.Do(func() {
+			a.logf(
+				"Compression process has started (%s). Please be patient...\n",
+				strings.Join([]string{
+					fmt.Sprintf("keys = %d", len(a.opt.ApiKeys)),
+					fmt.Sprintf("threads = %d", a.opt.ThreadsCount),
+					fmt.Sprintf("time preservation = %t", a.opt.PreserveTime),
+				}, ", "),
+			)
+		})
 
 		func() { guard <- struct{}{}; wg.Add(1) }() // acquire a concurrency slot
 
@@ -357,16 +382,11 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 	return ctx.Err()
 }
 
-const (
-	retryAttempts        uint = 3           // TODO: make it configurable?
-	delayBetweenAttempts      = time.Second // TODO: make it configurable?
-)
-
 // Step 1 is uploadFile - it uploads the file to the tinypng.com.
 func (a *App) uploadFile(ctx context.Context, path string, c *tinypng.Client) (res *tinypng.Compressed, _ error) {
 	return res, retry.Try(
 		ctx,
-		retryAttempts,
+		a.opt.RetryAttempts,
 		func(context.Context, uint) error {
 			f, err := os.OpenFile(path, os.O_RDONLY, 0)
 			if err != nil {
@@ -382,7 +402,7 @@ func (a *App) uploadFile(ctx context.Context, path string, c *tinypng.Client) (r
 
 			return nil
 		},
-		retry.WithDelayBetweenAttempts(delayBetweenAttempts),
+		retry.WithDelayBetweenAttempts(a.opt.DelayBetweenRetries),
 		retry.WithStopOnError(tinypng.ErrUnauthorized, tinypng.ErrTooManyRequests),
 	)
 }
@@ -395,7 +415,7 @@ func (a *App) downloadCompressed(
 ) error {
 	return retry.Try(
 		ctx,
-		retryAttempts,
+		a.opt.RetryAttempts,
 		func(context.Context, uint) error {
 			f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644) //nolint:mnd
 			if err != nil {
@@ -412,7 +432,7 @@ func (a *App) downloadCompressed(
 
 			return comp.Download(ctx, f, opts...)
 		},
-		retry.WithDelayBetweenAttempts(delayBetweenAttempts),
+		retry.WithDelayBetweenAttempts(a.opt.DelayBetweenRetries),
 		retry.WithStopOnError(tinypng.ErrUnauthorized, tinypng.ErrTooManyRequests),
 	)
 }
@@ -421,7 +441,7 @@ func (a *App) downloadCompressed(
 func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error {
 	return retry.Try(
 		ctx,
-		retryAttempts,
+		a.opt.RetryAttempts,
 		func(context.Context, uint) error {
 			origStat, err := os.Stat(origPath)
 			if err != nil {
@@ -457,7 +477,7 @@ func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error
 
 			return nil
 		},
-		retry.WithDelayBetweenAttempts(delayBetweenAttempts),
+		retry.WithDelayBetweenAttempts(a.opt.DelayBetweenRetries),
 	)
 }
 

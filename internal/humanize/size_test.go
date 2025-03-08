@@ -36,6 +36,10 @@ func TestBytesDiff(t *testing.T) {
 	assertEqual(t, "1 B", humanize.BytesDiff(-1, -2))
 	assertEqual(t, "1 B", humanize.BytesDiff(-1, -2))
 	assertEqual(t, "-1019.00 GB", humanize.BytesDiff(5368709120, 1099511627776))
+	assertEqual(t, "1019.00 GB", humanize.BytesDiff(1099511627776, 5368709120))
+
+	assertEqual(t, "1.00 TB", humanize.BytesDiff(1099511627776, -5368709120))
+	assertEqual(t, "-1.00 TB", humanize.BytesDiff(-1099511627776, 5368709120))
 }
 
 // assertEqual checks if two values of a comparable type are equal.
