@@ -12,6 +12,13 @@
 `tinifier` is a CLI tool for compressing images using the [TinyPNG](https://tinypng.com) API, with parallel
 processing to speed up the workflow.
 
+> TinyPNG uses intelligent lossy compression techniques to reduce the file size of your WEBP, AVIF, JPEG, and
+> PNG files. By selectively decreasing the number of colors in an image, fewer bytes are needed to store the
+> data. The effect is nearly imperceptible, but it significantly reduces file size.
+>
+> Images uploaded to TinyPNG are automatically removed after a maximum of 48 hours, and only you are allowed
+> to download them.
+
 ![demo](art/demo.gif)
 
 ## 🔥 Features list
