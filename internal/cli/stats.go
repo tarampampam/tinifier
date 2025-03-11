@@ -101,16 +101,16 @@ func (fs *fileStats) Table() string { //nolint:funlen
 		fileName, typeName, diffSize, deltaSize := row[0], row[1], row[2], row[3]
 
 		b.WriteString(fileName)
-		b.WriteString(strings.Repeat(" ", longestFileName-utf8.RuneCountInString(fileName)))
+		b.WriteString(strings.Repeat(" ", max(0, longestFileName-utf8.RuneCountInString(fileName))))
 		b.WriteString(pad)
 
 		b.WriteString(typeName)
-		b.WriteString(strings.Repeat(" ", longestType-utf8.RuneCountInString(typeName)))
+		b.WriteString(strings.Repeat(" ", max(0, longestType-utf8.RuneCountInString(typeName))))
 		b.WriteString(pad)
 
 		if !item.Skipped {
 			b.WriteString(diffSize)
-			b.WriteString(strings.Repeat(" ", longestDiffSize-utf8.RuneCountInString(diffSize)))
+			b.WriteString(strings.Repeat(" ", max(0, longestDiffSize-utf8.RuneCountInString(diffSize))))
 			b.WriteString(pad)
 
 			b.WriteRune('(')
@@ -128,13 +128,13 @@ func (fs *fileStats) Table() string { //nolint:funlen
 	if l := len(fs.Items); l > 1 && totalSkipped < l {
 		b.WriteRune('\n')
 		b.WriteString("   ") // [space][emoji][space]
-		b.WriteString(strings.Repeat(" ", longestFileName))
+		b.WriteString(strings.Repeat(" ", max(0, longestFileName)))
 		b.WriteString(pad)
 
 		const total = "Total:"
 
 		b.WriteString(total)
-		b.WriteString(strings.Repeat(" ", longestType-utf8.RuneCountInString(total)))
+		b.WriteString(strings.Repeat(" ", max(0, longestType-utf8.RuneCountInString(total))))
 		b.WriteString(pad)
 
 		var (
@@ -149,7 +149,7 @@ func (fs *fileStats) Table() string { //nolint:funlen
 		)
 
 		b.WriteString(diffSize)
-		b.WriteString(strings.Repeat(" ", longestDiffSize-utf8.RuneCountInString(diffSize)))
+		b.WriteString(strings.Repeat(" ", max(0, longestDiffSize-utf8.RuneCountInString(diffSize))))
 		b.WriteString(pad)
 
 		b.WriteRune('(')
