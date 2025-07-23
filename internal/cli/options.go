@@ -18,6 +18,7 @@ type options struct {
 	Recursive           bool
 	SkipIfDiffLessThan  float64 // in percents [0.00 - 100.00]
 	PreserveTime        bool
+	KeepOriginalFile    bool
 }
 
 func newOptionsWithDefaults() options {
@@ -30,6 +31,7 @@ func newOptionsWithDefaults() options {
 		Recursive:           false,
 		SkipIfDiffLessThan:  1, // 1.00% by default
 		PreserveTime:        false,
+		KeepOriginalFile:    false,
 	}
 }
 

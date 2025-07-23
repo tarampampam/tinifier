@@ -70,7 +70,6 @@ func TestGroup_Go_CancelOnFirstError(t *testing.T) {
 	})
 
 	var err = eg.Wait()
-
 	if err == nil {
 		t.Error("expected an error")
 

@@ -444,6 +444,7 @@ func TestCompressed_Download(t *testing.T) {
 
 			case "https://api.tinify.com/output/someRandomResultImageHash123":
 				assertEqual(t, http.MethodGet, req.Method)
+
 				return &http.Response{
 					StatusCode: http.StatusUnauthorized, // <-- important
 					Body:       io.NopCloser(bytes.NewReader([]byte{})),

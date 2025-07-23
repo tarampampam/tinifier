@@ -108,6 +108,12 @@ func NewApp(name string) *App { //nolint:funlen
 			EnvVars: []string{"PRESERVE_TIME"},
 			Default: app.opt.PreserveTime,
 		}
+		keepOriginalFile = cmd.Flag[bool]{
+			Names:   []string{"keep-original-file"},
+			Usage:   "Leave the original (uncompressed) file next to the compressed one (with the .orig extension)",
+			EnvVars: []string{"KEEP_ORIGINAL_FILE"},
+			Default: app.opt.KeepOriginalFile,
+		}
 	)
 
 	app.cmd.Flags = []cmd.Flagger{
@@ -121,6 +127,7 @@ func NewApp(name string) *App { //nolint:funlen
 		&recursive,
 		&skipIfDiffLessThan,
 		&preserveTime,
+		&keepOriginalFile,
 	}
 
 	app.cmd.Action = func(ctx context.Context, c *cmd.Command, args []string) error {
@@ -152,6 +159,7 @@ func NewApp(name string) *App { //nolint:funlen
 			setIfFlagIsSet(&app.opt.Recursive, recursive)
 			setIfFlagIsSet(&app.opt.SkipIfDiffLessThan, skipIfDiffLessThan)
 			setIfFlagIsSet(&app.opt.PreserveTime, preserveTime)
+			setIfFlagIsSet(&app.opt.KeepOriginalFile, keepOriginalFile)
 		}
 
 		if err := app.opt.Validate(); err != nil {
@@ -308,7 +316,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 				client, revoke, clientFound := pool.Get()
 				if !clientFound || client == nil { // no clients available in the pool
 					errs <- errors.New("no valid API keys available")
-					cancelIter() //nolint:wsl
+					cancelIter() //nolint:wsl_v5
 
 					return
 				}
@@ -458,7 +466,7 @@ func (a *App) downloadCompressed(
 }
 
 // Step 3 is replaceFiles - it replaces the original file content with the compressed one.
-func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error {
+func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error { //nolint:funlen
 	return retry.Try(
 		ctx,
 		a.opt.RetryAttempts,
@@ -474,6 +482,35 @@ func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error
 			}
 
 			defer func() { _ = comp.Close() }()
+
+			// make a copy of original file before replacing it, if needed
+			if a.opt.KeepOriginalFile {
+				if err = func() error { // wrap copying logic into a function to make defers great again
+					orig, oErr := os.OpenFile(origPath, os.O_RDONLY, 0)
+					if oErr != nil {
+						return oErr
+					}
+
+					defer func() { _ = orig.Close() }()
+
+					origCopy, oErr := os.OpenFile(origPath+".orig", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, origStat.Mode().Perm())
+					if oErr != nil {
+						return fmt.Errorf("failed to create file for copy of the original file: %w", oErr)
+					}
+
+					defer func() { _ = origCopy.Close() }()
+
+					if _, err = io.Copy(origCopy, orig); err != nil {
+						_ = os.Remove(origCopy.Name()) // remove the copy if failed to write
+
+						return err
+					}
+
+					return nil
+				}(); err != nil {
+					return err
+				}
+			}
 
 			orig, err := os.OpenFile(origPath, os.O_WRONLY|os.O_TRUNC, 0)
 			if err != nil {

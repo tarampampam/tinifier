@@ -49,7 +49,7 @@ func run() error {
 				return
 			case <-sigChan:
 				count++  // increase the signal counter
-				cancel() //nolint:wsl // cancel context on first signal, allowing graceful shutdown
+				cancel() //nolint:wsl_v5 // cancel context on first signal, allowing graceful shutdown
 
 				if count >= 2 { //nolint:mnd // in case of repeated signals
 					once.Do(func() {
