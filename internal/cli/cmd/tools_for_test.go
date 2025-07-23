@@ -72,9 +72,11 @@ func randomString(strLen int) string {
 	var b = make([]byte, strLen)
 
 	rndMu.Lock()
+
 	for i := range b {
 		b[i] = charset[rnd.IntN(len(charset))]
 	}
+
 	rndMu.Unlock()
 
 	return string(b)

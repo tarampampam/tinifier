@@ -316,7 +316,7 @@ func (a *App) run(pCtx context.Context, paths []string) error { //nolint:gocogni
 				client, revoke, clientFound := pool.Get()
 				if !clientFound || client == nil { // no clients available in the pool
 					errs <- errors.New("no valid API keys available")
-					cancelIter() //nolint:wsl
+					cancelIter() //nolint:wsl_v5
 
 					return
 				}
@@ -492,7 +492,7 @@ func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error
 
 				defer func() { _ = orig.Close() }()
 
-				origCopy, oErr := os.OpenFile(orig.Name()+".orig", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, origStat.Mode().Perm())
+				origCopy, oErr := os.OpenFile(origPath+".orig", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, origStat.Mode().Perm())
 				if oErr != nil {
 					return fmt.Errorf("failed to create file for copy of the original file: %w", oErr)
 				}
