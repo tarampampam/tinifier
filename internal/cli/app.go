@@ -466,7 +466,7 @@ func (a *App) downloadCompressed(
 }
 
 // Step 3 is replaceFiles - it replaces the original file content with the compressed one.
-func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error {
+func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error { //nolint:funlen
 	return retry.Try(
 		ctx,
 		a.opt.RetryAttempts,
@@ -485,27 +485,31 @@ func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error
 
 			// make a copy of original file before replacing it, if needed
 			if a.opt.KeepOriginalFile {
-				orig, oErr := os.OpenFile(origPath, os.O_RDONLY, 0)
-				if oErr != nil {
-					return oErr
-				}
+				if err = func() error { // wrap copying logic into a function to make defers great again
+					orig, oErr := os.OpenFile(origPath, os.O_RDONLY, 0)
+					if oErr != nil {
+						return oErr
+					}
 
-				defer func() { _ = orig.Close() }()
+					defer func() { _ = orig.Close() }()
 
-				origCopy, oErr := os.OpenFile(origPath+".orig", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, origStat.Mode().Perm())
-				if oErr != nil {
-					return fmt.Errorf("failed to create file for copy of the original file: %w", oErr)
-				}
+					origCopy, oErr := os.OpenFile(origPath+".orig", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, origStat.Mode().Perm())
+					if oErr != nil {
+						return fmt.Errorf("failed to create file for copy of the original file: %w", oErr)
+					}
 
-				defer func() { _ = origCopy.Close() }()
+					defer func() { _ = origCopy.Close() }()
 
-				if _, err = io.Copy(origCopy, orig); err != nil {
-					_ = os.Remove(origCopy.Name()) // remove the copy if failed to write
+					if _, err = io.Copy(origCopy, orig); err != nil {
+						_ = os.Remove(origCopy.Name()) // remove the copy if failed to write
 
+						return err
+					}
+
+					return nil
+				}(); err != nil {
 					return err
 				}
-
-				_, _ = orig.Close(), origCopy.Close()
 			}
 
 			orig, err := os.OpenFile(origPath, os.O_WRONLY|os.O_TRUNC, 0)
