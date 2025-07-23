@@ -243,6 +243,7 @@ Options:
    --recursive, -r              Search for files in listed directories recursively [$RECURSIVE]
    --skip-if-diff-less="…"      Skip files if the diff between the original and compressed file sizes < N% (default: 1) [$SKIP_IF_DIFF_LESS]
    --preserve-time, -p          Preserve the original file modification date/time (including EXIF) [$PRESERVE_TIME]
+   --keep-original-file         Leave the original (uncompressed) file next to the compressed one (with the .orig extension) [$KEEP_ORIGINAL_FILE]
    --help, -h                   Show help
    --version, -v                Print the version
 ```

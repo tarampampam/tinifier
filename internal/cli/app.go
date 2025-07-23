@@ -108,6 +108,12 @@ func NewApp(name string) *App { //nolint:funlen
 			EnvVars: []string{"PRESERVE_TIME"},
 			Default: app.opt.PreserveTime,
 		}
+		keepOriginalFile = cmd.Flag[bool]{
+			Names:   []string{"keep-original-file"},
+			Usage:   "Leave the original (uncompressed) file next to the compressed one (with the .orig extension)",
+			EnvVars: []string{"KEEP_ORIGINAL_FILE"},
+			Default: app.opt.KeepOriginalFile,
+		}
 	)
 
 	app.cmd.Flags = []cmd.Flagger{
@@ -121,6 +127,7 @@ func NewApp(name string) *App { //nolint:funlen
 		&recursive,
 		&skipIfDiffLessThan,
 		&preserveTime,
+		&keepOriginalFile,
 	}
 
 	app.cmd.Action = func(ctx context.Context, c *cmd.Command, args []string) error {
@@ -152,6 +159,7 @@ func NewApp(name string) *App { //nolint:funlen
 			setIfFlagIsSet(&app.opt.Recursive, recursive)
 			setIfFlagIsSet(&app.opt.SkipIfDiffLessThan, skipIfDiffLessThan)
 			setIfFlagIsSet(&app.opt.PreserveTime, preserveTime)
+			setIfFlagIsSet(&app.opt.KeepOriginalFile, keepOriginalFile)
 		}
 
 		if err := app.opt.Validate(); err != nil {
@@ -474,6 +482,31 @@ func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error
 			}
 
 			defer func() { _ = comp.Close() }()
+
+			// make a copy of original file before replacing it, if needed
+			if a.opt.KeepOriginalFile {
+				orig, oErr := os.OpenFile(origPath, os.O_RDONLY, 0)
+				if oErr != nil {
+					return oErr
+				}
+
+				defer func() { _ = orig.Close() }()
+
+				origCopy, oErr := os.OpenFile(orig.Name()+".orig", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, origStat.Mode().Perm())
+				if oErr != nil {
+					return fmt.Errorf("failed to create file for copy of the original file: %w", oErr)
+				}
+
+				defer func() { _ = origCopy.Close() }()
+
+				if _, err = io.Copy(origCopy, orig); err != nil {
+					_ = os.Remove(origCopy.Name()) // remove the copy if failed to write
+
+					return err
+				}
+
+				_, _ = orig.Close(), origCopy.Close()
+			}
 
 			orig, err := os.OpenFile(origPath, os.O_WRONLY|os.O_TRUNC, 0)
 			if err != nil {
