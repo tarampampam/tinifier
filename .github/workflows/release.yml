@@ -60,7 +60,7 @@ jobs:
           AUR_GIT_EMAIL: ${{ secrets.AUR_GIT_EMAIL }}
           AUR_SSH_PRIVATE: ${{ secrets.AUR_SSH_PRIVATE }}
         with: {args: release --clean}
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v3
         with: {subject-checksums: ./dist/checksums.txt}
       - uses: actions/upload-artifact@v4
         with:
@@ -116,7 +116,7 @@ jobs:
     needs: [values]
     permissions: {packages: write}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/login-action@v3
         with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}'}
       - uses: docker/login-action@v3
