@@ -62,7 +62,7 @@ jobs:
         with: {args: release --clean}
       - uses: actions/attest-build-provenance@v3
         with: {subject-checksums: ./dist/checksums.txt}
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: packages
           if-no-files-found: error
