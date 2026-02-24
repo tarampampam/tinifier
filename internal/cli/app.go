@@ -501,7 +501,7 @@ func (a *App) replaceFiles(ctx context.Context, origPath, compPath string) error
 					defer func() { _ = origCopy.Close() }()
 
 					if _, err = io.Copy(origCopy, orig); err != nil {
-						_ = os.Remove(origCopy.Name()) // remove the copy if failed to write
+						_ = os.Remove(origCopy.Name()) //nolint:gosec // remove the copy if failed to write
 
 						return err
 					}
