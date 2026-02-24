@@ -58,7 +58,7 @@ jobs:
           CGO_ENABLED: 0
           LDFLAGS: -s -w -X gh.tarampamp.am/tinifier/v5/internal/version.version=${{ steps.values.outputs.app-version }}
         run: go build -trimpath -ldflags "$LDFLAGS" -o "./${{ steps.values.outputs.bin-name }}" ./cmd/tinifier/
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: tinifier-${{ matrix.os }}-${{ matrix.arch }}
           path: ./${{ steps.values.outputs.bin-name }}

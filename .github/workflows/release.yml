@@ -51,7 +51,7 @@ jobs:
     steps:
       - {uses: actions/checkout@v4, with: {fetch-depth: 0}}
       - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ needs.values.outputs.owner }}
@@ -62,7 +62,7 @@ jobs:
         with: {args: release --clean}
       - uses: actions/attest-build-provenance@v3
         with: {subject-checksums: ./dist/checksums.txt}
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: packages
           if-no-files-found: error
