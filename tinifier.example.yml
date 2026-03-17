@@ -1,7 +1,7 @@
 # This is an example configuration file for tinifier.
 #
 # By default, this file is searched for in the user's configuration directory:
-# - For Linux: `~/.configs/tinifier.yml`
+# - For Linux: `~/.config/tinifier.yml`
 # - For Windows: `%APPDATA%\tinifier.yml`
 # - For macOS: `~/Library/Application Support/tinifier.yml`
 #

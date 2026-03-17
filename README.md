@@ -182,7 +182,7 @@ available options.
 You can specify the configuration file's location using the `--config-file` option. By default, however, the
 tool searches for the file in the user's configuration directory:
 
-- **Linux**: `~/.configs/tinifier.yml`
+- **Linux**: `~/.config/tinifier.yml`
 - **Windows**: `%APPDATA%\tinifier.yml`
 - **macOS**: `~/Library/Application Support/tinifier.yml`
 
