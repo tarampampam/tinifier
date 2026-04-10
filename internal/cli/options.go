@@ -9,7 +9,7 @@ import (
 )
 
 type options struct {
-	ApiKeys             []string //nolint:gosec
+	ApiKeys             []string
 	FileExtensions      []string
 	ThreadsCount        uint
 	MaxErrorsToStop     uint

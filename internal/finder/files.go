@@ -171,7 +171,7 @@ func iterateFiles( //nolint:gocognit
 				}
 			}
 
-			stat, statErr := os.Stat(path) //nolint:gosec
+			stat, statErr := os.Stat(path)
 			if statErr != nil || stat.IsDir() {
 				continue // skip directories and files with stat errors
 			}

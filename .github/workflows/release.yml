@@ -17,7 +17,8 @@ jobs:
       repo: ${{ steps.repo.outputs.out }}
       docker-images: ${{ steps.docker-images.outputs.out }}
     steps:
-      - {uses: gacts/github-slug@v1, id: slug}
+      - uses: gacts/github-slug@v1
+        id: slug
       - {id: version, run: 'echo "out=${{ steps.slug.outputs.version-semantic }}" > "$GITHUB_OUTPUT"'}
       - {id: owner,   run: 'echo "out=${{ github.repository_owner }}" > "$GITHUB_OUTPUT"'}
       - {id: repo,    run: 'echo "out=${{ github.event.repository.name }}" > "$GITHUB_OUTPUT"'}
@@ -49,8 +50,10 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - {uses: actions/checkout@v4, with: {fetch-depth: 0}}
-      - {uses: actions/setup-go@v5, with: {go-version-file: go.mod}}
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod}
       - uses: goreleaser/goreleaser-action@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -90,7 +93,8 @@ jobs:
           - {format: rpm, distro: any-distro, file: tinifier-linux-arm64.rpm}
           - {format: rpm, distro: any-distro, file: tinifier-linux-arm.rpm}
     steps:
-      - {uses: actions/download-artifact@v4, with: {name: packages}}
+      - uses: actions/download-artifact@v4
+        with: {name: packages}
       - id: new-file-name
         run: |
           filename='${{ matrix.file }}'
