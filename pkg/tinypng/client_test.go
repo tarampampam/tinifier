@@ -619,7 +619,7 @@ func assertNoError(t *testing.T, err error) {
 func assertNil(t *testing.T, v any) {
 	t.Helper()
 
-	if ref := reflect.ValueOf(v); ref.Kind() == reflect.Ptr && !ref.IsNil() {
+	if ref := reflect.ValueOf(v); ref.Kind() == reflect.Pointer && !ref.IsNil() {
 		t.Fatalf("expected nil, got %v", v)
 	}
 }
