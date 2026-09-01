@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod}
       - run: go generate -skip readme ./...
       - uses: golangci/golangci-lint-action@v9
@@ -53,7 +53,7 @@ jobs:
         run: |
           echo "app-version=${{ steps.slug.outputs.version-semantic }}@${{ steps.slug.outputs.commit-hash-short }}" >> $GITHUB_OUTPUT
           echo "bin-name=tinifier-${{ matrix.os }}-${{ matrix.arch }}`[ ${{ matrix.os }} = 'windows' ] && echo '.exe'`" >> $GITHUB_OUTPUT
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with: {go-version-file: go.mod}
       - run: go generate -skip readme ./...
       - env:
